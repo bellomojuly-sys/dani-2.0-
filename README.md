@@ -49,5 +49,5 @@ python main.py
 | D2-004 | Scope confirmed by teacher | Planned 8 Oct |
 | D2-005 | Clean Python repository | Done |
 | D2-006 | Provider, model and SDK chosen | Done |
-| D2-007 | First fixed request to the model | In progress |
-| D2-008 | Secret moved to the environment | To do |
+| D2-007 | First fixed request to the model | Done |
+| D2-008 | Secret moved to the environment | Done |
