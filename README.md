@@ -28,6 +28,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-07 | Provider: DeepSeek, model `deepseek-flash` | Cheapest option, I already have an account with credit, and it supports tool calls and JSON output, which the next steps need |
 | 2026-10-07 | SDK: OpenAI Python SDK | The DeepSeek API is OpenAI-compatible (base URL `https://api.deepseek.com`) |
 | 2026-10-07 | The API key is never written in the code | The key is read from the environment, so it cannot end up in the repository |
+| 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
 
 ## How to run
 

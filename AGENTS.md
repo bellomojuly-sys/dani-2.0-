@@ -27,7 +27,7 @@ Provider: DeepSeek, model `deepseek-flash`, through the OpenAI Python SDK with `
 
 1. **She must understand everything.** She has to explain each mechanism to her teachers without reading generated text. Answer in Italian; code, comments, tests, README and commit messages are in English.
 2. **Repetitive work: she writes the first two.** When a task repeats the same structure (for example a new tool function with its test, or a new message type), guide her step by step through the first two items of that kind. Only after she writes explicitly "ok, ho capito la logica" (or similar) do you write the remaining items yourself.
-3. **She commits and pushes.** Never run `git commit` or `git push`. Give her the commands. Commit messages start with the microphase ID: `D2-011: <what changed>`.
+3. **Commits and pushes.** Since 2026-10-13 Giulia has authorized the agent to run `git commit` and `git push` on her behalf (see the Decision Log in `README.md`). Keep one commit per microphase and start every commit message with the microphase ID: `D2-011: <what changed>`. Giulia can still ask for the commands instead of a commit at any time.
 4. A microphase is done only when: it has one visible output, an explicit check passes, and she can explain the mechanism. Update the status table in `README.md` when a microphase closes.
 
 ## Code rules
