@@ -51,3 +51,6 @@ python main.py
 | D2-006 | Provider, model and SDK chosen | Done |
 | D2-007 | First fixed request to the model | Done |
 | D2-008 | Secret moved to the environment | Done |
+| D2-009 | Minimal system and user messages | Done |
+| D2-010 | Structured model response validated | Done |
+| D2-011 | `read_tasks` returns three hardcoded tasks | Done |
