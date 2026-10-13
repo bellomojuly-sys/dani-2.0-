@@ -1,11 +1,33 @@
-def read_tasks():
+def _check_no_arguments(tool_name, arguments):
+    """Return a structured error dict if arguments were given, else None.
+
+    "No arguments" is accepted as either None or an empty dict {}.
+    Anything else (a non-empty dict, or a value that is not a dict) is a
+    validation error. We RETURN the error instead of raising it, so the
+    tool loop can hand it back to the LLM to correct itself, and so a wrong
+    call never crashes and never produces an invented result.
+    """
+    if arguments is None or arguments == {}:
+        return None
+    return {"error": f"{tool_name} takes no arguments, got: {arguments!r}"}
+
+
+def read_tasks(arguments=None):
     """Return the three hardcoded tasks for the first MVP.
 
     This is an ordinary Python function: no LLM, no API call.
     Each task is a dict with a stable short "id" and a readable "title".
     The "id" is what later validation will check (each id appears once,
     no id is invented).
+
+    The tool validates the arguments it receives BEFORE doing any work.
+    read_tasks takes no arguments, so anything other than an empty set of
+    arguments is rejected with a structured error (a dict with an "error"
+    key), never a crash and never an invented result.
     """
+    error = _check_no_arguments("read_tasks", arguments)
+    if error is not None:
+        return error
     return [
         {"id": "t1", "title": "Finish the AMEXIO case model"},
         {"id": "t2", "title": "Study MCP"},

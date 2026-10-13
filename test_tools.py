@@ -6,6 +6,30 @@ def test_read_tasks_returns_three_tasks():
     assert len(tasks) == 3
 
 
+def test_read_tasks_accepts_empty_arguments():
+    # "No arguments" may arrive as None or as an empty dict {}.
+    assert len(read_tasks(None)) == 3
+    assert len(read_tasks({})) == 3
+
+
+def test_read_tasks_rejects_unexpected_arguments_with_structured_error():
+    result = read_tasks({"task_id": "t1"})
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_read_tasks_rejects_non_dict_arguments_with_structured_error():
+    result = read_tasks("oops")
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_wrong_arguments_do_not_return_an_invented_task_list():
+    # The refusal must be a structured error, never the tasks anyway.
+    result = read_tasks({"task_id": "t1"})
+    assert not isinstance(result, list)
+
+
 def test_every_task_has_id_and_title():
     tasks = read_tasks()
     for task in tasks:

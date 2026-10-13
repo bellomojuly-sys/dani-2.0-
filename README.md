@@ -55,3 +55,4 @@ python main.py
 | D2-009 | Minimal system and user messages | Done |
 | D2-010 | Structured model response validated | Done |
 | D2-011 | `read_tasks` returns three hardcoded tasks | Done |
+| D2-011a | Tool validates its arguments, returns a structured error | Done |
