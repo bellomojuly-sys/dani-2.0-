@@ -29,6 +29,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-07 | SDK: OpenAI Python SDK | The DeepSeek API is OpenAI-compatible (base URL `https://api.deepseek.com`) |
 | 2026-10-07 | The API key is never written in the code | The key is read from the environment, so it cannot end up in the repository |
 | 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
+| 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
 
 ## How to run
 
