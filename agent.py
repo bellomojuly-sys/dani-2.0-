@@ -1,5 +1,7 @@
 import json
 
+from tools import TOOLS
+
 
 def read_tool_calls(message):
     """Return the tool calls the LLM requested from a response message.
@@ -23,3 +25,18 @@ def read_tool_calls(message):
             }
         )
     return calls
+
+
+def run_tool_call(call, tools=TOOLS):
+    """Execute one requested tool call exactly once and return its result.
+
+    We look the tool up by name in the toolbox and call it with the
+    arguments the LLM provided. Calling this function once runs the tool
+    once: there is no loop and no retry here. An unknown tool name is a
+    structured error, never a crash and never an invented result.
+    """
+    name = call["name"]
+    if name not in tools:
+        return {"error": f"unknown tool: {name!r}"}
+    function = tools[name]
+    return function(call["arguments"])
