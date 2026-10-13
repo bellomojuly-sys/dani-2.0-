@@ -1,8 +1,11 @@
 import os
 import sys
+
 from dotenv import load_dotenv
 from openai import OpenAI
-from answer import parse_answer
+
+from tools import TOOL_SCHEMAS
+from agent import read_tool_calls, build_tool_result_message
 
 load_dotenv()
 
@@ -18,40 +21,35 @@ messages = [
         "role": "system",
         "content": (
             "You are Dani, a personal planning assistant. "
-            "Reply only with a JSON object with two keys: "
-            '"answer" (what to do first, one sentence) and "reason" (why, one sentence). '
-            'Example: {"answer": "Finish the report", "reason": "It is due today"}'
+            "Use the read_tasks tool to see the user's real tasks before you answer. "
+            "Then tell the user, in plain text, what to do first and why. "
+            "Only talk about tasks the tool returned; never invent a task."
         ),
     },
-    {
-        "role": "user",
-        "content": (
-            "I have three tasks today: finish the AMEXIO case model, "
-            "study MCP, answer an email from my teacher. What should I do first?"
-        ),
-    },
+    {"role": "user", "content": "What should I do first today?"},
 ]
 
-print("Request summary:")
-for message in messages:
-    print(f"- {message['role']}: {message['content']}")
-print()
-
+# 1) First call: hand the LLM the toolbox and let it request a tool (D2-013).
 response = client.chat.completions.create(
     model="deepseek-flash",
     messages=messages,
-    response_format={"type": "json_object"},
+    tools=TOOL_SCHEMAS,
 )
+message = response.choices[0].message
+messages.append(message)
 
-raw = response.choices[0].message.content
-print("Raw response:", raw)
-print()
+calls = read_tool_calls(message)
+print("The LLM requested:", [call["name"] for call in calls])
 
-try:
-    result = parse_answer(raw)
-except ValueError as error:
-    print(error)
-    sys.exit(2)
+# 2) Run each requested tool once (D2-014) and return the result (D2-015).
+for call in calls:
+    result_message = build_tool_result_message(call)
+    print("Tool result:", result_message["content"])
+    messages.append(result_message)
 
-print("First:", result.answer)
-print("Why:", result.reason)
+# 3) Second call: the LLM answers using the real tool results.
+final = client.chat.completions.create(
+    model="deepseek-flash",
+    messages=messages,
+)
+print("Dani says:", final.choices[0].message.content)

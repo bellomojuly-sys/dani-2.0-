@@ -57,3 +57,8 @@ python main.py
 | D2-010 | Structured model response validated | Done |
 | D2-011 | `read_tasks` returns three hardcoded tasks | Done |
 | D2-011a | Tool validates its arguments, returns a structured error | Done |
+| D2-012 | `read_tasks` described as a tool schema and registered in the toolbox | Done |
+| D2-013 | The LLM requests `read_tasks`; the trace names the right tool | Done |
+| D2-014 | The requested tool runs exactly once via the toolbox | Done |
+| D2-015 | The tool result is returned to the LLM (three real titles, none invented) | Done |
+| M02 | Gate: the full round LLM → tool → LLM works end to end | Done |

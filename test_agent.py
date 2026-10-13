@@ -1,6 +1,8 @@
+import json
 from types import SimpleNamespace
 
-from agent import read_tool_calls, run_tool_call
+from agent import read_tool_calls, run_tool_call, build_tool_result_message
+from tools import read_tasks
 
 
 def _fake_tool_call(call_id, name, arguments):
@@ -54,3 +56,20 @@ def test_run_tool_call_rejects_unknown_tool_with_structured_error():
     result = run_tool_call(call)
     assert isinstance(result, dict)
     assert "error" in result
+
+
+def test_tool_result_message_carries_the_three_real_titles():
+    call = {"id": "call_1", "name": "read_tasks", "arguments": {}}
+    message = build_tool_result_message(call)
+
+    assert message["role"] == "tool"
+    assert message["tool_call_id"] == "call_1"
+
+    returned_titles = [task["title"] for task in json.loads(message["content"])]
+    assert returned_titles == [task["title"] for task in read_tasks()]
+
+
+def test_tool_result_message_does_not_contain_an_invented_title():
+    call = {"id": "call_1", "name": "read_tasks", "arguments": {}}
+    message = build_tool_result_message(call)
+    assert "Buy a yacht" not in message["content"]

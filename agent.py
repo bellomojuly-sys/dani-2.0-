@@ -40,3 +40,19 @@ def run_tool_call(call, tools=TOOLS):
         return {"error": f"unknown tool: {name!r}"}
     function = tools[name]
     return function(call["arguments"])
+
+
+def build_tool_result_message(call):
+    """Run the requested tool and wrap its result as a 'tool' role message.
+
+    This is the last leg of the round: the content is the JSON-serialized
+    tool result, tied back to the request through `tool_call_id`. The LLM
+    receives the REAL data (the three real task titles) and answers from it,
+    so it cannot invent tasks.
+    """
+    result = run_tool_call(call)
+    return {
+        "role": "tool",
+        "tool_call_id": call["id"],
+        "content": json.dumps(result),
+    }
