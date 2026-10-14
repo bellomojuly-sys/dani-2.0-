@@ -6,6 +6,7 @@ from agent import (
     run_tool_call,
     build_tool_result_message,
     run_tool_loop,
+    final_outcome,
 )
 from tools import read_tasks, prioritize_tasks, validate_priority_result, TOOL_SCHEMAS
 
@@ -136,3 +137,32 @@ def test_run_tool_loop_stops_at_the_iteration_limit():
 
     assert result["status"] == "stopped"
     assert len(result["trace"]) == 3
+
+
+def test_full_run_covers_every_source_id_exactly_once():
+    real_ids = [task["id"] for task in read_tasks()]
+    order = {"order": [
+        {"id": "t2", "title": "Study MCP", "reason": "needed next"},
+        {"id": "t1", "title": "Finish the AMEXIO case model", "reason": "deadline"},
+        {"id": "t3", "title": "Answer the email from my teacher", "reason": "quick"},
+    ]}
+    validate_args = {
+        "priority": [{"id": "t2"}, {"id": "t1"}, {"id": "t3"}],
+        "known_ids": real_ids,
+    }
+    scripted = [
+        _fake_message([_fake_tool_call("c1", "read_tasks", "{}")]),
+        _fake_message([_fake_tool_call("c2", "prioritize_tasks", json.dumps(order))]),
+        _fake_message([_fake_tool_call("c3", "validate_priority_result", json.dumps(validate_args))]),
+        _fake_message(None),
+    ]
+    client = _FakeClient(scripted)
+
+    result = run_tool_loop(client, [], TOOL_SCHEMAS)  # real tools
+    outcome = final_outcome(result)
+
+    assert outcome["ok"] is True
+    seen = [row["id"] for row in outcome["priority"]]
+    assert sorted(seen) == sorted(real_ids)
+    for task_id in real_ids:
+        assert seen.count(task_id) == 1

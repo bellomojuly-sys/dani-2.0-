@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from tools import TOOL_SCHEMAS
-from agent import read_tool_calls, build_tool_result_message
+from agent import run_tool_loop, final_outcome
 from skill import TOOLBOX_SKILL
 
 load_dotenv()
@@ -29,27 +29,20 @@ messages = [
     {"role": "user", "content": "What should I do first today?"},
 ]
 
-# 1) First call: hand the LLM the toolbox and let it request a tool (D2-013).
-response = client.chat.completions.create(
-    model="deepseek-flash",
-    messages=messages,
-    tools=TOOL_SCHEMAS,
-)
-message = response.choices[0].message
-messages.append(message)
+# Run the bounded tool loop: following the toolbox skill, the LLM reads the
+# tasks, prioritises them and validates the result, then answers (D2-018).
+result = run_tool_loop(client, messages, TOOL_SCHEMAS, model="deepseek-flash")
 
-calls = read_tool_calls(message)
-print("The LLM requested:", [call["name"] for call in calls])
+print("Tool call order:", [entry["name"] for entry in result["trace"]])
 
-# 2) Run each requested tool once (D2-014) and return the result (D2-015).
-for call in calls:
-    result_message = build_tool_result_message(call)
-    print("Tool result:", result_message["content"])
-    messages.append(result_message)
+# Present the answer only if it was validated; never a bare guess (D2-019).
+outcome = final_outcome(result)
+if outcome["ok"]:
+    print("Validated priority — what to do first:")
+    for row in outcome["priority"]:
+        print(f'  {row["rank"]}. {row["id"]} — {row["title"]} ({row["reason"]})')
+else:
+    print("No verified answer:", outcome["reason"])
 
-# 3) Second call: the LLM answers using the real tool results.
-final = client.chat.completions.create(
-    model="deepseek-flash",
-    messages=messages,
-)
-print("Dani says:", final.choices[0].message.content)
+if result["final"] is not None:
+    print("Dani says:", result["final"].content)

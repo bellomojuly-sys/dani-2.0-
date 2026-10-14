@@ -95,3 +95,27 @@ def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_it
             )
 
     return {"status": "stopped", "final": None, "trace": trace}
+
+
+def final_outcome(loop_result):
+    """Turn a loop result into a verified outcome, never a bare guess.
+
+    The outcome is ok only if validate_priority_result passed in the run. Then
+    we return the validated priority report. Otherwise ok is False with the
+    reason and no priority, so an unverified result is never presented as an
+    answer.
+    """
+    trace = loop_result["trace"]
+
+    validate = [entry for entry in trace if entry["name"] == "validate_priority_result"]
+    valid = (
+        bool(validate)
+        and isinstance(validate[-1]["result"], dict)
+        and validate[-1]["result"].get("valid") is True
+    )
+    if not valid:
+        return {"ok": False, "reason": "result not validated", "priority": None}
+
+    prioritize = [entry for entry in trace if entry["name"] == "prioritize_tasks"]
+    priority = prioritize[-1]["result"].get("priority") if prioritize else None
+    return {"ok": True, "reason": "validated", "priority": priority}
