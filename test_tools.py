@@ -1,4 +1,19 @@
-from tools import read_tasks, READ_TASKS_SCHEMA, TOOL_SCHEMAS, TOOLS
+from tools import (
+    read_tasks,
+    prioritize_tasks,
+    READ_TASKS_SCHEMA,
+    PRIORITIZE_TASKS_SCHEMA,
+    TOOL_SCHEMAS,
+    TOOLS,
+)
+
+
+def _valid_order():
+    return {"order": [
+        {"id": "t2", "title": "Study MCP", "reason": "needed next"},
+        {"id": "t1", "title": "Finish the AMEXIO case model", "reason": "deadline"},
+        {"id": "t3", "title": "Answer the email", "reason": "quick"},
+    ]}
 
 
 def test_read_tasks_returns_three_tasks():
@@ -54,3 +69,42 @@ def test_every_schema_name_has_a_matching_callable_in_the_toolbox():
         name = schema["function"]["name"]
         assert name in TOOLS
         assert callable(TOOLS[name])
+
+
+def test_prioritize_tasks_returns_numbered_order():
+    result = prioritize_tasks(_valid_order())
+    ranks = [row["rank"] for row in result["priority"]]
+    assert ranks == [1, 2, 3]
+
+
+def test_prioritize_tasks_keeps_the_order_the_llm_decided():
+    result = prioritize_tasks(_valid_order())
+    assert result["priority"][0]["id"] == "t2"
+    assert result["priority"][1]["id"] == "t1"
+    assert result["priority"][2]["id"] == "t3"
+
+
+def test_prioritize_tasks_rejects_missing_order():
+    result = prioritize_tasks({})
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_prioritize_tasks_rejects_empty_order():
+    result = prioritize_tasks({"order": []})
+    assert "error" in result
+
+
+def test_prioritize_tasks_rejects_item_without_reason():
+    result = prioritize_tasks({"order": [{"id": "t1", "title": "No reason here"}]})
+    assert "error" in result
+
+
+def test_bad_order_does_not_return_a_priority_list():
+    result = prioritize_tasks({"order": []})
+    assert "priority" not in result
+
+
+def test_prioritize_tasks_schema_has_an_order_parameter():
+    properties = PRIORITIZE_TASKS_SCHEMA["function"]["parameters"]["properties"]
+    assert "order" in properties
