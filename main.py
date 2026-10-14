@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from tools import TOOL_SCHEMAS
 from agent import read_tool_calls, build_tool_result_message
+from skill import TOOLBOX_SKILL
 
 load_dotenv()
 
@@ -20,10 +21,9 @@ messages = [
     {
         "role": "system",
         "content": (
-            "You are Dani, a personal planning assistant. "
-            "Use the read_tasks tool to see the user's real tasks before you answer. "
-            "Then tell the user, in plain text, what to do first and why. "
-            "Only talk about tasks the tool returned; never invent a task."
+            "You are Dani, a personal planning assistant.\n"
+            + TOOLBOX_SKILL
+            + "\nAfter the result is validated, tell the user in plain text what to do first and why."
         ),
     },
     {"role": "user", "content": "What should I do first today?"},

@@ -64,3 +64,4 @@ python main.py
 | M02 | Gate: the full round LLM → tool → LLM works end to end | Done |
 | D2-016 | `prioritize_tasks` returns a numbered priority report from the order the LLM decided | Done |
 | D2-017 | `validate_priority_result` fails on missing, duplicate and invented ids | Done |
+| D2-017a | Toolbox skill: written policy for the tool order read → prioritize → validate | Done |
