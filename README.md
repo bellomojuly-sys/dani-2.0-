@@ -67,3 +67,5 @@ python main.py
 | D2-017a | Toolbox skill: written policy for the tool order read → prioritize → validate | Done |
 | D2-018 | Bounded tool loop with an ordered call trace and an iteration cap | Done |
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
+| D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
+| M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |

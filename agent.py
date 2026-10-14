@@ -107,6 +107,16 @@ def final_outcome(loop_result):
     """
     trace = loop_result["trace"]
 
+    # Honest failure first: if the task source itself failed, there is no
+    # trustworthy task list, so we refuse to present any priority, even if the
+    # model went on to fabricate one and a later check passed (D2-020).
+    read = [entry for entry in trace if entry["name"] == "read_tasks"]
+    source_failed = any(
+        isinstance(entry["result"], dict) and "error" in entry["result"] for entry in read
+    )
+    if source_failed:
+        return {"ok": False, "reason": "task source unavailable", "priority": None}
+
     validate = [entry for entry in trace if entry["name"] == "validate_priority_result"]
     valid = (
         bool(validate)

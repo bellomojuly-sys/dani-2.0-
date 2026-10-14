@@ -166,3 +166,47 @@ def test_full_run_covers_every_source_id_exactly_once():
     assert sorted(seen) == sorted(real_ids)
     for task_id in real_ids:
         assert seen.count(task_id) == 1
+
+
+def test_honest_failure_when_the_task_source_fails():
+    failing_tools = {
+        "read_tasks": lambda arguments: {"error": "task source unavailable"},
+        "prioritize_tasks": prioritize_tasks,
+        "validate_priority_result": validate_priority_result,
+    }
+    scripted = [
+        _fake_message([_fake_tool_call("c1", "read_tasks", "{}")]),
+        _fake_message(None),  # the model stops and answers honestly
+    ]
+    client = _FakeClient(scripted)
+
+    result = run_tool_loop(client, [], TOOL_SCHEMAS, tools=failing_tools)
+    outcome = final_outcome(result)
+
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "task source unavailable"
+    assert outcome["priority"] is None
+
+
+def test_no_fabricated_priority_after_a_source_failure():
+    # Even if the model invents a task after the source failed, and even if a
+    # (bogus) validation passes, the outcome must refuse to present a priority.
+    failing_tools = {
+        "read_tasks": lambda arguments: {"error": "task source unavailable"},
+        "prioritize_tasks": prioritize_tasks,
+        "validate_priority_result": lambda arguments: {"valid": True},
+    }
+    invented = {"order": [{"id": "x", "title": "made up", "reason": "invented"}]}
+    scripted = [
+        _fake_message([_fake_tool_call("c1", "read_tasks", "{}")]),
+        _fake_message([_fake_tool_call("c2", "prioritize_tasks", json.dumps(invented))]),
+        _fake_message([_fake_tool_call("c3", "validate_priority_result", json.dumps({"priority": [{"id": "x"}], "known_ids": ["x"]}))]),
+        _fake_message(None),
+    ]
+    client = _FakeClient(scripted)
+
+    result = run_tool_loop(client, [], TOOL_SCHEMAS, tools=failing_tools)
+    outcome = final_outcome(result)
+
+    assert outcome["ok"] is False
+    assert outcome["priority"] is None
