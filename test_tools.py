@@ -1,8 +1,10 @@
 from tools import (
     read_tasks,
     prioritize_tasks,
+    validate_priority_result,
     READ_TASKS_SCHEMA,
     PRIORITIZE_TASKS_SCHEMA,
+    VALIDATE_PRIORITY_RESULT_SCHEMA,
     TOOL_SCHEMAS,
     TOOLS,
 )
@@ -108,3 +110,46 @@ def test_bad_order_does_not_return_a_priority_list():
 def test_prioritize_tasks_schema_has_an_order_parameter():
     properties = PRIORITIZE_TASKS_SCHEMA["function"]["parameters"]["properties"]
     assert "order" in properties
+
+
+def test_validate_priority_result_accepts_a_complete_report():
+    result = validate_priority_result(
+        {"priority": [{"id": "t1"}, {"id": "t2"}, {"id": "t3"}], "known_ids": ["t1", "t2", "t3"]}
+    )
+    assert result == {"valid": True}
+
+
+def test_validate_priority_result_rejects_a_missing_id():
+    result = validate_priority_result(
+        {"priority": [{"id": "t1"}, {"id": "t2"}], "known_ids": ["t1", "t2", "t3"]}
+    )
+    assert result["valid"] is False
+    assert "missing" in result["error"]
+
+
+def test_validate_priority_result_rejects_a_duplicate_id():
+    result = validate_priority_result(
+        {"priority": [{"id": "t1"}, {"id": "t1"}, {"id": "t2"}], "known_ids": ["t1", "t2"]}
+    )
+    assert result["valid"] is False
+    assert "duplicate" in result["error"]
+
+
+def test_validate_priority_result_rejects_an_invented_id():
+    result = validate_priority_result(
+        {"priority": [{"id": "t1"}, {"id": "t9"}], "known_ids": ["t1", "t2"]}
+    )
+    assert result["valid"] is False
+    assert "unknown" in result["error"]
+
+
+def test_validate_priority_result_rejects_a_malformed_call():
+    result = validate_priority_result({"priority": [{"id": "t1"}]})
+    assert "error" in result
+    assert "valid" not in result
+
+
+def test_validate_priority_result_schema_has_priority_and_known_ids():
+    properties = VALIDATE_PRIORITY_RESULT_SCHEMA["function"]["parameters"]["properties"]
+    assert "priority" in properties
+    assert "known_ids" in properties
