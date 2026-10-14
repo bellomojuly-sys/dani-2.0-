@@ -56,3 +56,42 @@ def build_tool_result_message(call):
         "tool_call_id": call["id"],
         "content": json.dumps(result),
     }
+
+
+def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_iterations=5, tools=TOOLS):
+    """Let the LLM call tools in sequence until it answers, with a hard limit.
+
+    One iteration = one model turn. Each turn we hand the model the toolbox,
+    read the tools it requested, run each one, and feed the results back. When
+    the model stops requesting tools and answers in plain text, the loop ends
+    with status "answered". If it keeps requesting tools past max_iterations,
+    the loop ends with status "stopped": this is the safety cap, so the agent
+    can never run forever.
+
+    We return an ordered call trace (each entry {"name", "result"}), so the
+    whole run can be reconstructed and checked afterwards.
+    """
+    trace = []
+    for _ in range(max_iterations):
+        response = client.chat.completions.create(
+            model=model, messages=messages, tools=tool_schemas
+        )
+        message = response.choices[0].message
+        messages.append(message)
+
+        calls = read_tool_calls(message)
+        if not calls:
+            return {"status": "answered", "final": message, "trace": trace}
+
+        for call in calls:
+            result = run_tool_call(call, tools=tools)
+            trace.append({"name": call["name"], "result": result})
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call["id"],
+                    "content": json.dumps(result),
+                }
+            )
+
+    return {"status": "stopped", "final": None, "trace": trace}

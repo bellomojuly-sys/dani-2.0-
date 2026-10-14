@@ -65,3 +65,4 @@ python main.py
 | D2-016 | `prioritize_tasks` returns a numbered priority report from the order the LLM decided | Done |
 | D2-017 | `validate_priority_result` fails on missing, duplicate and invented ids | Done |
 | D2-017a | Toolbox skill: written policy for the tool order read → prioritize → validate | Done |
+| D2-018 | Bounded tool loop with an ordered call trace and an iteration cap | Done |
