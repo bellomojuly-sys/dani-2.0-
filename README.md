@@ -69,3 +69,29 @@ python main.py
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
+
+## Traceability
+
+Every closed microphase can be traced to one commit and checked from the terminal. Run a check with `python3 -m pytest -v -k "<selector>"`; open the commit with `git show <commit> --stat`.
+
+| Step | Commit | Proof | Check in the terminal |
+|---|---|---|---|
+| D2-001 → D2-006 | `b74f59f` | README (vision, MVP, decisions) | `git show b74f59f --stat` |
+| D2-007 | `2a0d23f` | Missing key gives "Missing DEEPSEEK_API_KEY" | run `python3 main.py` without `.env` |
+| D2-008 | `75d461a` | Key only in `.env`, which git ignores | `git ls-files \| grep env` → only `.env.example` |
+| D2-009 | `60634bc` | Only the system and user message are sent | `git show 60634bc` |
+| D2-010 | `52ab164` | Valid answer passes; missing field and plain text fail | `-k "test_answer"` (3 tests) |
+| D2-011 | `3e5b345` | Three tasks, each with id and title, ids unique | `-k "read_tasks_returns or every_task_has or task_ids_are_unique"` (3) |
+| D2-011a | `a756c88`, `6447a97` | Wrong arguments return a structured error, never a task list | `-k "rejects_unexpected or rejects_non_dict or wrong_arguments"` (3) |
+| D2-012 | `f860948` | Schema matches the function in the toolbox | `-k "read_tasks_schema or every_schema_name"` (2) |
+| D2-013 | `5254892` | The trace names the tool the LLM requested | `-k "read_tool_calls"` (2) |
+| D2-014 | `5bd7d7e` | The requested tool runs exactly once; unknown tool is refused | `-k "run_tool_call"` (3) |
+| D2-015 | `6da6130` | The LLM gets the three real titles, none invented | `-k "tool_result_message"` (2) |
+| D2-016 | `cda5ca0` | Numbered priority in the order the LLM decided | `-k "prioritize"` (6) |
+| D2-017 | `4e40ec6` | Missing, duplicate and invented ids fail | `-k "validate_priority"` (6) |
+| D2-017a | `42ebe5c` | Skill names the three tools in order and forbids invented tasks | `-k "test_skill"` (3) |
+| D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
+| D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
+| D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
+
+All 40 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
