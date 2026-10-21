@@ -43,6 +43,8 @@ python main.py
 
 ## Status
 
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-020a — critical review of every test**.
+
 | Step | What | State |
 |---|---|---|
 | D2-001 | New project created | Done |
