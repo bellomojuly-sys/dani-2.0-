@@ -37,10 +37,10 @@ ripassi delle parti già fatte, poi il calendario degli sprint.
 | Periodo | Fondamenta | Dani | AMEXIO |
 |---|---|---|---|
 | 21–23 ott | F1 Testing; ripasso F2 e F3 | D2-020a; ripasso D-A (M01–M03) | AX-018a, AX-019, AX-020; ripasso A-A (M00–M03) |
-| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO M04), poi F4 Persistenza, F6 Osservabilità ed evals | D-B (M05–M06), D-C (M12), D-D (M13), F6 su M04 | A-I (M04–M07, backend), A-B su AX-038, F6 su AX-040 |
-| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | D-E MCP (M16–M17) | A-C (M08), A-D con F4 (M09) |
-| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-E (M18), D-F (M19–M20) | A-E (M10), A-G (M11), A-F (M12) |
-| Sprint 6 (4–15 gen) | Ripasso generale per la valutazione | Prove orali dei gate | A-H (M12–M13) |
+| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO B1), poi F4 Persistenza, F6 Osservabilità ed evals | D-B (M05–M06), D-C (M12), D-D (M13), F6 su M04 | Parte A: A-I (B1–B4, backend), A-B su AX-021–AX-022, F6 su BE-19 |
+| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | D-E MCP (M16–M17) | Parte B: ripasso A-A con BR-00, BR-01, BR-09; A-B (M04), A-C (M05), A-D con F4 (M06) |
+| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-E (M18), D-F (M19–M20) | A-E (M07, M10), A-G (M12–M13) |
+| Sprint 6 (4–15 gen) | Ripasso generale per la valutazione | Prove orali dei gate | A-F (M08–M09), A-H (M14–M15); A-E su M11 solo se in anticipo |
 
 ## Stato degli obiettivi
 
@@ -89,7 +89,7 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 ### F4 — Persistenza e riproducibilità
 
 **Teoria:** serializzazione in JSON, versione dello schema e migrazioni, salvataggio deterministico. Scritture atomiche, rilettura dopo la scrittura, idempotenza.
-**Pratica:** AMEXIO AX-018 (ripasso) e M09; Dani M05.
+**Pratica:** AMEXIO AX-018 (ripasso) e M06; Dani M05.
 **Prova:**
 - Perché salvare due volte lo stesso caso deve dare file identici?
 - Cosa fai se domani lo schema cambia e devi caricare un run vecchio?
@@ -98,7 +98,7 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 ### F5 — Errori e affidabilità
 
 **Teoria:** eccezioni in Python, fallire forte contro fallire in silenzio, errori strutturati, timeout, retry con backoff, degrado controllato.
-**Pratica:** Dani D2-011a, D2-020, D2-089; AMEXIO AX-030 (retry dello stadio CM ID), M11.
+**Pratica:** Dani D2-011a, D2-020, D2-089; AMEXIO BE-10 (retry dello stadio CM ID), AX-024, M13.
 **Prova:**
 - Perché un placeholder non risolto deve fermare il run invece di lasciare uno spazio vuoto?
 - Quando un retry è pericoloso?
@@ -107,7 +107,7 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 ### F6 — Osservabilità ed evals
 
 **Teoria:** log, tracce e run ID; oscuramento dei dati sensibili; dataset di valutazione; differenza tra test ed eval; regressioni su sistemi non deterministici.
-**Pratica:** Dani M04; AMEXIO AX-040 (traccia per run), AX-046 (change log), AX-058.
+**Pratica:** Dani M04; AMEXIO BE-19 (traccia per run), AX-030 (change log) e M12.
 **Prova:**
 - Ricostruisci un run di Dani solo dalla traccia.
 - Perché per un agente non bastano i test unitari?
@@ -116,7 +116,7 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 ### F7 — Git, CI e collaborazione
 
 **Teoria:** branch, commit atomici, pull request e code review, tag e versioni semantiche, integrazione continua con GitHub Actions.
-**Pratica:** AMEXIO AX-019 (test a ogni push), AX-020 (tag v1), BR-12 (tag v1.1), AX-041, AX-067; tutti i commit di Dani.
+**Pratica:** AMEXIO AX-019 (test a ogni push), AX-020 (tag v1), BR-12 (tag v1.1), BE-20, AX-075; tutti i commit di Dani.
 **Prova:**
 - Cosa succede tecnicamente quando faccio push e parte la CI?
 - Perché il case model cambia solo con una nuova versione concordata?
@@ -124,7 +124,7 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 ### F8 — Design del software e contratti
 
 **Teoria:** separazione delle responsabilità, interfacce e contratti tra moduli, configurazione come dati, dipendenze, principio del minimo privilegio.
-**Pratica:** AMEXIO AX-005 (ripasso), AX-021–AX-023 (contratto della pipeline), AX-062, M10; Dani M17.
+**Pratica:** AMEXIO AX-005 (ripasso), BE-01–BE-03 (contratto della pipeline), AX-042, M07, M10; Dani M17.
 **Prova:**
 - Cosa promette il contratto del case model agli altri moduli?
 - Perché la review UI non può scrivere file direttamente?
@@ -189,21 +189,21 @@ M07–M11 e M14–M15 restano fuori da dicembre come nella roadmap.
 
 ## AMEXIO
 
-Nove obiettivi propri sul modulo di Giulia (case model, stadi CM ID e Plot del backend, configurazione, preview). Aggiornato il 26 ottobre 2026: il backend è diviso in stadi e Giulia possiede i primi due; A-I è nuovo, gli altri hanno nuove microfasi.
+Nove obiettivi propri sul modulo di Giulia (case model, configurazione, review e, dal 26 ottobre, gli stadi CM ID e Plot del backend). Aggiornato il 26 ottobre 2026: il case model tiene tutto il lavoro previsto; il backend si aggiunge con l'obiettivo A-I e si fa per primo (Parte A), perché il lavoro dei compagni dipende da lì. Poi si riprende il case model nell'ordine di prima (Parte B), con la review alla fine.
 
 ### A-A — Il case model (M00–M03, ripasso)
 
 **Teoria:** F2 applicata al dossier HR: persona, organizzazione, impiego, evento, documento, fatti del dossier, contenitore Case. Pattern degli ID, rifiuto degli ID in ingresso, fixture di riferimento.
-**Pratica:** ripasso di AX-001–AX-018, in particolare AX-008 e i test scritti da Claude in AX-007; poi AX-018a, AX-019, AX-020.
+**Pratica:** ripasso di AX-001–AX-018, in particolare AX-008 e i test scritti da Claude in AX-007; poi AX-018a, AX-019, AX-020; il case model v1.1 (M03b) e la sua chiusura con BR-00, BR-01, BR-09.
 **Prova:**
 - Spiega ogni campo del modello Document e perché c'è.
 - Perché un ID scritto dall'LLM viene rifiutato?
 - Cosa garantisce il test di regressione sul dossier 100101, e cosa no?
 
-### A-I — Pipeline LLM a stadi e backend (M04–M07)
+### A-I — Pipeline LLM a stadi e backend (B1–B4)
 
 **Teoria:** cos'è una pipeline LLM a stadi (prompt chaining) rispetto a un agente che decide da solo. Contratti tra stadi: schema di ingresso e di uscita, chi possiede cosa, versioni del contratto. Dove gira il codice: funzioni nello stesso processo contro un servizio HTTP (REST, JSON, FastAPI), sincrono contro asincrono, code di lavoro. Output strutturati validati a ogni confine; chi assegna gli ID. Test con un LLM finto, test di contratto, test end-to-end. Retry e idempotenza tra stadi; run ID e traccia per stadio.
-**Pratica:** AX-021–AX-041.
+**Pratica:** BE-01–BE-20.
 **Prova:**
 - Disegna la catena dall'input di Daniel al documento riempito: cosa entra e cosa esce da ogni stadio, e chi lo possiede.
 - Perché ogni confine tra stadi valida, anche se lo stadio prima ha già validato?
@@ -211,59 +211,59 @@ Nove obiettivi propri sul modulo di Giulia (case model, stadi CM ID e Plot del b
 - Come testi la catena senza chiamare il modello vero?
 - Il modello risponde con JSON sbagliato due volte: cosa succede, e cosa resta salvato?
 
-### A-B — Template e risoluzione dei fatti (M07, AX-038)
+### A-B — Template e risoluzione dei fatti (M04)
 
-**Teoria:** motori di template (Jinja2), risoluzione per percorso, valori mancanti (`StrictUndefined`). Separare il dato salvato dalla sua formattazione; date e importi per lingua (locale). Il riempimento dei testi è di Valentin (stadio Fill placeholder): Giulia possiede la sintassi e la funzione di lookup che lui chiama.
-**Pratica:** AX-038.
+**Teoria:** motori di template (Jinja2), risoluzione per percorso, valori mancanti (`StrictUndefined`). Separare il dato salvato dalla sua formattazione; date e importi per lingua (locale).
+**Pratica:** AX-021–AX-025 (AX-021 e AX-022 in Parte A, perché lo stadio Fill placeholder di Valentin li chiama).
 **Prova:**
 - Perché la data si formatta solo quando il testo viene riempito?
 - Cosa succede con un placeholder sbagliato, e perché è meglio di uno spazio vuoto?
 
-### A-C — Dipendenze tra dati e propagazione delle modifiche (M08)
+### A-C — Dipendenze tra dati e propagazione delle modifiche (M05)
 
-**Teoria:** indice inverso (fatto → documenti che lo usano), un solo punto di scrittura, registro delle modifiche, idea di base dell'event sourcing. Quali stadi rifare dopo una modifica.
-**Pratica:** AX-042–AX-046.
+**Teoria:** indice inverso (fatto → documenti che lo usano), un solo punto di scrittura, registro delle modifiche, idea di base dell'event sourcing.
+**Pratica:** AX-026–AX-030.
 **Prova:**
 - Correggo lo stipendio lordo: quali documenti cambiano e come lo sai senza aprirli?
 - Perché tutte le modifiche passano da una sola funzione?
 
-### A-D — Versioni e riproducibilità dei run (M09)
+### A-D — Versioni e riproducibilità dei run (M06)
 
 **Teoria:** F4 applicata ai run: cartella per run, versione nello schema, salvataggio deterministico, test congiunto con l'export.
-**Pratica:** AX-047–AX-051.
+**Pratica:** AX-031–AX-035.
 **Prova:**
 - Come dimostri che un run di un mese fa produce lo stesso XML di allora?
 
-### A-E — Configurazione e domini (M10)
+### A-E — Configurazione e domini (M07, M10–M11)
 
 **Teoria:** configurazione come dati e il suo schema, confine tra dominio e scenario, regole di coerenza come dati, architettura a plugin: aggiungere un dominio senza toccare il core.
-**Pratica:** AX-052–AX-056.
+**Pratica:** AX-036–AX-040, AX-051–AX-060.
 **Prova:**
 - Dove passa la linea tra dominio e scenario? Classifica tre esempi nuovi.
 - Come verifichi che nel core non resta nessuna parola HR?
 - Scrivi a mano una regola di coerenza come dato.
 
-### A-F — Interfaccia di preview e human-in-the-loop (M12)
+### A-F — Interfaccia di review e human-in-the-loop (M08–M09)
 
-**Teoria:** opzioni per l'interfaccia (web app, notebook, riga di comando) e criteri per sceglierle. Strato API tra interfaccia e dati. Read-only prima, modifica poi. Punti di revisione umana in una pipeline: una modifica dalla preview rientra nella catena dallo stadio giusto.
-**Pratica:** AX-062–AX-065.
+**Teoria:** opzioni per l'interfaccia (web app, notebook, riga di comando) e criteri per sceglierle. Strato API tra interfaccia e dati. Read-only prima, modifica poi. Punti di revisione umana in una pipeline: una modifica dalla preview rientra nella catena di stadi dal punto giusto.
+**Pratica:** AX-041–AX-050.
 **Prova:**
-- Quali opzioni hai scartato per la preview e perché?
-- Una modifica nella preview: da quale stadio riparte la catena, e perché non da capo?
+- Quali opzioni hai scartato per la review e perché?
+- Perché la pipeline si ferma dopo le persone e dopo la storyline, e non alla fine?
 
-### A-G — Volume e casi limite (M11)
+### A-G — Volume e casi limite (M12–M13)
 
-**Teoria:** misurare le prestazioni (tempo, memoria, costo in token), unicità in un batch, integrità referenziale alla cancellazione, messaggi d'errore utili.
-**Pratica:** AX-057–AX-061.
+**Teoria:** misurare le prestazioni (tempo, memoria), unicità in un batch, integrità referenziale alla cancellazione, messaggi d'errore utili.
+**Pratica:** AX-061–AX-070.
 **Prova:**
 - Due persone con lo stesso nome: come restano distinte in ogni documento?
 - Cosa succede se cancello una persona ancora citata?
-- Quanto ci mettono e quanto costano 100 dossier, e come l'hai misurato?
+- Quanto ci mettono 100 dossier, e come l'hai misurato?
 
-### A-H — Usabilità, documentazione e consegna (M12–M13)
+### A-H — Usabilità, documentazione e consegna (M14–M15)
 
 **Teoria:** test di usabilità con un utente esterno, priorità tra i problemi trovati, documentazione per chi estende il modulo, script di demo.
-**Pratica:** AX-066–AX-072.
+**Pratica:** AX-071–AX-080.
 **Prova:**
-- Un compagno aggiunge un dominio giocattolo solo con la tua guida (Gate M13).
+- Un compagno aggiunge un dominio giocattolo solo con la tua guida (Gate M15).
 - Fai la demo: cambi un fatto e i documenti seguono.
