@@ -37,9 +37,9 @@ ripassi delle parti già fatte, poi il calendario degli sprint.
 | Periodo | Fondamenta | Dani | AMEXIO |
 |---|---|---|---|
 | 21–23 ott | F1 Testing; ripasso F2 e F3 | D2-020a; ripasso D-A (M01–M03) | AX-018a, AX-019, AX-020; ripasso A-A (M00–M03) |
-| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO B1), poi F4 Persistenza, F6 Osservabilità ed evals | D-B (M05–M06), D-C (M12), D-D (M13), F6 su M04 | Parte A: A-I (B1–B4, backend), A-B su AX-021–AX-022, F6 su BE-19 |
-| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | D-E MCP (M16–M17) | Parte B: ripasso A-A con BR-00, BR-01, BR-09; A-B (M04), A-C (M05), A-D con F4 (M06) |
-| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-E (M18), D-F (M19–M20) | A-E (M07, M10), A-G (M12–M13) |
+| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO B1), poi F4 Persistenza, F6 Osservabilità ed evals | F6 su M04, D-B con F2 e F4 (M05–M06) | Parte A: A-I (B1–B4, backend), A-B su AX-021–AX-022, F6 su BE-19 |
+| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | A-F (M06b), D-C (M12), D-D (M13) | Parte B: ripasso A-A con BR-00, BR-01, BR-09; A-B (M04), A-C (M05), A-D con F4 (M06) |
+| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-E MCP e supervisor (M16–M18), D-F (M19–M20) | A-E (M07, M10), A-G (M12–M13) |
 | Sprint 6 (4–15 gen) | Ripasso generale per la valutazione | Prove orali dei gate | A-F (M08–M09), A-H (M14–M15); A-E su M11 solo se in anticipo |
 
 ## Stato degli obiettivi

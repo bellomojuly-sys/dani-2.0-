@@ -78,7 +78,9 @@ closes only when Giulia passes its oral check ("Prova").
 
 **Gate M03:** one LLM selects three Python tools and returns a validated result. D2-020a must close before M04 starts.
 
-### Sprint 3 (26 Oct–13 Nov) — M04 to M06b, M12, M13
+### Sprint 3 (26 Oct–13 Nov) — M04 to M06
+
+> Re-planned on 26 Oct 2026: AMEXIO Part A (pipeline contract by 30 Oct, backend integration for Review 2 on 13 Nov) comes first, so Sprint 3 keeps only M04–M06. M06b, M12 and M13 move to Sprint 4; MCP (M16–M17) moves to Sprint 5 with M18–M20. Study order: `docs/STUDY-PLAN.md` and the "Piano NotebookLM" doc.
 
 #### M04 — Trace and evaluation · study: F6
 
@@ -123,6 +125,8 @@ closes only when Giulia passes its oral check ("Prova").
 
 **Gate M06:** Dani knows exactly where Project X is.
 
+### Sprint 4 (16–27 Nov) — M06b, M12, M13 · study: A-F, D-C, D-D
+
 #### M06b — Read-only local dashboard (added 21 Oct) · study: F8
 
 | ID | Build | Output | Verify | Status |
@@ -160,7 +164,8 @@ closes only when Giulia passes its oral check ("Prova").
 
 **Gate M13:** a new commitment safely replans only movable work.
 
-### Sprint 4 (16–27 Nov) — M16 to M17 · study: D-E, F5
+### Sprint 5 (30 Nov–18 Dec) — M16 to M20 · study: D-E, F5, D-F, F7
+
 
 #### M16 — MCP fundamentals
 
@@ -186,7 +191,6 @@ closes only when Giulia passes its oral check ("Prova").
 
 **Gate M17:** migration to MCP changes boundary, not behaviour.
 
-### Sprint 5 (30 Nov–18 Dec) — M18 to M20 · study: D-E, D-F, F7
 
 #### M18 — Supervisor using MCP
 
