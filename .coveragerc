@@ -1,0 +1,9 @@
+# Coverage is measured on the product code only (not the test files).
+# main.py is included: strategy A of the D2-020a Decision Log — its real
+# decisions are tested, and only the thin client-building wiring under the
+# __main__ guard is excluded with "# pragma: no cover".
+[run]
+source = agent, answer, main, skill, tools
+
+[report]
+show_missing = True

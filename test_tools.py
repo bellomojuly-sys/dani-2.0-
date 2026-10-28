@@ -143,6 +143,37 @@ def test_validate_priority_result_rejects_an_invented_id():
     assert "unknown" in result["error"]
 
 
+def test_validate_priority_result_rejects_non_list_priority():
+    # 'priority' is present but is not a list: structured error, no verdict.
+    result = validate_priority_result({"priority": "t1", "known_ids": ["t1"]})
+    assert "error" in result
+    assert "must both be lists" in result["error"]
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_non_list_known_ids():
+    result = validate_priority_result({"priority": [{"id": "t1"}], "known_ids": "t1"})
+    assert "error" in result
+    assert "must both be lists" in result["error"]
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_a_row_without_a_string_id():
+    # A priority row whose id is not a string is a malformed call, not an
+    # invalid report: structured error, no verdict.
+    result = validate_priority_result({"priority": [{"id": 123}], "known_ids": ["t1"]})
+    assert "error" in result
+    assert "string id" in result["error"]
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_a_non_dict_row():
+    result = validate_priority_result({"priority": ["t1"], "known_ids": ["t1"]})
+    assert "error" in result
+    assert "string id" in result["error"]
+    assert "valid" not in result
+
+
 def test_validate_priority_result_rejects_a_malformed_call():
     result = validate_priority_result({"priority": [{"id": "t1"}]})
     assert "error" in result

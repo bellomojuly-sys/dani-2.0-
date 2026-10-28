@@ -188,6 +188,34 @@ def test_honest_failure_when_the_task_source_fails():
     assert outcome["priority"] is None
 
 
+def test_outcome_refuses_when_the_result_was_not_validated():
+    # read_tasks succeeded and a priority was produced, but validation never
+    # ran. final_outcome must refuse to present the unverified priority
+    # (agent.py "result not validated" branch).
+    trace = [
+        {"name": "read_tasks", "result": [{"id": "t1"}]},
+        {"name": "prioritize_tasks", "result": {"priority": [{"rank": 1, "id": "t1"}]}},
+    ]
+    outcome = final_outcome({"trace": trace})
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "result not validated"
+    assert outcome["priority"] is None
+
+
+def test_outcome_refuses_when_validation_returned_not_valid():
+    # Validation ran but said valid: False. The outcome still refuses: only a
+    # passed validation unlocks the priority.
+    trace = [
+        {"name": "read_tasks", "result": [{"id": "t1"}]},
+        {"name": "prioritize_tasks", "result": {"priority": [{"rank": 1, "id": "t1"}]}},
+        {"name": "validate_priority_result", "result": {"valid": False, "error": "missing ids: ['t2']"}},
+    ]
+    outcome = final_outcome({"trace": trace})
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "result not validated"
+    assert outcome["priority"] is None
+
+
 def test_no_fabricated_priority_after_a_source_failure():
     # Even if the model invents a task after the source failed, and even if a
     # (bogus) validation passes, the outcome must refuse to present a priority.
