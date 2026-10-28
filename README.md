@@ -30,6 +30,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-07 | The API key is never written in the code | The key is read from the environment, so it cannot end up in the repository |
 | 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
 | 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
+| 2026-10-28 | Cover `main.py` by extracting its real decisions into testable functions (`require_api_key`, `format_report`, `run`) and marking only the real client-building wiring `# pragma: no cover`, instead of excluding the file | Chasing 100% on glue hides nothing useful, but `main.py`'s one real decision — fail loud on a missing key — deserves a test without ever calling the real API (D2-020a; full text in `docs/TEST-REVIEW-D2-020a.md`) |
 
 ## How to run
 
@@ -71,6 +72,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
+| D2-020a | Critical review of every test; refusal paths and `main.py` now tested | Done |
 
 ## Traceability
 
@@ -95,5 +97,9 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
+| D2-020a | `1db5f19` | Refusal paths tested; `main.py` decisions tested; 100% product coverage | `-k "not_validated or non_list or string_id or non_dict_row or require_api_key or format_report or run_uses"` (13) |
 
-All 40 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 53 tests: `python3 -m pytest -v`. Coverage on the product code:
+`python3 -m pytest --cov --cov-report=term-missing` (100%, config in `.coveragerc`;
+needs `pip install pytest-cov`). The tests never call the real API; `python3 main.py`
+is the only live run.
