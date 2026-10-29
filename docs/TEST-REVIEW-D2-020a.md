@@ -23,22 +23,37 @@ break makes the right test fail": every mutant is a deliberate break.
 
 | Measure | Before | After |
 |---|---|---|
-| Tests | 40 | 64 |
-| Line coverage (tools, agent, answer, skill) | 97% | 100% |
-| Branch coverage | — | 100% |
-| Mutants killed / total | 291 / 342 | **342 / 342** |
-| Mutants survived | 51 | **0** |
+| Tests | 40 | 72 |
+| Line + branch coverage (tools, agent, answer, skill, main) | 97% line | 100% line + branch |
+| Mutants killed / total | 291 / 342 | **432 / 433** |
+| Mutants survived | 51 | **1 equivalent** (documented below) |
 
-`main.py` is not covered or mutated: it is the real-API entry point (network +
-secret key), so it is exercised by hand, not by unit tests. This boundary is
-why the logic lives in `tools.py`, `agent.py`, `answer.py`, `skill.py`, which
-are testable without the API.
+**`main.py`** is the composition root: it wires tested pieces together and
+talks to the outside world (the real DeepSeek client, stdin/stdout). Rather
+than leave it untested, its real *decisions* were pulled into plain functions —
+`require_api_key` (fail loud on a missing key, D2-007), `build_messages` (only
+the intended messages, D2-009), `format_report` and `run` (show a priority only
+when verified, D2-019/D2-020) — and tested in `test_main.py` with a fake client,
+never the API. Only the thin `__main__` wiring that builds the real client and
+calls `sys.exit` stays out, marked `# pragma: no cover`. Mutation runs with
+`mutate_only_covered_lines=True`, so that wiring is not mutated while every
+tested decision line is.
+
+### The one surviving mutant is equivalent
+
+`mutmut` reports one survivor in `run`: dropping `model="deepseek-flash"` from
+the `run_tool_loop(...)` call. That argument equals `run_tool_loop`'s own
+default, so removing it produces identical behaviour — no test can tell the two
+apart because there is nothing to tell apart. This is an *equivalent mutant*, the
+textbook reason 100% mutation score is not always reachable; it is left as-is and
+documented rather than killed by contorting the code.
 
 ### Reproduce
 
 ```bash
-python3 -m pip install pytest pytest-cov mutmut
-python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov-branch --cov-report=term-missing
+pip install -r requirements-dev.txt
+python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov=main --cov-branch --cov-report=term-missing
+python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov=main   # writes .coverage, used by mutmut
 mutmut run && mutmut results
 ```
 
@@ -162,3 +177,16 @@ test, catches the break.
 | skill_names_the_three_tools_in_the_right_order | the policy text names the tools in order |
 | tool_order_covers_exactly_the_registered_tools | the declared order matches the registered tools |
 | skill_forbids_inventing_tasks | the policy forbids inventing tasks |
+
+### test_main.py — the composition root's real decisions (no API)
+
+| Test | What it proves |
+|---|---|
+| require_api_key_returns_the_key_when_present | a present key is returned |
+| require_api_key_reports_a_missing_key | a missing key is a clear "missing key" signal, not a crash |
+| require_api_key_treats_an_empty_key_as_missing | an empty-string key counts as missing |
+| build_messages_is_system_then_user_with_the_skill | the messages are system-then-user and carry the skill |
+| build_messages_system_content_is_exactly_the_composed_prompt | the system prompt is exactly framing + skill + closing instruction |
+| format_report_shows_the_validated_priority | a verified run prints the tool-order line, the ranked priority and Dani's reply |
+| format_report_shows_honest_failure_and_no_priority | a failed run prints the honest reason and no priority |
+| run_uses_the_injected_client_and_prints_the_validated_report | a full run uses the injected (fake) client, sends the right model and schemas, and prints the validated report |

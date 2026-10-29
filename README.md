@@ -30,17 +30,20 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-07 | The API key is never written in the code | The key is read from the environment, so it cannot end up in the repository |
 | 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
 | 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
-| 2026-10-29 | Test quality is measured by mutation testing (target: 0 surviving mutants) and 100% line+branch coverage; dev-only tools live in `requirements-dev.txt`, and `main.py` is excluded (real-API entry point) | Coverage alone passed at 97% while 51 mutants survived — mutation testing is what proves a test fails when the code is broken; keeping `mutmut`/`pytest-cov` out of `requirements.txt` keeps the runtime install minimal (D2-020a) |
+| 2026-10-29 | Test quality is measured by mutation testing (target: no surviving non-equivalent mutants) and 100% line+branch coverage; `main.py`'s real decisions are refactored into tested functions while only its `__main__` wiring is excluded; dev-only tools live in `requirements-dev.txt` | Coverage alone passed at 97% while 51 mutants survived — mutation testing is what proves a test fails when the code is broken; testing `main.py`'s decisions (not just excluding the file) answers the teacher's point, and `mutate_only_covered_lines` keeps the untestable wiring out (D2-020a) |
 
 ## How to run
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install openai
+pip install -r requirements.txt
 export DEEPSEEK_API_KEY="your-key"
 python main.py
 ```
+
+For the tests, coverage and mutation testing, install the dev tools too:
+`pip install -r requirements-dev.txt`.
 
 ## Status
 
@@ -72,7 +75,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
-| D2-020a | Critical test review: 100% line/branch coverage, 0 surviving mutants | Done |
+| D2-020a | Critical test review: `main.py` decisions tested, 100% coverage, 432/433 mutants killed (1 equivalent) | Done |
 
 ## Traceability
 
@@ -97,9 +100,9 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
-| D2-020a | `1600df5` | Test review note; 100% line/branch coverage, 342/342 mutants killed | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
+| D2-020a | `1600df5` | Test review note; `main.py` decisions tested, 100% line+branch coverage, 432/433 mutants killed (1 equivalent) | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
 
-All 64 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 72 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
