@@ -74,7 +74,7 @@ closes only when Giulia passes its oral check ("Prova").
 | D2-018 | Implement bounded tool loop | Ordered call trace | Iteration limit works | ✅ 14 Oct · `c97aa5e` |
 | D2-019 | Ask what to do first | Priority report | Every source ID appears once | ✅ 14 Oct · `7ee4b32` |
 | D2-020 | Simulate task-source failure | Honest failure | No result is fabricated | ✅ 14 Oct · `e308727` |
-| D2-020a | Review every test critically: what it checks, whether it fails when the code is broken on purpose, what is missing — added after feedback, 15 Oct | Test review note (good, weak, missing) and fixed weak tests | For each test Giulia says in one sentence what it proves; a deliberate break makes the right test fail | ✅ 29 Oct · `HASHHASH` |
+| D2-020a | Review every test critically: what it checks, whether it fails when the code is broken on purpose, what is missing — added after feedback, 15 Oct | Test review note (good, weak, missing) and fixed weak tests | For each test Giulia says in one sentence what it proves; a deliberate break makes the right test fail | ✅ 29 Oct · `1600df5` |
 
 **Gate M03:** one LLM selects three Python tools and returns a validated result. D2-020a must close before M04 starts.
 

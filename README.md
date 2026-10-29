@@ -97,7 +97,7 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
-| D2-020a | `HASHHASH` | Test review note; 100% line/branch coverage, 342/342 mutants killed | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
+| D2-020a | `1600df5` | Test review note; 100% line/branch coverage, 342/342 mutants killed | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
 
 All 64 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
