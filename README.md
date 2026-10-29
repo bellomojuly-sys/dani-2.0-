@@ -30,6 +30,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-07 | The API key is never written in the code | The key is read from the environment, so it cannot end up in the repository |
 | 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
 | 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
+| 2026-10-29 | Test quality is measured by mutation testing (target: 0 surviving mutants) and 100% line+branch coverage; dev-only tools live in `requirements-dev.txt`, and `main.py` is excluded (real-API entry point) | Coverage alone passed at 97% while 51 mutants survived — mutation testing is what proves a test fails when the code is broken; keeping `mutmut`/`pytest-cov` out of `requirements.txt` keeps the runtime install minimal (D2-020a) |
 
 ## How to run
 
@@ -43,7 +44,7 @@ python main.py
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-020a — critical review of every test**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-021 — add run ID and timestamps (M04)**.
 
 | Step | What | State |
 |---|---|---|
@@ -71,6 +72,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
+| D2-020a | Critical test review: 100% line/branch coverage, 0 surviving mutants | Done |
 
 ## Traceability
 
@@ -95,5 +97,14 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
+| D2-020a | `HASHHASH` | Test review note; 100% line/branch coverage, 342/342 mutants killed | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
 
-All 40 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 64 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+
+Coverage and mutation testing (D2-020a) need the dev tools in
+`requirements-dev.txt` (`pip install -r requirements-dev.txt`):
+
+```bash
+python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov-branch --cov-report=term-missing
+mutmut run && mutmut results   # writes a git-ignored mutants/ dir; rm -rf mutants before pytest
+```

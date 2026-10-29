@@ -17,11 +17,11 @@ closes only when Giulia passes its oral check ("Prova").
 
 | Field | Value |
 |---|---|
-| Completed | D2-001 to D2-003, D2-005 to D2-020 (7–14 Oct 2026). Gates M01, M02 and M03 passed in code |
+| Completed | D2-001 to D2-003, D2-005 to D2-020, D2-020a (7–29 Oct 2026). Gates M01, M02 and M03 passed in code |
 | Open from earlier | D2-004 — teacher confirmation of the MVP scope |
-| **Active** | **D2-020a — critical review of every test** (feedback 15 Oct 2026). Blocks M04 |
-| Then | D2-021 (M04) |
-| Study objectives to review (ripasso) | F1 Testing (now), D-A on M01–M03, F2, F3 |
+| **Active** | **D2-021 — add run ID and timestamps (M04 trace envelope)** |
+| Then | D2-022 (M04) |
+| Study objectives to review (ripasso) | F1 Testing (code done; oral Prova pending), D-A on M01–M03, F2, F3 |
 
 ## In scope by December
 
@@ -74,7 +74,7 @@ closes only when Giulia passes its oral check ("Prova").
 | D2-018 | Implement bounded tool loop | Ordered call trace | Iteration limit works | ✅ 14 Oct · `c97aa5e` |
 | D2-019 | Ask what to do first | Priority report | Every source ID appears once | ✅ 14 Oct · `7ee4b32` |
 | D2-020 | Simulate task-source failure | Honest failure | No result is fabricated | ✅ 14 Oct · `e308727` |
-| D2-020a | Review every test critically: what it checks, whether it fails when the code is broken on purpose, what is missing — added after feedback, 15 Oct | Test review note (good, weak, missing) and fixed weak tests | For each test Giulia says in one sentence what it proves; a deliberate break makes the right test fail | ⬜ **active** |
+| D2-020a | Review every test critically: what it checks, whether it fails when the code is broken on purpose, what is missing — added after feedback, 15 Oct | Test review note (good, weak, missing) and fixed weak tests | For each test Giulia says in one sentence what it proves; a deliberate break makes the right test fail | ✅ 29 Oct · `HASHHASH` |
 
 **Gate M03:** one LLM selects three Python tools and returns a validated result. D2-020a must close before M04 starts.
 

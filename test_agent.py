@@ -37,6 +37,29 @@ def test_read_tool_calls_is_empty_when_no_tool_requested():
     assert read_tool_calls(message) == []
 
 
+def test_read_tool_calls_treats_missing_arguments_as_empty_dict():
+    # The SDK may send None or an empty/whitespace string for a no-arg call;
+    # all of these must parse to an empty dict, never crash.
+    for raw in (None, "", "   "):
+        message = _fake_message([_fake_tool_call("c", "read_tasks", raw)])
+        calls = read_tool_calls(message)
+        assert calls[0]["arguments"] == {}
+
+
+def test_read_tool_calls_parses_json_arguments():
+    # A real JSON argument string must be parsed into the matching dict.
+    message = _fake_message([_fake_tool_call("c", "prioritize_tasks", '{"order": []}')])
+    calls = read_tool_calls(message)
+    assert calls[0]["arguments"] == {"order": []}
+
+
+def test_read_tool_calls_handles_a_message_without_the_attribute():
+    # A message object that has no tool_calls attribute at all must be treated
+    # as "no tool requested", not crash.
+    message = SimpleNamespace()
+    assert read_tool_calls(message) == []
+
+
 def test_run_tool_call_executes_the_tool_exactly_once():
     runs = []
 
@@ -93,9 +116,17 @@ class _FakeClient:
         self._messages = scripted_messages
         self._repeat_last = repeat_last
         self.calls = 0
+        # Record what the loop passed on the LAST create() call, so a test can
+        # check the request was built correctly (model, messages, tools).
+        self.last_model = "unset"
+        self.last_messages = "unset"
+        self.last_tools = "unset"
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     def _create(self, model=None, messages=None, tools=None):
+        self.last_model = model
+        self.last_messages = messages
+        self.last_tools = tools
         if self.calls < len(self._messages):
             message = self._messages[self.calls]
         elif self._repeat_last:
@@ -125,6 +156,8 @@ def test_run_tool_loop_records_the_call_trace_in_order():
     names = [entry["name"] for entry in result["trace"]]
     assert names == ["read_tasks", "prioritize_tasks", "validate_priority_result"]
     assert result["status"] == "answered"
+    # The answered result carries the model's final message.
+    assert result["final"] is scripted[-1]
 
 
 def test_run_tool_loop_stops_at_the_iteration_limit():
@@ -137,6 +170,54 @@ def test_run_tool_loop_stops_at_the_iteration_limit():
 
     assert result["status"] == "stopped"
     assert len(result["trace"]) == 3
+    # A stopped run has no final message.
+    assert result["final"] is None
+
+
+def test_run_tool_loop_default_iteration_cap_is_five():
+    # With no max_iterations given, the default cap must apply (not more).
+    spy_tools = {"read_tasks": lambda arguments: [{"id": "t1"}]}
+    scripted = [_fake_message([_fake_tool_call("c", "read_tasks", "{}")])]
+    client = _FakeClient(scripted, repeat_last=True)
+
+    result = run_tool_loop(client, [], TOOL_SCHEMAS, tools=spy_tools)
+
+    assert result["status"] == "stopped"
+    assert len(result["trace"]) == 5
+
+
+def test_run_tool_loop_sends_the_model_messages_and_tools():
+    # The request to the model must carry the right model, the running
+    # messages list, and the tool schemas.
+    scripted = [_fake_message(None)]  # answers at once, no tool calls
+    client = _FakeClient(scripted)
+    messages = [{"role": "user", "content": "hi"}]
+
+    run_tool_loop(client, messages, TOOL_SCHEMAS)
+
+    assert client.last_model == "deepseek-flash"
+    assert client.last_messages is messages
+    assert client.last_tools is TOOL_SCHEMAS
+
+
+def test_run_tool_loop_feeds_each_tool_result_back_into_the_messages():
+    # The loop must append a 'tool' message carrying the real result, tied to
+    # the call id, so the model answers from the result and not from memory.
+    spy_tools = {"read_tasks": lambda arguments: [{"id": "t1", "title": "real"}]}
+    assistant_turn = _fake_message([_fake_tool_call("c1", "read_tasks", "{}")])
+    scripted = [assistant_turn, _fake_message(None)]
+    client = _FakeClient(scripted)
+    messages = []
+
+    run_tool_loop(client, messages, TOOL_SCHEMAS, tools=spy_tools)
+
+    # The assistant turn object itself was appended to the transcript.
+    assert messages[0] is assistant_turn
+    # Exactly one tool message, with the right role, id and serialized result.
+    tool_messages = [m for m in messages if isinstance(m, dict) and m.get("role") == "tool"]
+    assert len(tool_messages) == 1
+    assert tool_messages[0]["tool_call_id"] == "c1"
+    assert tool_messages[0]["content"] == json.dumps([{"id": "t1", "title": "real"}])
 
 
 def test_full_run_covers_every_source_id_exactly_once():
@@ -162,6 +243,7 @@ def test_full_run_covers_every_source_id_exactly_once():
     outcome = final_outcome(result)
 
     assert outcome["ok"] is True
+    assert outcome["reason"] == "validated"
     seen = [row["id"] for row in outcome["priority"]]
     assert sorted(seen) == sorted(real_ids)
     for task_id in real_ids:
@@ -209,4 +291,62 @@ def test_no_fabricated_priority_after_a_source_failure():
     outcome = final_outcome(result)
 
     assert outcome["ok"] is False
+    assert outcome["priority"] is None
+
+
+def test_final_outcome_refuses_a_result_that_was_never_validated():
+    # Source read fine and a priority was produced, but validate_priority_result
+    # never ran: the outcome must refuse it with the right reason, not present it.
+    loop_result = {
+        "trace": [
+            {"name": "read_tasks", "result": [{"id": "t1"}]},
+            {"name": "prioritize_tasks", "result": {"priority": [{"id": "t1"}]}},
+        ]
+    }
+    outcome = final_outcome(loop_result)
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "result not validated"
+    assert outcome["priority"] is None
+
+
+def test_final_outcome_does_not_treat_a_non_error_read_as_a_failure():
+    # A read result that is a dict WITHOUT an 'error' key is not a source
+    # failure, so the outcome must not be "task source unavailable".
+    loop_result = {
+        "trace": [
+            {"name": "read_tasks", "result": {"status": "ok"}},
+            {"name": "validate_priority_result", "result": {"valid": True}},
+        ]
+    }
+    outcome = final_outcome(loop_result)
+    assert outcome["reason"] != "task source unavailable"
+
+
+def test_final_outcome_validated_without_a_prioritize_entry_has_no_priority():
+    # Defensive: validation passed but no prioritize_tasks ran. The outcome is
+    # ok with priority None, and must not crash reaching for a missing entry.
+    loop_result = {
+        "trace": [
+            {"name": "read_tasks", "result": [{"id": "t1"}]},
+            {"name": "validate_priority_result", "result": {"valid": True}},
+        ]
+    }
+    outcome = final_outcome(loop_result)
+    assert outcome["ok"] is True
+    assert outcome["reason"] == "validated"
+    assert outcome["priority"] is None
+
+
+def test_final_outcome_refuses_when_validation_returned_false():
+    # Source read fine, but validate_priority_result returned valid: False.
+    loop_result = {
+        "trace": [
+            {"name": "read_tasks", "result": [{"id": "t1"}]},
+            {"name": "prioritize_tasks", "result": {"priority": [{"id": "t1"}]}},
+            {"name": "validate_priority_result", "result": {"valid": False, "error": "missing ids"}},
+        ]
+    }
+    outcome = final_outcome(loop_result)
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "result not validated"
     assert outcome["priority"] is None

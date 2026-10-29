@@ -1,0 +1,5 @@
+# Development/test tooling only (not needed to run Dani).
+# Added for D2-020a: coverage and mutation testing of the product modules.
+-r requirements.txt
+pytest-cov
+mutmut

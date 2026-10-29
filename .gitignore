@@ -1,3 +1,9 @@
 .venv/
 .env
 __pycache__/
+
+# mutation testing (mutmut) working dirs
+mutants/
+.mutmut-cache
+mutmut-stats.json
+.coverage

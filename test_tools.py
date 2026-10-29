@@ -23,6 +23,23 @@ def test_read_tasks_returns_three_tasks():
     assert len(tasks) == 3
 
 
+def test_read_tasks_returns_the_exact_mvp_tasks():
+    # Pin the actual fixture content (ids and titles), so a change to any
+    # task value is caught, not only the count.
+    assert read_tasks() == [
+        {"id": "t1", "title": "Finish the AMEXIO case model"},
+        {"id": "t2", "title": "Study MCP"},
+        {"id": "t3", "title": "Answer the email from my teacher"},
+    ]
+
+
+def test_read_tasks_error_names_the_tool():
+    # The structured error must name the tool it came from, at the start of the
+    # message (an exact prefix, so a wrapped/altered name is caught).
+    result = read_tasks({"x": 1})
+    assert result["error"].startswith("read_tasks takes no arguments")
+
+
 def test_read_tasks_accepts_empty_arguments():
     # "No arguments" may arrive as None or as an empty dict {}.
     assert len(read_tasks(None)) == 3
@@ -84,6 +101,17 @@ def test_prioritize_tasks_keeps_the_order_the_llm_decided():
     assert result["priority"][0]["id"] == "t2"
     assert result["priority"][1]["id"] == "t1"
     assert result["priority"][2]["id"] == "t3"
+
+
+def test_prioritize_tasks_row_carries_rank_id_title_and_reason():
+    # The output row must keep every field, each tied to the right value.
+    result = prioritize_tasks(_valid_order())
+    assert result["priority"][0] == {
+        "rank": 1,
+        "id": "t2",
+        "title": "Study MCP",
+        "reason": "needed next",
+    }
 
 
 def test_prioritize_tasks_rejects_missing_order():
@@ -153,3 +181,64 @@ def test_validate_priority_result_schema_has_priority_and_known_ids():
     properties = VALIDATE_PRIORITY_RESULT_SCHEMA["function"]["parameters"]["properties"]
     assert "priority" in properties
     assert "known_ids" in properties
+
+
+# --- D2-020a: tests added to cover the refusal paths left untested -----------
+
+def test_prioritize_tasks_rejects_non_dict_arguments():
+    # A non-dict argument must be a structured error, not a crash.
+    result = prioritize_tasks("oops")
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert "priority" not in result
+
+
+def test_prioritize_tasks_rejects_non_list_order():
+    # 'order' present but not a list: refuse, do not iterate over it.
+    result = prioritize_tasks({"order": "t1,t2"})
+    assert "error" in result
+    assert "priority" not in result
+
+
+def test_prioritize_tasks_rejects_non_dict_item():
+    # An item that is not a dict must be refused before .get() is called.
+    result = prioritize_tasks({"order": [123]})
+    assert "error" in result
+    assert "priority" not in result
+
+
+def test_prioritize_tasks_rejects_non_string_id():
+    # id/title/reason must all be strings; a numeric id is refused.
+    bad = {"order": [{"id": 1, "title": "t", "reason": "r"}]}
+    result = prioritize_tasks(bad)
+    assert "error" in result
+    assert "priority" not in result
+
+
+def test_validate_priority_result_rejects_non_dict_arguments():
+    # A non-dict argument must not crash: structured error, no verdict.
+    result = validate_priority_result(None)
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_non_list_priority():
+    # 'priority' must be a list; a string is a malformed call.
+    result = validate_priority_result({"priority": "t1", "known_ids": ["t1"]})
+    assert result["error"] == "'priority' and 'known_ids' must both be lists"
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_row_without_string_id():
+    # Each priority row must carry a string id; a numeric id is malformed.
+    result = validate_priority_result({"priority": [{"id": 1}], "known_ids": ["t1"]})
+    assert "error" in result
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_non_list_known_ids():
+    # 'known_ids' must be a list too, not just 'priority'.
+    result = validate_priority_result({"priority": [{"id": "t1"}], "known_ids": "t1"})
+    assert "error" in result
+    assert "valid" not in result
