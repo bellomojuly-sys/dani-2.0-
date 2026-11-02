@@ -71,6 +71,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-019 | Full "what should I do first?" run; every source id appears exactly once | Done |
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
+| D2-020a | Critical test review: 2 weak tests strengthened, 4 missing-case tests added | Done |
 
 ## Traceability
 
@@ -95,5 +96,6 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-018 | `c97aa5e` | Ordered call trace; the loop stops at the iteration limit | `-k "run_tool_loop"` (2) |
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
+| D2-020a | `fd90713` | 2 weak tests now fail under mutation; 4 untested guard branches covered | `-k "non_list or row_without or invented_title or valid_response or prioritize_tasks_rejects_non_dict"` (5) |
 
-All 40 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 43 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
