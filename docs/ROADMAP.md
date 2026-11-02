@@ -86,7 +86,7 @@ closes only when Giulia passes its oral check ("Prova").
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-021 | Add run ID and timestamps | Trace envelope | Events share run ID | ✅ 2 Nov · `584f272` |
+| D2-021 | Add run ID and timestamps | Trace envelope | Events share run ID | ✅ 2 Nov · `a319f85` |
 | D2-022 | Record tool name, arguments, status and duration | JSON trace | Trace schema passes | ⬜ |
 | D2-023 | Redact sensitive fields | Safe trace | Test secret is absent | ⬜ |
 | D2-024 | Create five representative cases | Evaluation dataset | Expected facts are complete | ⬜ |

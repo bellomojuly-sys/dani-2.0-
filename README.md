@@ -102,7 +102,7 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
 | D2-020a | `1600df5` | Test review note; `main.py` decisions tested, 100% line+branch coverage, 432/433 mutants killed (1 equivalent) | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
-| D2-021 | `584f272` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
+| D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
 
 All 82 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
