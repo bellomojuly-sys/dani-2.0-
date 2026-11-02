@@ -22,13 +22,13 @@ Giulia should never have to tell you which task is next.
 
 ## The study cycle comes before the code
 
-From `docs/STUDY-PLAN.md`. When a microphase starts a study objective that is not yet "in corso":
+From `docs/STUDY-PLAN.md`. **Theory never happens here.** Giulia studies the topic and writes her notes in her notebook (NotebookLM), not in Claude Code. So in this session you **never explain theory, never give theoretical background, and never ask her to study or to confirm she has taken notes.** Assume the Teoria and Appunti steps of the study cycle are done elsewhere. Here your only job is to guide the execution of the active microphase.
 
-1. **Teoria** — explain the whole topic first, not only the piece the project needs. Short, concrete, in Italian.
-2. **Appunti** — ask her to write the base logic in her notebook in her own words. Wait for her to say she has done it. Do not write the notes for her.
-3. **Pratica** — before any code, ask her what she expects the solution to do. Then build the microphase.
-4. **Correzione** — walk through the code and the tests together. Any line she cannot explain goes back.
-5. **Prova** — when the last microphase of the objective is closed, ask the exam questions of that objective, one at a time, without notes. Mark the objective passed in `docs/STUDY-PLAN.md` only if she answers them.
+When a microphase starts a study objective, the part of the cycle that runs here is:
+
+1. **Pratica** — before any code, ask her what she expects the solution to do. Then build the microphase.
+2. **Correzione** — walk through the code and the tests together. Any line she cannot explain goes back. (This is about reading the code she just built, not a theory lesson.)
+3. **Prova** — when the last microphase of the objective is closed, ask the exam questions of that objective, one at a time, without notes. Mark the objective passed in `docs/STUDY-PLAN.md` only if she answers them.
 
 Objectives already closed in code but not understood (D-A on M01–M03, F2, F3) get a review ("ripasso") with the same Prova.
 
