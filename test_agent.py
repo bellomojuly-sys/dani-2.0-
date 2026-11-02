@@ -78,7 +78,12 @@ def test_tool_result_message_carries_the_three_real_titles():
 def test_tool_result_message_does_not_contain_an_invented_title():
     call = {"id": "call_1", "name": "read_tasks", "arguments": {}}
     message = build_tool_result_message(call)
-    assert "Buy a yacht" not in message["content"]
+    # Checking that one hardcoded string ("Buy a yacht") is absent was weak: a
+    # DIFFERENT invented title would slip through (D2-020a). Assert instead that
+    # every returned title belongs to the real task set, whatever the string.
+    returned_titles = {task["title"] for task in json.loads(message["content"])}
+    real_titles = {task["title"] for task in read_tasks()}
+    assert returned_titles <= real_titles
 
 
 class _FakeClient:

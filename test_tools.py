@@ -107,6 +107,17 @@ def test_bad_order_does_not_return_a_priority_list():
     assert "priority" not in result
 
 
+def test_prioritize_tasks_rejects_non_dict_arguments_with_structured_error():
+    # Added in D2-020a: no test exercised the "arguments is not a dict" guard,
+    # so it could be removed without any test failing. None/str/list must all
+    # give a structured error, never a crash and never a priority list.
+    for bad in (None, "oops", []):
+        result = prioritize_tasks(bad)
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "priority" not in result
+
+
 def test_prioritize_tasks_schema_has_an_order_parameter():
     properties = PRIORITIZE_TASKS_SCHEMA["function"]["parameters"]["properties"]
     assert "order" in properties
@@ -145,6 +156,22 @@ def test_validate_priority_result_rejects_an_invented_id():
 
 def test_validate_priority_result_rejects_a_malformed_call():
     result = validate_priority_result({"priority": [{"id": "t1"}]})
+    assert "error" in result
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_non_list_fields():
+    # Added in D2-020a: the "priority/known_ids must both be lists" guard had
+    # no test. known_ids as a string (with a valid priority) must be refused as
+    # a malformed call, never silently iterated into a verdict.
+    result = validate_priority_result({"priority": [{"id": "t1"}], "known_ids": "t1"})
+    assert "error" in result
+    assert "valid" not in result
+
+
+def test_validate_priority_result_rejects_a_row_without_a_string_id():
+    # Added in D2-020a: the "each row needs a string id" guard had no test.
+    result = validate_priority_result({"priority": [{"id": 123}], "known_ids": ["t1"]})
     assert "error" in result
     assert "valid" not in result
 

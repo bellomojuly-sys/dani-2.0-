@@ -5,6 +5,9 @@ from answer import parse_answer
 def test_valid_response_is_accepted():
     result = parse_answer('{"answer": "Write the case model", "reason": "It has a deadline"}')
     assert result.answer == "Write the case model"
+    # Both fields must be parsed, not only `answer`: otherwise this test would
+    # still pass if `reason` were silently dropped from the model (D2-020a).
+    assert result.reason == "It has a deadline"
 
 
 def test_missing_field_fails():
