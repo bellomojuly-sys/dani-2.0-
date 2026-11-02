@@ -13,9 +13,9 @@ supera la prova orale.**
 
 Il ciclo per ogni obiettivo:
 
-1. **Teoria.** Claude spiega l'argomento intero, non solo il pezzo che serve al progetto.
+1. **Teoria.** Giulia studia l'argomento intero su NotebookLM, non solo il pezzo che serve al progetto. La teoria non si fa mai su Claude Code: lì l'agente non spiega teoria né dà informazioni teoriche.
 2. **Appunti.** Giulia scrive sul quaderno la logica di base con parole sue, senza copiare.
-3. **Pratica.** Si fanno le microfasi della roadmap. Prima di chiedere all'AI, Giulia scrive cosa si aspetta che faccia la soluzione.
+3. **Pratica.** Si fanno le microfasi della roadmap con Claude Code, che guida solo l'esecuzione. Prima di chiedere all'AI, Giulia scrive cosa si aspetta che faccia la soluzione.
 4. **Correzione.** Si rivedono insieme codice e test; ogni riga che non sa spiegare torna indietro.
 5. **Prova.** Giulia risponde alle domande d'esame senza guardare gli appunti, comprese quelle su cose che il progetto non usa. Solo allora si passa avanti.
 
