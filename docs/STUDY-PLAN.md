@@ -37,9 +37,9 @@ ripassi delle parti già fatte, poi il calendario degli sprint.
 | Periodo | Fondamenta | Dani | AMEXIO |
 |---|---|---|---|
 | 21–23 ott | F1 Testing; ripasso F2 e F3 | D2-020a; ripasso D-A (M01–M03) | AX-018a, AX-019, AX-020; ripasso A-A (M00–M03) |
-| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO B1), poi F4 Persistenza, F6 Osservabilità ed evals | F6 su M04, D-B con F2 e F4 (M05–M06) | Parte A: A-I (B1–B4, backend), A-B su AX-021–AX-022, F6 su BE-19 |
-| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | A-F (M06b), D-C (M12), D-D (M13) | Parte B: ripasso A-A con BR-00, BR-01, BR-09; A-B (M04), A-C (M05), A-D con F4 (M06) |
-| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-E MCP e supervisor (M16–M18), D-F (M19–M20) | A-E (M07, M10), A-G (M12–M13) |
+| Sprint 3 (26 ott–13 nov) | F3 e F8 subito (servono ad AMEXIO B1), poi F4 Persistenza, F6 Osservabilità ed evals | F6 su M04, D-F con F2 (M05) | Parte A: A-I (B1–B4, backend), A-B su AX-021–AX-022, F6 su BE-19 |
+| Sprint 4 (16–27 nov) | F5 Errori e affidabilità | D-F (M06), D-A (M07), D-C con F4 (M08) | Parte B: ripasso A-A con BR-00, BR-01, BR-09; A-B (M04), A-C (M05), A-D con F4 (M06) |
+| Sprint 5 (30 nov–18 dic) | F7 Git, CI e collaborazione | D-D (M09), D-F con F5 (M10); M11 extra con F7 | A-E (M07, M10), A-G (M12–M13) |
 | Sprint 6 (4–15 gen) | Ripasso generale per la valutazione | Prove orali dei gate | A-F (M08–M09), A-H (M14–M15); A-E su M11 solo se in anticipo |
 
 ## Stato degli obiettivi
@@ -132,60 +132,62 @@ Aggiornato dall'agente quando Giulia supera una prova (mai prima).
 
 ## Dani
 
-M07–M11 e M14–M15 restano fuori da dicembre come nella roadmap.
+Roadmap V4 (3 novembre 2026): entro dicembre solo il prodotto di pianificazione
+(Notion → tempo libero → calendario). D-B (dipendenze) e D-E (MCP e supervisor)
+passano a "Later", fuori da dicembre.
 
-### D-A — Il loop dell'agente e il tool calling (M01–M03, ripasso)
+### D-A — Il loop dell'agente, il tool calling e le skill (M01–M03 ripasso, M07)
 
-**Teoria:** agente contro singola chiamata. Function calling: schema del tool in JSON Schema, richiesta del modello, dispatch, risultato restituito. Loop limitato e condizioni di uscita. Skill e istruzioni per gruppi di tool. Errori tipici: tool inventato, argomenti sbagliati, risultato inventato. Pattern noti (ReAct, plan-and-execute) e quando servono.
-**Pratica:** ripasso di D2-011–D2-020 e D2-017a.
+**Teoria:** agente contro singola chiamata. Function calling: schema del tool in JSON Schema, richiesta del modello, dispatch, risultato restituito. Come il modello sceglie un tool: legge solo nome, descrizione e parametri che il codice gli manda a ogni chiamata, mai il codice Python. Loop limitato e condizioni di uscita. Skill e istruzioni per gruppi di tool, e quando una skill vale la pena rispetto alle sole descrizioni. Errori tipici: tool inventato, argomenti sbagliati, risultato inventato. Pattern noti (ReAct, plan-and-execute) e quando servono.
+**Pratica:** ripasso di D2-011–D2-020 e D2-017a; D2-034–D2-035.
 **Prova:**
+- Come fa il modello a sapere quale tool usare? Cosa riceve a ogni chiamata, oltre ai messaggi? (domanda di Ruud, 3 novembre)
 - Racconta il giro completo LLM → funzione → LLM sulla traccia di un run vero (Gate M02).
+- Se la descrizione di un tool è sbagliata ma il codice è giusto, cosa succede?
 - Perché la validazione sta dentro la funzione del tool e non solo nello schema?
 - Cosa succede se il modello chiama un tool che non esiste? Fammelo vedere.
 - Perché serve un limite di iterazioni?
+- Quando aggiungi una skill e come dimostri che serve? (Gate M07)
 
-### D-B — Stato, dipendenze e grafi (M05–M06)
+### D-B — Stato, dipendenze e grafi (Later, fuori da dicembre)
 
 **Teoria:** macchine a stati e transizioni lecite. Grafi diretti, rilevamento dei cicli (DFS), ordinamento topologico. Come si deriva il prossimo task disponibile.
-**Pratica:** D2-026–D2-035, D2-030a, D2-030b.
+**Pratica:** quando "Projects and order of tasks" entra nella roadmap.
 **Prova:**
 - Disegna a mano il grafo di un progetto e trova un ciclo con l'algoritmo, non a occhio.
-- Perché lo stato deve sopravvivere al riavvio, e come lo dimostri?
-- Perché il tool store può scrivere solo in un documento pre-registrato?
 
-### D-C — Tempo e calendari (M12)
+### D-C — Tempo, calendari e memoria delle regole (M08)
 
-**Teoria:** fusi orari e ora legale, datetime naive e aware, intervalli, fusione di intervalli sovrapposti, calcolo degli slot liberi.
-**Pratica:** D2-061–D2-064.
+**Teoria:** fusi orari e ora legale, datetime naive e aware, eventi ricorrenti, intervalli, fusione di intervalli sovrapposti, calcolo degli slot liberi. Un documento di memoria pre-registrato come unico posto scrivibile.
+**Pratica:** D2-036–D2-040.
 **Prova:**
 - Perché un evento alle 2:30 del 25 ottobre 2026 è un problema ad Amsterdam?
 - Calcola a mano gli slot liberi di una giornata con tre eventi sovrapposti.
+- Perché il tool store può scrivere solo in un documento pre-registrato?
 
-### D-D — Pianificazione con vincoli (M13)
+### D-D — Pianificazione con vincoli (M09)
 
-**Teoria:** vincoli rigidi e flessibili, blocchi fissi e spostabili, greedy contro solver, ripianificazione che tocca solo il necessario, spiegare un piano a partire dal diff.
-**Pratica:** D2-066–D2-070.
+**Teoria:** vincoli rigidi e flessibili, blocchi fissi e spostabili, greedy contro solver, cosa fare con i task che non entrano, spiegare un piano a partire dal piano reale.
+**Pratica:** D2-041–D2-043.
 **Prova:**
 - Quando un approccio greedy dà un piano sbagliato? Un esempio.
-- Come dimostri che una ripianificazione non ha perso niente?
+- Come dimostri che nessun task è sparito dal piano?
 
-### D-E — MCP e supervisor (M16–M18)
+### D-E — MCP e supervisor (Later, fuori da dicembre)
 
-**Teoria:** host, client e server; JSON-RPC; trasporti stdio e HTTP; tool, resource e prompt. Function calling contro MCP. Separare lettura, proposta e scrittura; autorizzazioni e minimo privilegio. Il supervisor come unico punto di decisione.
-**Pratica:** D2-081–D2-095.
+**Teoria:** host, client e server; JSON-RPC; trasporti stdio e HTTP; tool, resource e prompt. Function calling contro MCP. Il supervisor come unico punto di decisione.
+**Pratica:** quando "More agents" entra nella roadmap.
 **Prova:**
-- Dove gira il modello e dove gira il tool? (Gate M16)
-- Cosa cambia passando a MCP e cosa non deve cambiare? (Gate M17)
-- Perché uno specialista non può autorizzarsi da solo?
+- Dove gira il modello e dove gira il tool?
 
-### D-F — Integrazioni con API esterne (M19–M20)
+### D-F — Integrazioni con API esterne (M05, M06, M10)
 
-**Teoria:** API REST, OAuth e scope, paginazione e limiti di rate, fixture offline, mappatura verso i modelli di dominio, idempotenza, rilettura dopo la scrittura, freschezza dei dati.
-**Pratica:** D2-096–D2-105.
+**Teoria:** API REST, autenticazione con token e OAuth, permessi e scope, paginazione e limiti di rate, fixture offline, mappatura verso i modelli di dominio, anteprima prima della scrittura, idempotenza, rilettura dopo la scrittura.
+**Pratica:** D2-026–D2-033 (Notion), D2-044–D2-046 (Google Calendar).
 **Prova:**
 - Perché un token in sola lettura viene prima di uno in scrittura?
-- Come eviti che un retry crei due pagine Notion o due eventi?
-- Quando un dato del calendario è troppo vecchio per agire?
+- Come eviti che un retry scriva due volte su Notion o crei due eventi?
+- Perché i test usano una risposta salvata e non l'API vera?
 
 ## AMEXIO
 

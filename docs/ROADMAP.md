@@ -1,256 +1,226 @@
-# Dani 2.0 roadmap (source of truth)
+# Dani 2.0 roadmap — V4 (source of truth)
 
 This file is the **source of truth** for the roadmap. The Notion page
-"Dani 2.0 roadmap (V3): progress tracking — October 2026" is a copy that the
-agent updates every time a microphase closes (see `AGENTS.md`).
+"Dani 2.0 roadmap (V4)" is a copy that the agent updates every time a step
+closes (see `AGENTS.md`).
 
-Every microphase has one change, one output and one pass/fail check. A row is
-marked ✅ only with a date and a commit. IDs never change; a new microphase is
-inserted where it belongs with a letter suffix (e.g. `D2-011a`), never appended
-after D2-190.
+**V4, 3 November 2026.** Rewritten after Ruud's feedback of 3 November: connect
+the real task list in Notion first, make it work with plain tool descriptions,
+and only then write a skill. V3 had grown to 190 steps aimed at the final
+vision; V4 keeps only what builds the December product, in the order it is
+built. The V3 rows are archived (see "Old ID → new ID" at the bottom).
 
-Study objective column: each milestone is a learning objective in
-`docs/STUDY-PLAN.md`. A microphase closes when the code works; the objective
-closes only when Giulia passes its oral check ("Prova").
+## What Dani is for
+
+**Final goal.** Dani is my own AI, trained on my needs and my life goals. It
+organises my tasks, does the ones it can do itself, writes and calls for me,
+keeps my shopping list, keeps me on track, and has a personality I can chat
+with.
+
+**December goal.** I tell Dani what changed in my day, and Dani plans my real
+tasks from Notion into the free time in my real calendar, asking me before it
+writes anything.
+
+## How the IDs work
+
+- Every step has one change, one output and one pass/fail check. It is marked
+  ✅ only with a date and a commit.
+- Steps are numbered in the order they are built: D2-024, D2-025, D2-026 …
+  No letter suffixes from V4 on.
+- **Done IDs never change** (commits and evidence point to them).
+- To add a step, insert it where it belongs and renumber only the ⬜ steps
+  after it. Record the change in "Changes" at the bottom.
+- Each milestone is a study objective in `docs/STUDY-PLAN.md`. A step closes
+  when the code works; the objective closes only when I pass its oral check.
 
 ## Status
 
 | Field | Value |
 |---|---|
-| Completed | D2-001 to D2-003, D2-005 to D2-020, D2-020a, D2-021 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02 and M03 passed in code |
-| Open from earlier | D2-004 — teacher confirmation of the MVP scope |
-| **Active** | **D2-024 — create five representative cases (M04 evaluation dataset)** |
-| Then | D2-025 (M04) |
-| Study objectives to review (ripasso) | F1 Testing (code done; oral Prova pending), D-A on M01–M03, F2, F3 |
+| Done | D2-001 to D2-003, D2-005 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
+| **Active** | **D2-024 — five test questions with expected answers (M04)** |
+| Then | D2-025 (M04), then M05 — real tasks from Notion |
+| Open | D2-004 — a teacher confirms the December scope (V4) |
+| Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 
-## In scope by December
+## Done (7 October – 3 November)
 
-### Sprint 2 (5–16 Oct) — M00 to M03
+| Milestone | What works | Steps | Commits |
+|---|---|---|---|
+| M00 — Product contract | New repository, vision, first MVP | D2-001–D2-003, D2-005 (D2-004 open) | `b74f59f` |
+| M01 — LLM bootstrap | One request to DeepSeek; key in `.env`; the answer is validated with pydantic | D2-006–D2-010 | `b74f59f` `2a0d23f` `75d461a` `60634bc` `52ab164` |
+| M02 — A Python function as an LLM tool | The model asks for `read_tasks`, my code runs it once, the result goes back; wrong arguments return an error | D2-011, D2-011a, D2-012–D2-015 | `3e5b345` `a756c88` `f860948` `5254892` `5bd7d7e` `6da6130` |
+| M03 — First three-tool agent | Read → prioritise → validate in a bounded loop, behind a written skill; honest failure, nothing invented | D2-016, D2-017, D2-017a, D2-018–D2-020 | `cda5ca0` `4e40ec6` `42ebe5c` `c97aa5e` `7ee4b32` `e308727` |
+| M03 — Test review | Every test says what it proves; 100% line and branch coverage; 432/433 mutants killed | D2-020a | `1600df5` |
+| M04 — Trace (first half) | Each run has a run ID and timestamps; each tool call is recorded; secrets are redacted | D2-021–D2-023 | `a319f85` `3696a21` `b1563af` |
 
-#### M00 — Product contract · study: —
+## December plan
 
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-001 | Create the new project | Project in the new repository | All project links open | ✅ 7 Oct · `b74f59f` |
-| D2-002 | Record the final operating model | Vision in the README | The December product is described | ✅ 7 Oct · `b74f59f` |
-| D2-003 | Define first local task MVP | Example input and output | Explain demo in one sentence | ✅ 7 Oct · `b74f59f` |
-| D2-004 | Present MVP and evidence method to professor | Dated feedback | Feedback confirms or corrects scope | ⬜ open |
-| D2-005 | Create clean Python repository | README and file tree | No old Dani code exists | ✅ 7 Oct · `b74f59f` |
+Sprint 3 ends on 13 November and AMEXIO comes first in it, so Dani gets M04
+and M05. Sprints 4 and 5 are for Dani and AMEXIO in turn.
 
-**Gate M00:** professor feedback and clean boundary exist.
+### Sprint 3 (to 13 Nov) — M04, M05
 
-#### M01 — LLM bootstrap · study: F3, D-A (review)
-
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-006 | Choose provider, model and SDK | Decision record | Tool calling and structured output supported | ✅ 7 Oct · `b74f59f` |
-| D2-007 | Send fixed Python model request | Terminal reply | Missing-key failure is distinct | ✅ 7 Oct · `2a0d23f` |
-| D2-008 | Move secret to environment | Redacted config | Secret scan passes | ✅ 7 Oct · `75d461a` |
-| D2-009 | Add minimal system and user messages | Request summary | Only intended messages are sent | ✅ 8 Oct · `60634bc` |
-| D2-010 | Validate structured model response | Parsed object | Invalid response fails | ✅ 8 Oct · `52ab164` |
-
-**Gate M01:** Giulia explains request, response, secret and validation.
-
-#### M02 — First Python function as an LLM tool · study: D-A (review)
+#### M04 — Know whether Dani still works · study: F6
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-011 | Write read_tasks returning three hardcoded tasks | Python list | Direct unit test passes | ✅ 13 Oct · `3e5b345` |
-| D2-011a | Validate arguments inside the body of the tool function — added after feedback, 13 Oct | Structured tool error | Wrong arguments return an error, not a crash or an invented result | ✅ 13 Oct · `a756c88` |
-| D2-012 | Describe function as a tool schema | Tool definition | Schema matches function | ✅ 13 Oct · `f860948` |
-| D2-013 | Let LLM request read_tasks | Tool-call request | Trace names correct tool | ✅ 13 Oct · `5254892` |
-| D2-014 | Dispatch requested Python function | Tool-result event | Function runs once | ✅ 13 Oct · `5bd7d7e` |
-| D2-015 | Return tool result to LLM | Three task titles | No invented title appears | ✅ 13 Oct · `6da6130` |
-
-**Gate M02:** Giulia narrates the complete LLM-to-function loop.
-
-#### M03 — First three-tool agent · study: D-A (review), F1
-
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-016 | Add prioritize_tasks | Ordered IDs and reasons | Direct test passes | ✅ 14 Oct · `cda5ca0` |
-| D2-017 | Add validate_priority_result | Validation status | Missing, duplicate and unknown IDs fail | ✅ 14 Oct · `4e40ec6` |
-| D2-017a | Skill for the task toolbox — added after feedback, 13 Oct | Skill text loaded with the toolbox | The model calls the tools in the described order | ✅ 14 Oct · `42ebe5c` |
-| D2-018 | Implement bounded tool loop | Ordered call trace | Iteration limit works | ✅ 14 Oct · `c97aa5e` |
-| D2-019 | Ask what to do first | Priority report | Every source ID appears once | ✅ 14 Oct · `7ee4b32` |
-| D2-020 | Simulate task-source failure | Honest failure | No result is fabricated | ✅ 14 Oct · `e308727` |
-| D2-020a | Review every test critically: what it checks, whether it fails when the code is broken on purpose, what is missing — added after feedback, 15 Oct | Test review note (good, weak, missing) and fixed weak tests | For each test Giulia says in one sentence what it proves; a deliberate break makes the right test fail | ✅ 29 Oct · `1600df5` |
-
-**Gate M03:** one LLM selects three Python tools and returns a validated result. D2-020a must close before M04 starts.
-
-### Sprint 3 (26 Oct–13 Nov) — M04 to M06
-
-> Re-planned on 26 Oct 2026: AMEXIO Part A (pipeline contract by 30 Oct, backend integration for Review 2 on 13 Nov) comes first, so Sprint 3 keeps only M04–M06. M06b, M12 and M13 move to Sprint 4; MCP (M16–M17) moves to Sprint 5 with M18–M20. Study order: `docs/STUDY-PLAN.md` and the "Piano NotebookLM" doc.
-
-#### M04 — Trace and evaluation · study: F6
-
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-021 | Add run ID and timestamps | Trace envelope | Events share run ID | ✅ 2 Nov · `a319f85` |
+| D2-021 | Run ID and timestamps | Trace envelope | Events share the run ID | ✅ 2 Nov · `a319f85` |
 | D2-022 | Record tool name, arguments, status and duration | JSON trace | Trace schema passes | ✅ 3 Nov · `3696a21` |
-| D2-023 | Redact sensitive fields | Safe trace | Test secret is absent | ✅ 3 Nov · `b1563af` |
-| D2-024 | Create five representative cases | Evaluation dataset | Expected facts are complete | ⬜ |
-| D2-025 | Add evaluation command | Pass/fail summary | Deliberate regression fails | ⬜ |
-| D2-025a | Rule-based fallback when the model call fails or the key is missing: deadline, then energy, then ID — added 20 Oct | Fallback priority report | With the key removed, "what should I do first?" still answers, no crash, no invented task | ⬜ |
-| D2-025b | Record the route of every answer (model or fallback) in the trace and report — added 20 Oct | Route field in trace and report | A fallback answer is never shown as a model answer | ⬜ |
+| D2-023 | Redact sensitive fields | Safe trace | A test secret is absent | ✅ 3 Nov · `b1563af` |
+| D2-024 | Five test questions, each with the answer Dani must give | Evaluation set | Every case lists its expected facts | ⬜ |
+| D2-025 | One command that runs the five cases | Pass/fail summary | A deliberate break makes it fail | ⬜ |
 
-**Gate M04:** a third person reconstructs one run from evidence.
+**Gate M04:** one command tells me whether Dani still works. This is the safety
+net for every later change.
 
-#### M05 — Persistent local tasks · study: D-B, F2, F4
-
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-026 | Move tasks to tasks.json | Visible fixture | Agent result remains valid | ⬜ |
-| D2-027 | Add typed Task model | Task objects | Missing fields fail | ⬜ |
-| D2-027a | Energy field on Task (high or low) — added 18 Oct | Tasks with an energy level | A task without a valid energy value fails | ⬜ |
-| D2-028 | Enforce stable unique IDs | Duplicate error | Duplicate fixture fails | ⬜ |
-| D2-029 | Add task-create preview | Draft task | Store remains unchanged | ⬜ |
-| D2-030 | Confirm, write and reread task | Persisted task | Fields match after restart | ⬜ |
-| D2-030a | Create and pre-register memory.json at start-up — added 13 Oct | Valid empty memory document | The file exists and is valid after a restart | ⬜ |
-| D2-030b | Store tool that writes only to the pre-registered document — added 13 Oct | Stored and reread entry | No other path can be written; reread matches | ⬜ |
-| D2-030c | Capture tool: one free sentence → task, calendar event or memory note, against a fixed list of destinations — added 20 Oct | Validated capture proposal | An unknown destination is rejected and falls back to rules | ⬜ |
-| D2-030d | Write a capture through preview, confirm and reread — added 20 Oct | Persisted capture with its route | Nothing is written before confirmation; reread matches | ⬜ |
-
-**Gate M05:** task state survives restart and every write is verified.
-
-#### M06 — Projects and dependencies · study: D-B
+#### M05 — Dani reads my real tasks from Notion · study: D-F, F2
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-031 | Add Project model | Project with tasks | Relationships validate | ⬜ |
-| D2-032 | Add task dependencies | Dependency graph | Unknown dependency fails | ⬜ |
-| D2-033 | Detect dependency cycles | Cycle error | A-B-A fails | ⬜ |
-| D2-034 | Add task status transitions | Updated state | Illegal transition fails | ⬜ |
-| D2-035 | Derive next available task | Task 3 after Task 2 | Hand calculation matches | ⬜ |
+| D2-026 | Task model with the fields planning needs: title, deadline, priority, duration, energy | Typed Task objects | A task with a missing or wrong field fails | ⬜ |
+| D2-027 | Notion connection with a read-only token, shared only with my Tasks database; token in `.env` | One real API answer | The token cannot write; the secret scan passes | ⬜ |
+| D2-028 | Save one real Notion answer, with private data removed, as a test file | Offline fixture | The tests run without internet | ⬜ |
+| D2-029 | Turn Notion pages into Task objects | List of Tasks | A page with a missing property gives a clear error | ⬜ |
+| D2-030 | `read_tasks` reads from Notion instead of the three fake tasks; its description stays the same | Priority on my real tasks | The M04 cases still pass; the trace shows the model picked the tool from its description alone | ⬜ |
 
-**Gate M06:** Dani knows exactly where Project X is.
+**Gate M05:** "what should I do first?" is answered on my real Notion tasks.
 
-### Sprint 4 (16–27 Nov) — M06b, M12, M13 · study: A-F, D-C, D-D
+### Sprint 4 (16–27 Nov) — M06, M07, M08
 
-#### M06b — Read-only local dashboard (added 21 Oct) · study: F8
-
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-035a | Decision Log (why a dashboard, stack, read-only boundary) and one local page showing the tasks from tasks.json | Decision Log and local page | The page shows exactly the tasks in tasks.json; no write route exists | ⬜ |
-| D2-035b | Show projects and the next available task | Project panel | The next task shown equals the result of D2-035 | ⬜ |
-| D2-035c | Show the latest run trace, including the route | Trace panel | The panel matches the trace file of that run | ⬜ |
-| D2-035d | Loading the page never calls the model | Model-call counter | Ten reloads leave the number of model calls unchanged | ⬜ |
-
-**Gate M06b:** one page on the computer shows tasks and projects, with no model call.
-
-#### M12 — Local calendar availability · study: D-C
+#### M06 — Dani writes the priority back to Notion · study: D-F, F5
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-061 | Add CalendarEvent model | Typed events | Task cannot parse as event | ⬜ |
-| D2-062 | Normalise timezones | Local interval | DST test passes | ⬜ |
-| D2-063 | Calculate busy intervals | Busy list | Manual result matches | ⬜ |
-| D2-064 | Calculate free slots | Slot list | No fixed-event overlap | ⬜ |
-| D2-064a | Read the real calendar read-only from the secret iCal address (in .env) — added 20 Oct | Real events as CalendarEvent | Secret scan passes; events match Google Calendar for one day | ⬜ |
-| D2-064b | Expand recurring events over a bounded 14-day window — added 20 Oct | Expanded event list | A weekly event appears every week in the window and nowhere after it | ⬜ |
+| D2-031 | Show what Dani would change in Notion, without changing it | Change preview | Notion is unchanged | ⬜ |
+| D2-032 | Write the priority after my yes, then read it back | Updated Notion pages | The read-back matches the preview | ⬜ |
+| D2-033 | Running it twice changes nothing more | Same Notion state | A retry makes no extra change | ⬜ |
 
-**Gate M12:** Dani derives availability from calendar facts. D2-065 is outside December.
+**Gate M06:** the priority appears in Notion, only after I said yes.
 
-#### M13 — Planner and replanner · study: D-D
+#### M07 — Skill for the Notion workflow (Ruud, 3 Nov) · study: D-A
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-066 | Mark fixed and movable blocks | Classified plan | Fixed block cannot move | ⬜ |
-| D2-067 | Add duration, deadline and window constraints | Candidate placement | Violation fails | ⬜ |
-| D2-067a | Daily capacity budget by cycle phase (full / low; low = half budget, low-energy tasks only) — added 18 Oct | Daily budget per date | On a low day the plan stays within half the budget, no high-energy task | ⬜ |
-| D2-068 | Add replan_after_event | Before and after plan | Unaffected work stays | ⬜ |
-| D2-069 | Add move, defer and ask outcomes | Overflow decisions | Nothing is silently dropped | ⬜ |
-| D2-070 | Generate explanation after validation | Plan summary | Matches actual diff | ⬜ |
+| D2-034 | Run the evaluation with tool descriptions only, without the D2-017a skill | Baseline numbers | Results are saved with the trace | ⬜ |
+| D2-035 | Write the skill for the read → prioritise → propose → write workflow and run the evaluation again | Comparison table and Decision Log | The skill stays only if the numbers improve | ⬜ |
 
-**Gate M13:** a new commitment safely replans only movable work.
+**Gate M07:** I can show with data whether the skill helps.
 
-### Sprint 5 (30 Nov–18 Dec) — M16 to M20 · study: D-E, F5, D-F, F7
-
-
-#### M16 — MCP fundamentals
+#### M08 — Dani knows my free time · study: D-C, F4
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-081 | Draw LLM host, MCP client and server | Architecture note | Giulia explains model location | ⬜ |
-| D2-082 | Map read_tasks to MCP schema | Tool definition | Matches local contract | ⬜ |
-| D2-083 | Run minimal local MCP server | Running server | List-tools succeeds | ⬜ |
-| D2-084 | Discover tools from client | Tool inventory | Expected tool appears once | ⬜ |
-| D2-085 | Call harmless tool through MCP | Structured result | Equals direct call | ⬜ |
+| D2-036 | Create one memory document at start-up | Valid empty memory file | It exists and is valid after a restart | ⬜ |
+| D2-037 | Store tool that writes my planning rules (no Sundays, lessons, shifts, stop by 20:00) only into that document | Stored rules | No other path can be written; the read-back matches | ⬜ |
+| D2-038 | Read my Google Calendar read-only through its secret iCal address in `.env` | My real events | Events for one day match Google Calendar; secret scan passes | ⬜ |
+| D2-039 | Correct times in Amsterdam (summer/winter time) and repeating events over 14 days | Event list | A weekly event appears every week in the window and nowhere after it | ⬜ |
+| D2-040 | Free time = calendar gaps minus my rules | Free slots | My hand calculation for one week matches | ⬜ |
 
-**Gate M16:** Giulia explains the difference between function calling and MCP.
+**Gate M08:** Dani lists my real free slots for next week.
 
-#### M17 — Task toolbox MCP server
+### Sprint 5 (30 Nov–18 Dec) — M09, M10, extra M11
 
-| ID | Build | Output | Verify | Status |
-|---|---|---|---|---|
-| D2-086 | Expose read, prioritise and validate | MCP toolbox | Only intended tools appear | ⬜ |
-| D2-087 | Separate read, propose and write capabilities | Proposal tool | Store remains unchanged | ⬜ |
-| D2-088 | Require authority for writes | Denied write | Missing authority fails | ⬜ |
-| D2-089 | Return structured domain errors | Tool error | Client distinguishes failures | ⬜ |
-| D2-090 | Run MVP through MCP | Priority report | Shared contract tests pass | ⬜ |
-
-**Gate M17:** migration to MCP changes boundary, not behaviour.
-
-
-#### M18 — Supervisor using MCP
+#### M09 — Dani plans my tasks into free time · study: D-D
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-091 | Define SupervisorRequest | Structured goal | Ambiguity requests input | ⬜ |
-| D2-092 | Load capability inventory | Tool snapshot | Unknown tool cannot run | ⬜ |
-| D2-093 | Let LLM select MCP capability | Supervisor trace | Correct tool selected | ⬜ |
-| D2-094 | Validate tool result before synthesis | Final result | Invalid result is withheld | ⬜ |
-| D2-095 | Return one Dani response | Coherent answer | Internal protocol stays optional | ⬜ |
+| D2-041 | Place tasks into free slots by priority, duration and deadline | Week plan | Fixed events never move; nothing overlaps | ⬜ |
+| D2-042 | Tasks that do not fit are reported: move, postpone or ask me | Overflow list | No task disappears silently | ⬜ |
+| D2-043 | Dani explains the plan after it has been checked | Plan summary | The explanation matches the actual plan | ⬜ |
 
-**Gate M18:** one supervisor completes the first MVP entirely through MCP.
+**Gate M09:** a checked week plan built from my real tasks and my real calendar.
 
-#### M19 — Notion adapter
+#### M10 — Dani puts the plan in my calendar · study: D-F, F5
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-096 | Select test database and read-only scope | Scope record | Token cannot write | ⬜ |
-| D2-097 | Save redacted provider fixture | Offline fixture | Parser works offline | ⬜ |
-| D2-098 | Map Notion to Task and Project models | Domain objects | Shared tests pass | ⬜ |
-| D2-099 | Add proposal, authority, write and read-back | Test page ID | Reread matches | ⬜ |
-| D2-100 | Add idempotency | One page | Retry does not duplicate | ⬜ |
+| D2-044 | Show the calendar blocks Dani would create, without creating them | Block preview | The calendar is unchanged | ⬜ |
+| D2-045 | Create the blocks after my yes, only in a calendar made for Dani, then read them back | Events in Google Calendar | The read-back matches; no other calendar is touched | ⬜ |
+| D2-046 | Running it twice creates no duplicates | Same calendar | A retry adds nothing | ⬜ |
 
-**Gate M19:** JSON and Notion satisfy the same contracts.
+**Gate M10 — the December demo:** I ask Dani to plan my week; it reads Notion
+and my calendar, proposes a plan, and after my yes the plan is in my calendar.
 
-#### M20 — Google Calendar adapter
+#### M11 — Talk to Dani from my phone (extra, only if Gate M10 passes by 11 Dec) · study: F7
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-101 | Connect read-only test calendar | Event list | Other calendars unavailable | ⬜ |
-| D2-102 | Map provider event to Event model | Normalised events | Shared tests pass | ⬜ |
-| D2-103 | Add freshness rule | Freshness status | Stale data blocks action | ⬜ |
-| D2-104 | Create one authorised test event | Provider ID | Reread matches | ⬜ |
-| D2-105 | Reconcile generated events idempotently | Clean calendar | Retry has no duplicates | ⬜ |
+| D2-047 | Put Dani online behind one chat address (Render), protected by a key | Online Dani | Without the key there is no answer; the M04 cases pass online | ⬜ |
+| D2-048 | Turn a voice note into text with Whisper and send it to Dani | Text request | The transcript of a test recording is correct | ⬜ |
+| D2-049 | Phone shortcut: record, send, read Dani's answer | Phone demo | The same request gives the same plan as on the computer | ⬜ |
 
-**Gate M20:** real availability and Dani-created writes are verified.
+**Gate M11:** I tell Dani my day from my phone and get the plan back.
 
-## Outside December
+## Later (after December)
 
-Not planned this semester. The full rows (D2-036 to D2-190) are in the Notion
-page under "Outside December — all microphases". To pull one forward, copy its
-row into the right milestone here first, then work on it.
+In the order that moves Dani toward the final goal. Steps get IDs only when they
+are pulled into the plan.
 
-| Milestones | IDs | What stays out |
+1. **Dani never stops working:** a rule-based answer when the model or the key
+   fails, and the route (model or rules) shown in every answer.
+2. **Dani reacts to changes:** "I have a call tomorrow at 3" replans only what
+   is affected.
+3. **Projects and order of tasks:** Dani knows that task 3 comes after task 2.
+4. **Dani remembers me:** my goals, preferences and history, which I can read,
+   correct and delete; Dani's personality.
+5. **Dani starts by itself:** a morning briefing, reminders for recurring
+   duties (rent, DUO, insurance), triggers on time and on events.
+6. **Rules for what Dani may do alone:** limits I set and can revoke.
+7. **Dani does things for me:** writes emails, keeps the shopping list, buys,
+   books and calls — always within my rules.
+8. **More agents:** MCP toolboxes, a supervisor and specialist agents, when one
+   agent is no longer enough.
+9. **The app:** the designed front-end, production hosting and the final proof.
+
+The full V3 rows for these (D2-036 to D2-190) stay in git history and in the
+archived V3 Notion page.
+
+## Old ID → new ID
+
+V3 rows that are still in the plan, under their new number. V3 rows not listed
+here moved to "Later".
+
+| V4 | V3 | Note |
 |---|---|---|
-| M07–M11 | D2-036–D2-060, D2-065 | Event stream, operational memory, recurring obligations, triggers, standing mandates |
-| M14–M15 | D2-071–D2-080 | Autonomous project execution, proactive communication |
-| M21–M27 | D2-106–D2-140 | Real recurring obligations, unexpected commitments on real data, email, purchases, web and travel |
-| M28–M29 | D2-141–D2-150 | Memory governance, monitoring and recovery |
-| M30–M33 | D2-151–D2-170 | Specialist agents, A2A, multi-agent cooperation |
-| M34–M37 | D2-171–D2-190 | Voice and mobile, autonomous daily briefing, booking lifecycle, production and final proof |
-| Front-end | — | Only the read-only dashboard of M06b is in scope |
+| D2-024 | D2-024 | unchanged |
+| D2-025 | D2-025 | unchanged |
+| D2-026 | D2-027, D2-027a | Task model and energy field in one step; duration added for planning |
+| D2-027 | D2-096 | read-only scope, now on my real Tasks database |
+| D2-028 | D2-097 | |
+| D2-029 | D2-098 | |
+| D2-030 | — | new (Ruud): `read_tasks` on Notion; replaces D2-026 tasks.json |
+| D2-031–D2-032 | D2-029, D2-030, D2-099 | preview, confirm, write and read back, on Notion instead of tasks.json |
+| D2-033 | D2-100 | |
+| D2-034–D2-035 | — | new (Ruud): skill only after the plain version works, with a measured comparison |
+| D2-036 | D2-030a | feedback of 13 Oct |
+| D2-037 | D2-030b | feedback of 13 Oct; now stores my planning rules |
+| D2-038 | D2-064a | |
+| D2-039 | D2-062, D2-064b | |
+| D2-040 | D2-063, D2-064 | |
+| D2-041 | D2-066, D2-067 | |
+| D2-042 | D2-069 | |
+| D2-043 | D2-070 | |
+| D2-044–D2-046 | D2-104, D2-105 | write path of the Google Calendar adapter |
+| D2-047–D2-049 | D2-171, D2-175 | voice and phone, as an extra |
+
+Moved to "Later": D2-025a/b (fallback), D2-026 and D2-028 (tasks.json),
+D2-030c/d (capture), M06 (projects and dependencies), M06b (dashboard: Notion
+already shows my tasks), D2-061, D2-065, D2-067a, D2-068, M16–M18 (MCP and
+supervisor), D2-101–D2-103, and all of D2-036–D2-190 not listed above.
 
 ## Global stop conditions
 
-Stop and ask Giulia (and propose a Decision Log) if a change:
+Stop and ask me (and propose a Decision Log) if a change:
 
-- adds more than one new concept to the active microphase;
-- expands data, credentials, retention or authority;
-- creates an MCP or A2A boundary;
-- sends, books, renews, submits, cancels or pays without proven authority;
+- adds more than one new concept to the active step;
+- expands data, credentials, retention or authority (for example a token that can write);
+- sends, books, cancels or pays without my explicit yes;
 - cannot be externally verified;
-- cannot be explained by Giulia after the session.
+- cannot be explained by me after the session.
+
+## Changes
+
+| Date | Change |
+|---|---|
+| 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |

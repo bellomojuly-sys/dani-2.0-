@@ -12,7 +12,7 @@ Three files drive every session. Read them before anything else:
 
 Giulia should never have to tell you which task is next.
 
-1. Read `docs/ROADMAP.md`. The **active** microphase is the one marked active in the Status table; if none is marked, it is the first ⬜ row in order inside "In scope by December". Rows that block others (e.g. D2-020a blocks M04) come first.
+1. Read `docs/ROADMAP.md`. The **active** step is the one marked active in the Status table; if none is marked, it is the first ⬜ row in order inside "December plan".
 2. Check git: `git status`, `git log --oneline -5`, open branches. If work on the active microphase already exists on a branch, continue it; never redo a closed microphase.
 3. Open with a short message in Italian:
    - the active microphase (ID, what it builds, how it is verified);
@@ -34,10 +34,10 @@ Objectives already closed in code but not understood (D-A on M01–M03, F2, F3) 
 
 ## Scope rules
 
-- Microphase IDs `D2-001` … `D2-190`. **Build only the active microphase.** A new idea becomes a proposed new row in `docs/ROADMAP.md` (inserted where it belongs, with a letter suffix), not code.
+- Step IDs are numbered in build order (`D2-024`, `D2-025`, …), with no letter suffixes; done IDs never change. **Build only the active step.** A new idea becomes a proposed new row in `docs/ROADMAP.md`, inserted where it belongs: only the ⬜ steps after it are renumbered, and the change goes in the "Changes" table. Not code.
 - One new concept per microphase.
 - Python first. One agent.
-- Not yet in Dani's code: web interface beyond the M06b read-only dashboard, cloud deployment, database, Notion or Google Calendar adapters before M19–M20, voice, specialist agents. MCP starts at M16. (This is about Dani's product code. Updating Giulia's Notion pages as part of this workflow is a different thing and is required, see below.)
+- Not yet in Dani's code: anything in the "Later" section of `docs/ROADMAP.md` (web interface, database, MCP, supervisor, specialist agents). Notion arrives at M05, Google Calendar at M08 (read) and M10 (write); cloud hosting and voice only in the extra M11. (This is about Dani's product code. Updating Giulia's Notion pages as part of this workflow is a different thing and is required, see below.)
 - Tools are typed Python functions that work and are tested on their own before they are exposed to the LLM.
 - Actions with money, bookings, cancellations or external messages are always ask-first.
 
@@ -73,7 +73,7 @@ If a Notion tool is not available in this session, do steps 1, 3 (in the repo) a
 
 | What | Where |
 |---|---|
-| Roadmap copy + Feedback brief | page "Dani 2.0 roadmap (V3): progress tracking — October 2026" · `3f2ba5db-4125-817c-aac6-f4b320cbd438` |
+| Roadmap copy + Feedback brief | page "Dani 2.0 roadmap (V4)" · `3f2ba5db-4125-817c-aac6-f4b320cbd438` |
 | Project hub | page "Dani" · `3fbba5db-4125-8188-a3c5-d8371083033d` |
 | Tasks (to tick) | data source `collection://68813571-2eb0-41ce-9f91-4982829837db` |
 | Portfolio MA-AAI | data source `collection://4fa3e468-3263-4b4d-b016-f2a7b73111f4`, Collection = "ai personal assistant", Mese = current month |
