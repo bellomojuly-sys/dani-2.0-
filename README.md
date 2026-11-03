@@ -31,6 +31,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-13 | The agent may run `git commit` and `git push` | The repeated stop-hook reminder made the manual-commands flow slow; I keep one commit per microphase and can still ask for the commands when I want to type them myself |
 | 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
 | 2026-10-29 | Test quality is measured by mutation testing (target: no surviving non-equivalent mutants) and 100% line+branch coverage; `main.py`'s real decisions are refactored into tested functions while only its `__main__` wiring is excluded; dev-only tools live in `requirements-dev.txt` | Coverage alone passed at 97% while 51 mutants survived — mutation testing is what proves a test fails when the code is broken; testing `main.py`'s decisions (not just excluding the file) answers the teacher's point, and `mutate_only_covered_lines` keeps the untestable wiring out (D2-020a) |
+| 2026-11-03 | Trace redaction decides a field is sensitive by its NAME (explicit list: `api_key`, `token`, `secret`, `password`, `authorization`), not by scanning values, and hides it with the marker `[REDACTED]` instead of removing the field | By-name is deterministic, explainable in one sentence and easy to test; the marker keeps the trace reconstructable (Gate M04). The accepted limit — a secret under an innocent field name is not caught — is recorded, with value-pattern scanning left as a future roadmap row (D2-023; full text in `docs/DECISION-LOG-D2-023-redaction.md`) |
 
 ## How to run
 
@@ -47,7 +48,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-023 — redact sensitive fields (M04)**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-024 — create five representative cases (M04)**.
 
 | Step | What | State |
 |---|---|---|
@@ -78,6 +79,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-020a | Critical test review: `main.py` decisions tested, 100% coverage, 432/433 mutants killed (1 equivalent) | Done |
 | D2-021 | Trace envelope: a run has a unique run ID and timestamps; every event shares the run ID | Done |
 | D2-022 | Each trace event is a typed record of the tool call: name, arguments, status and duration | Done |
+| D2-023 | `safe_trace` redacts sensitive fields by name (`[REDACTED]`), so a secret in a traced field is absent from the saved trace | Done |
 
 ## Traceability
 
@@ -105,8 +107,9 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-020a | `1600df5` | Test review note; `main.py` decisions tested, 100% line+branch coverage, 432/433 mutants killed (1 equivalent) | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
 | D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
 | D2-022 | `3696a21` | Each event is a typed TraceEvent (tool, arguments, status, duration); a malformed event is refused | `-k "trace"` (15) |
+| D2-023 | `b1563af` | A fake key in a traced field is absent from `safe_trace`; `[REDACTED]` takes its place; a secret under an innocent name is deliberately not caught | `-k "redact or safe_trace or sensitive"` (6) |
 
-All 86 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 92 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):

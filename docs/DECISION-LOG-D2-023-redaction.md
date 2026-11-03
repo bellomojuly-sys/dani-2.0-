@@ -70,10 +70,17 @@ string **`[REDACTED]`** — the field is kept, only its value changes.
 
 ## Evidence
 
-*To be completed when D2-023 closes (it is blocked until D2-022's trace is in
-the branch).* Planned proof: a test that injects a fake key
-`sk-FAKE1234567890` into a traced field and asserts (1) the fake value is
-**absent** from the serialized safe trace, (2) `[REDACTED]` is **present** in
-its place, (3) a non-sensitive field is **unchanged**; plus the deliberate-break
-check (F1). Commit hash to be recorded here and in the README Decisions and
-Traceability tables at close.
+Commit `b1563af` on branch `claude/peaceful-ride-qjmc6y`, built on the merge of
+D2-021 (`a319f85`) and D2-022 (`3696a21`). Code: `redact` and `safe_trace` in
+`tracing.py`. Proof: `python3 -m pytest -v -k "redact or safe_trace or sensitive"`
+(6 tests, all green; 92 in the full suite).
+
+The key test, `test_safe_trace_hides_a_sensitive_argument_value`, injects the
+fake key `sk-FAKE1234567890` into a tool's `arguments` and asserts (1) the fake
+value is **absent** from the serialized safe trace, (2) `[REDACTED]` is in its
+place, (3) the non-sensitive `limit` field is **unchanged**. The accepted limit
+of option A is pinned by `test_a_secret_under_a_non_sensitive_name_is_not_redacted`.
+
+Deliberate-break check (F1): the fake key **is** present in a raw dump of the
+trace (`run.model_dump()`) and **absent** only after `safe_trace` — verified
+live, so removing redaction makes test (1) fail for the right reason.
