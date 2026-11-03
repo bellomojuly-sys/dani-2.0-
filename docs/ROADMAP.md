@@ -17,10 +17,10 @@ closes only when Giulia passes its oral check ("Prova").
 
 | Field | Value |
 |---|---|
-| Completed | D2-001 to D2-003, D2-005 to D2-020, D2-020a (7–29 Oct 2026). Gates M01, M02 and M03 passed in code |
+| Completed | D2-001 to D2-003, D2-005 to D2-020, D2-020a, D2-021, D2-022 (7 Oct–3 Nov 2026). Gates M01, M02 and M03 passed in code |
 | Open from earlier | D2-004 — teacher confirmation of the MVP scope |
-| **Active** | **D2-021 — add run ID and timestamps (M04 trace envelope)** |
-| Then | D2-022 (M04) |
+| **Active** | **D2-023 — redact sensitive fields (M04 safe trace)** |
+| Then | D2-024 (M04) |
 | Study objectives to review (ripasso) | F1 Testing (code done; oral Prova pending), D-A on M01–M03, F2, F3 |
 
 ## In scope by December
@@ -86,8 +86,8 @@ closes only when Giulia passes its oral check ("Prova").
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-021 | Add run ID and timestamps | Trace envelope | Events share run ID | ⬜ |
-| D2-022 | Record tool name, arguments, status and duration | JSON trace | Trace schema passes | ⬜ |
+| D2-021 | Add run ID and timestamps | Trace envelope | Events share run ID | ✅ 2 Nov · `a319f85` |
+| D2-022 | Record tool name, arguments, status and duration | JSON trace | Trace schema passes | ✅ 3 Nov · `3696a21` |
 | D2-023 | Redact sensitive fields | Safe trace | Test secret is absent | ⬜ |
 | D2-024 | Create five representative cases | Evaluation dataset | Expected facts are complete | ⬜ |
 | D2-025 | Add evaluation command | Pass/fail summary | Deliberate regression fails | ⬜ |

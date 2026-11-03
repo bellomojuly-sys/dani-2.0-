@@ -1,6 +1,8 @@
 import json
+from time import perf_counter
 
 from tools import TOOLS
+from tracing import start_run, record_event, end_run, now_iso
 
 
 def read_tool_calls(message):
@@ -58,7 +60,17 @@ def build_tool_result_message(call):
     }
 
 
-def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_iterations=5, tools=TOOLS):
+def run_tool_loop(
+    client,
+    messages,
+    tool_schemas,
+    model="deepseek-flash",
+    max_iterations=5,
+    tools=TOOLS,
+    run_id=None,
+    clock=now_iso,
+    timer=perf_counter,
+):
     """Let the LLM call tools in sequence until it answers, with a hard limit.
 
     One iteration = one model turn. Each turn we hand the model the toolbox,
@@ -70,7 +82,20 @@ def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_it
 
     We return an ordered call trace (each entry {"name", "result"}), so the
     whole run can be reconstructed and checked afterwards.
+
+    We also open a trace envelope (D2-021) with a unique run_id and timestamps,
+    and record one event per tool call. Every event carries the SAME run_id, so
+    all the evidence of this run belongs together. The envelope is returned
+    under "run"; "trace" is unchanged, so final_outcome and format_report see
+    exactly what they saw before. run_id and clock are injectable for tests.
+
+    For each tool call we also record the full event (D2-022): its arguments,
+    its status ("error" when the result is a dict carrying an "error" key, the
+    same convention as run_tool_call and final_outcome, else "ok"), and its
+    duration measured as a span — timer() just before and just after the call,
+    in milliseconds. timer is injectable, so a test can pin durations exactly.
     """
+    run = start_run(run_id=run_id, clock=clock)
     trace = []
     for _ in range(max_iterations):
         response = client.chat.completions.create(
@@ -81,11 +106,23 @@ def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_it
 
         calls = read_tool_calls(message)
         if not calls:
-            return {"status": "answered", "final": message, "trace": trace}
+            end_run(run, clock=clock)
+            return {"status": "answered", "final": message, "trace": trace, "run": run}
 
         for call in calls:
+            start = timer()
             result = run_tool_call(call, tools=tools)
+            duration_ms = (timer() - start) * 1000
             trace.append({"name": call["name"], "result": result})
+            status = "error" if isinstance(result, dict) and "error" in result else "ok"
+            record_event(
+                run,
+                call["name"],
+                arguments=call["arguments"],
+                status=status,
+                duration_ms=duration_ms,
+                clock=clock,
+            )
             messages.append(
                 {
                     "role": "tool",
@@ -94,7 +131,8 @@ def run_tool_loop(client, messages, tool_schemas, model="deepseek-flash", max_it
                 }
             )
 
-    return {"status": "stopped", "final": None, "trace": trace}
+    end_run(run, clock=clock)
+    return {"status": "stopped", "final": None, "trace": trace, "run": run}
 
 
 def final_outcome(loop_result):

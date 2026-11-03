@@ -47,7 +47,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-021 — add run ID and timestamps (M04)**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-023 — redact sensitive fields (M04)**.
 
 | Step | What | State |
 |---|---|---|
@@ -76,6 +76,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-020 | Simulated task-source failure: honest failure, no fabricated result | Done |
 | M03 | Gate: one LLM selects three Python tools and returns a validated result | Done |
 | D2-020a | Critical test review: `main.py` decisions tested, 100% coverage, 432/433 mutants killed (1 equivalent) | Done |
+| D2-021 | Trace envelope: a run has a unique run ID and timestamps; every event shares the run ID | Done |
+| D2-022 | Each trace event is a typed record of the tool call: name, arguments, status and duration | Done |
 
 ## Traceability
 
@@ -101,13 +103,15 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-019 | `7ee4b32` | Every source id appears exactly once | `-k "full_run"` (1); live: `python3 main.py` |
 | D2-020 | `e308727` | Task source fails → honest failure, no priority invented | `-k "failure or fabricated"` (2) |
 | D2-020a | `1600df5` | Test review note; `main.py` decisions tested, 100% line+branch coverage, 432/433 mutants killed (1 equivalent) | `docs/TEST-REVIEW-D2-020a.md`; `pytest --cov ... --cov-branch` and `mutmut run` |
+| D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
+| D2-022 | `3696a21` | Each event is a typed TraceEvent (tool, arguments, status, duration); a malformed event is refused | `-k "trace"` (15) |
 
-All 72 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 86 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
 
 ```bash
-python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov-branch --cov-report=term-missing
+python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov=tracing --cov-branch --cov-report=term-missing
 mutmut run && mutmut results   # writes a git-ignored mutants/ dir; rm -rf mutants before pytest
 ```
