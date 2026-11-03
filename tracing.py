@@ -56,7 +56,7 @@ class TraceEnvelope(BaseModel):
     ``events`` is a list of typed ``TraceEvent`` objects; each one carries the
     envelope's ``run_id`` and its own ``timestamp``. Typing the list means the
     whole envelope is a validated schema: nothing but a well-formed event can
-    be in it. D2-023 will add redaction of sensitive fields.
+    be in it. ``safe_trace`` redacts sensitive fields from a dump of it (D2-023).
     """
 
     run_id: str
@@ -104,3 +104,60 @@ def end_run(envelope, clock=now_iso):
     """Close the run by recording the end timestamp. Returns the envelope."""
     envelope.ended_at = clock()
     return envelope
+
+
+# --- D2-023: redaction of sensitive fields ------------------------------------
+# The trace stores the arguments the model passed to each tool. If a secret (an
+# API key, a token) ever lands in one of those fields, it must not be persisted
+# in the trace. Redaction is a SAFETY NET, not the main defence: secrets should
+# not reach the trace at all, but if one does, this hides it.
+#
+# Decision Log D2-023 (docs/DECISION-LOG-D2-023-redaction.md), option A: a value
+# is hidden when its field NAME is one we treat as sensitive. We never inspect
+# the value itself, so a secret stored under an innocent field name is NOT
+# caught — a known, accepted limit. The field is kept and its value becomes the
+# marker [REDACTED], so the run stays reconstructable (Gate M04).
+
+REDACTED = "[REDACTED]"
+
+# The sensitive field names, lowercased. A new sensitive field is one more
+# entry here plus its test. Matching is by name only, case-insensitive.
+SENSITIVE_FIELD_NAMES = frozenset(
+    {"api_key", "token", "secret", "password", "authorization"}
+)
+
+
+def _is_sensitive(key):
+    """True if a field name is one we redact (by name only, case-insensitive)."""
+    return isinstance(key, str) and key.lower() in SENSITIVE_FIELD_NAMES
+
+
+def redact(value):
+    """Return a copy of ``value`` with every sensitive-named field hidden.
+
+    A dict is rebuilt key by key: a key whose NAME is sensitive gets the marker
+    [REDACTED] (we do not look at the value at all — that is option A, by field
+    name); any other value is redacted recursively, so a secret nested deeper
+    inside the arguments is still caught. A list is redacted item by item.
+    Anything else (a string, a number, None) is returned unchanged. The input is
+    never mutated: a new structure is built and returned.
+    """
+    if isinstance(value, dict):
+        return {
+            key: REDACTED if _is_sensitive(key) else redact(inner)
+            for key, inner in value.items()
+        }
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+def safe_trace(envelope):
+    """Return the run's trace as a JSON-ready dict with sensitive fields hidden.
+
+    The envelope is dumped to plain data and then redacted as a whole, so no
+    sensitive-named field — in the envelope or in any event's arguments —
+    survives in the safe trace. The original envelope is left untouched, so the
+    live run keeps its real values; only the persisted/returned copy is safe.
+    """
+    return redact(envelope.model_dump())

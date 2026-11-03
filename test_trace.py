@@ -3,6 +3,8 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+import json
+
 from tracing import (
     TraceEnvelope,
     TraceEvent,
@@ -11,6 +13,9 @@ from tracing import (
     start_run,
     record_event,
     end_run,
+    redact,
+    safe_trace,
+    REDACTED,
 )
 from agent import run_tool_loop
 from tools import TOOL_SCHEMAS
@@ -226,3 +231,81 @@ def test_the_loop_records_arguments_status_and_duration_per_event():
     assert second.name == "broken_tool"
     assert second.status == "error"  # the {"error": ...} result is seen as a failure
     assert second.duration_ms == 250.0
+
+
+# --- D2-023: redaction of sensitive fields ------------------------------------
+
+# A deliberately fake key: never a real secret, so the test itself is safe.
+FAKE_KEY = "sk-FAKE1234567890"
+
+
+def test_safe_trace_hides_a_sensitive_argument_value():
+    # The D2-023 Verify: a secret put in a traced field is ABSENT from the safe
+    # trace, the field is kept as the [REDACTED] marker, and a non-sensitive
+    # field next to it is untouched. Remove redaction and this test fails (F1).
+    run = start_run(run_id="R1", clock=lambda: "T0")
+    record_event(
+        run,
+        "read_tasks",
+        arguments={"api_key": FAKE_KEY, "limit": 3},
+        status="ok",
+        duration_ms=1.0,
+        clock=lambda: "T1",
+    )
+
+    safe = safe_trace(run)
+
+    # The fake key does not survive anywhere in the serialized safe trace.
+    assert FAKE_KEY not in json.dumps(safe)
+    args = safe["events"][0]["arguments"]
+    assert args["api_key"] == REDACTED  # the field is kept, its value hidden
+    assert args["limit"] == 3  # a non-sensitive field is left as it was
+
+
+def test_redaction_is_case_insensitive_on_the_field_name():
+    # "Authorization", "API_KEY" — the name match ignores case.
+    out = redact({"Authorization": "Bearer " + FAKE_KEY, "API_KEY": FAKE_KEY})
+    assert out == {"Authorization": REDACTED, "API_KEY": REDACTED}
+
+
+def test_redaction_catches_a_secret_nested_deeper_in_arguments():
+    # A secret one level down (a dict inside the arguments) is still caught,
+    # because redaction walks the whole structure.
+    out = redact({"config": {"token": FAKE_KEY, "retries": 2}, "note": "hello"})
+    assert out == {"config": {"token": REDACTED, "retries": 2}, "note": "hello"}
+    assert FAKE_KEY not in json.dumps(out)
+
+
+def test_a_non_sensitive_field_is_left_unchanged():
+    # Refusal case: a field whose name is not in the sensitive list is returned
+    # exactly as it was — redaction never touches innocent data.
+    out = redact({"limit": 3, "title": "pay the rent"})
+    assert out == {"limit": 3, "title": "pay the rent"}
+
+
+def test_a_secret_under_a_non_sensitive_name_is_not_redacted():
+    # The accepted limit of option A (by field NAME, Decision Log D2-023): a
+    # secret-looking value stored under an innocent key is NOT caught. This is
+    # intentional and documented, not a bug; it is why redaction is a safety
+    # net, not the main defence.
+    out = redact({"note": FAKE_KEY})
+    assert out == {"note": FAKE_KEY}
+
+
+def test_safe_trace_does_not_mutate_the_original_envelope():
+    # Redaction returns a copy: the live run keeps its real values, only the
+    # persisted/returned trace is safe.
+    run = start_run(run_id="R1", clock=lambda: "T0")
+    record_event(
+        run,
+        "read_tasks",
+        arguments={"token": FAKE_KEY},
+        status="ok",
+        duration_ms=1.0,
+        clock=lambda: "T1",
+    )
+
+    safe_trace(run)
+
+    # The original event still holds the real value; it was not changed.
+    assert run.events[0].arguments == {"token": FAKE_KEY}
