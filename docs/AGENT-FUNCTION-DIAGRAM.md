@@ -1,87 +1,99 @@
 # `agent.py` — function flow diagram
 
-How the functions in `agent.py` call each other and how data flows through
-the LLM → tool → LLM round. Read top to bottom: it describes one full run.
+The whole "what should I do first?" run, in three phases: **① Setup** (where the
+toolbox comes from), **② Loop** (the LLM → tool → LLM round), **③ Verify** (how a
+result becomes a trustworthy answer). Read it top to bottom.
 
 ```mermaid
 flowchart TD
-    subgraph SETUP["Setup: where the toolbox comes from"]
+
+    subgraph P1["① SETUP — where the toolbox comes from (tools.py · main.py)"]
         direction TB
-        DEFS["tools.py — the real Python functions<br/>read_tasks → returns t1/t2/t3 strings<br/>prioritize_tasks · validate_priority_result"]
-        SCHEMAS["TOOL_SCHEMAS (tools.py)<br/><i>name → description the LLM reads<br/>e.g. 'read_tasks: return the user's tasks'</i>"]
-        TOOLSMAP["TOOLS dict (tools.py)<br/><i>name string → Python function<br/>'read_tasks' maps to read_tasks()</i>"]
+        DEFS["<b>tools.py</b> — the real functions<br/>read_tasks returns t1 / t2 / t3<br/>prioritize_tasks · validate_priority_result"]
+        SCHEMAS["<b>TOOL_SCHEMAS</b><br/>name → description the LLM reads"]
+        TOOLSMAP["<b>TOOLS</b> dict<br/>name → the Python function"]
+        MAIN["<b>main.py:84</b> run(client)<br/>hands TOOL_SCHEMAS to the loop"]
         DEFS --> SCHEMAS
         DEFS --> TOOLSMAP
+        SCHEMAS --> MAIN
     end
 
-    SCHEMAS --> MAIN["main.py:84 — run(client)<br/><i>hands TOOL_SCHEMAS to the loop</i>"]
-    MAIN --> START([Entry: run_tool_loop])
-    START --> TURN{{"Model turn<br/>client.chat.completions.create<br/><i>tools = TOOL_SCHEMAS</i>"}}
+    subgraph P2["② LOOP — run_tool_loop (agent.py)"]
+        direction TB
+        TURN["<b>Model turn</b><br/>client.chat.completions.create<br/>tools = TOOL_SCHEMAS"]
+        READ["<b>read_tool_calls</b><br/>pull the tool requests<br/>out of the LLM message"]
+        HASCALLS{"Any tool<br/>requested?"}
+        RUN["<b>run_tool_call</b> (agent.py:42)<br/>look the name up in TOOLS,<br/>run it once · unknown → error"]
+        FEED["add to trace, feed result<br/>back as a role:tool message"]
+        CAP{"within<br/>max_iterations?"}
 
-    TURN --> READ["read_tool_calls(message)<br/><i>extract the tool requests<br/>from the LLM message</i>"]
-
-    READ --> HASCALLS{Any<br/>tool calls?}
-
-    HASCALLS -->|No, answers in text| ANSWERED["status: answered<br/>+ final + trace"]
-    HASCALLS -->|Yes| RUN["run_tool_call(call, TOOLS)<br/><i>look the name up in TOOLS,<br/>run the tool exactly ONCE<br/>unknown name → {error}</i>"]
-    TOOLSMAP -.name lookup.-> RUN
-
-    RUN --> APPEND["append to trace<br/>{name, result}<br/>and feed the result back<br/>as a role: tool message"]
-    APPEND --> CAP{Within<br/>max_iterations?}
-    CAP -->|Yes| TURN
-    CAP -->|No, safety cap| STOPPED["status: stopped<br/>trace, final: None"]
-
-    ANSWERED --> OUTCOME["final_outcome(loop_result)"]
-    STOPPED --> OUTCOME
-
-    OUTCOME --> SRC{read_tasks<br/>failed?}
-    SRC -->|Yes| FAILSRC["ok: False<br/>'task source unavailable'<br/><i>no fabricated priority (D2-020)</i>"]
-    SRC -->|No| VAL{validate_priority_result<br/>valid == True?}
-    VAL -->|No| FAILVAL["ok: False<br/>'result not validated'"]
-    VAL -->|Yes| OK["ok: True<br/>'validated'<br/>+ priority"]
-
-    subgraph HELPER["Equivalent helper (not used inside the loop)"]
-        BUILD["build_tool_result_message(call)<br/><i>run_tool_call + wrap<br/>as a role: tool message</i>"]
+        TURN --> READ --> HASCALLS
+        HASCALLS -- "yes" --> RUN --> FEED --> CAP
+        CAP -- "yes, loop again" --> TURN
     end
-    BUILD -.uses.-> RUN
 
-    classDef ok fill:#d7f5dd,stroke:#2e7d32,color:#14532d;
-    classDef fail fill:#fde2e1,stroke:#c0392b,color:#7a1d16;
-    classDef proc fill:#e7eefc,stroke:#3b5bdb,color:#1e2a5a;
+    subgraph P3["③ VERIFY — final_outcome (agent.py)"]
+        direction TB
+        SRC{"read_tasks<br/>failed?"}
+        VAL{"validation<br/>passed?"}
+        OK["✅ ok: True + priority"]
+        FAILSRC["⛔ task source unavailable<br/>no fabricated priority (D2-020)"]
+        FAILVAL["⛔ result not validated"]
+
+        SRC -- "yes" --> FAILSRC
+        SRC -- "no" --> VAL
+        VAL -- "no" --> FAILVAL
+        VAL -- "yes" --> OK
+    end
+
+    MAIN ==> TURN
+    HASCALLS -- "no, answers in text" --> ANSWERED["status: answered"]
+    CAP -- "no, safety cap" --> STOPPED["status: stopped"]
+    ANSWERED ==> SRC
+    STOPPED ==> SRC
+
+    TOOLSMAP -. "name lookup" .-> RUN
+
     classDef setup fill:#fff4d6,stroke:#b8860b,color:#5c4400;
-    class OK ok;
-    class FAILSRC,FAILVAL,STOPPED fail;
-    class READ,RUN,APPEND,BUILD,OUTCOME proc;
+    classDef loop  fill:#e7eefc,stroke:#3b5bdb,color:#1e2a5a;
+    classDef gate  fill:#fdf0f6,stroke:#b5307a,color:#6b1247;
+    classDef ok    fill:#d7f5dd,stroke:#2e7d32,color:#14532d;
+    classDef fail  fill:#fde2e1,stroke:#c0392b,color:#7a1d16;
+
     class DEFS,SCHEMAS,TOOLSMAP,MAIN setup;
+    class TURN,READ,RUN,FEED loop;
+    class HASCALLS,CAP,SRC,VAL gate;
+    class OK,ANSWERED ok;
+    class FAILSRC,FAILVAL,STOPPED fail;
 ```
 
-## Reading the diagram
+## How to read it
 
-**Setup — where the toolbox comes from** (yellow nodes, `tools.py` + `main.py`)
-- `tools.py` holds the real Python functions. `read_tasks` is where the task
-  strings (t1/t2/t3) physically live — the LLM never sees this code.
-- Each function has two name bindings: `TOOL_SCHEMAS` (name → the description
-  the LLM reads, so it knows *when* to ask) and `TOOLS` (name string → the
-  Python function, so we can *run* what it asked for).
-- `main.py` hands `TOOL_SCHEMAS` to `run_tool_loop`. That is the moment the
-  toolbox is handed over.
-- When the LLM says "read_tasks", `run_tool_call` looks that name up in
-  `TOOLS` (dotted arrow) and runs the real function — the LLM gets the real
-  data back, it cannot invent it.
+**① Setup — where the toolbox comes from** (yellow)
+- `tools.py` holds the real functions. `read_tasks` is where the task strings
+  (t1/t2/t3) physically live — the LLM never sees this code.
+- Each tool has two name bindings: `TOOL_SCHEMAS` (name → the description the
+  LLM reads, so it knows *when* to ask) and `TOOLS` (name → the Python function,
+  so we can *run* what it asked for).
+- `main.py:84` hands `TOOL_SCHEMAS` to the loop (thick arrow into ②). That is
+  the moment the toolbox is handed over.
 
-**The loop** (`run_tool_loop`)
-1. The LLM takes a turn → `read_tool_calls` extracts any tool requests.
-2. No tool requested → `status: answered`. Tools requested → `run_tool_call`
-   runs each tool **once** (unknown name = `{error}`, never a crash).
-3. The result goes into the `trace` and is fed back to the LLM as a
-   `role: tool` message.
-4. Repeat until the model answers, or `max_iterations` cuts the round →
+**② Loop — `run_tool_loop`** (blue, with pink decisions)
+1. The LLM takes a turn with the schemas as `tools`.
+2. `read_tool_calls` extracts any tool requests.
+3. No tool → `status: answered`. Tool → `run_tool_call` looks the name up in
+   `TOOLS` (dotted arrow from ①), runs it once, feeds the result back.
+4. Loop again until the model answers, or `max_iterations` stops it →
    `status: stopped` (the safety cap).
 
-**The verification** (`final_outcome`), the three outcomes in colour:
-- 🟥 `read_tasks` failed → `ok: False`, no fabricated priority (D2-020).
-- 🟥 validation did not pass → `ok: False`.
-- 🟩 `validate_priority_result` valid → `ok: True` + priority.
+**③ Verify — `final_outcome`** (green = good, red = honest refusal)
+- `read_tasks` failed → ⛔ no priority at all, never a fabricated one (D2-020).
+- validation (`validate_priority_result`) did not pass → ⛔.
+- validation passed → ✅ the verified priority is returned.
 
-`build_tool_result_message` does the same "run + wrap as `role: tool`" work,
-but it is not used inside the loop (there the step is done inline).
+**One-line summary:** the task strings are born in `tools.py`, the tool names are
+handed to the LLM by `main.py`, the real call happens at `agent.py:42`, and no
+answer is shown unless `final_outcome` verified it.
+
+> `build_tool_result_message` (not drawn) does the same "run + wrap as role:tool"
+> work as steps **run_tool_call + feed** combined; the loop does it inline instead.
