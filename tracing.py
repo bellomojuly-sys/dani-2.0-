@@ -13,6 +13,7 @@ shadow it.
 """
 
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -28,18 +29,40 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+class TraceEvent(BaseModel):
+    """One recorded step of a run: which tool, with what, how it went, how long.
+
+    Every event carries the run's shared ``run_id`` and its own ``seq`` and
+    ``timestamp`` (D2-021). D2-022 adds the full picture of the tool call: the
+    ``arguments`` it was given, the ``status`` it ended in, and the
+    ``duration_ms`` it took. ``status`` is a closed set ("ok" or "error"), so a
+    value outside it is refused, and ``duration_ms`` is the span of the call
+    (end minus start) in milliseconds. Because every field is typed, a
+    malformed event cannot be recorded: the JSON trace validates (D2-022).
+    """
+
+    run_id: str
+    seq: int
+    timestamp: str
+    name: str
+    arguments: dict
+    status: Literal["ok", "error"]
+    duration_ms: float
+
+
 class TraceEnvelope(BaseModel):
     """One run's trace: a shared run_id, start/end timestamps and its events.
 
-    ``events`` is a list of dicts; each event carries the envelope's ``run_id``
-    and its own ``timestamp``. Later microphases add more fields to an event
-    (D2-022: tool name, arguments, status, duration; D2-023: redaction).
+    ``events`` is a list of typed ``TraceEvent`` objects; each one carries the
+    envelope's ``run_id`` and its own ``timestamp``. Typing the list means the
+    whole envelope is a validated schema: nothing but a well-formed event can
+    be in it. D2-023 will add redaction of sensitive fields.
     """
 
     run_id: str
     started_at: str
     ended_at: str | None = None
-    events: list[dict] = Field(default_factory=list)
+    events: list[TraceEvent] = Field(default_factory=list)
 
 
 def start_run(run_id=None, clock=now_iso):
@@ -52,20 +75,27 @@ def start_run(run_id=None, clock=now_iso):
     return TraceEnvelope(run_id=run_id or new_run_id(), started_at=clock())
 
 
-def record_event(envelope, name, clock=now_iso):
-    """Append one event to the run, stamped with the run's OWN run_id.
+def record_event(envelope, name, arguments, status, duration_ms, clock=now_iso):
+    """Append one validated TraceEvent to the run, sharing the run's run_id.
 
     The event's ``run_id`` is read from the envelope, never generated here, so
     every event of a run shares the same ``run_id``. If this took a new id
-    instead, the "events share the run id" test would fail on purpose. Returns
-    the event that was appended.
+    instead, the "events share the run id" test would fail on purpose.
+
+    ``arguments``, ``status`` and ``duration_ms`` describe the tool call that
+    just finished (D2-022). Building a ``TraceEvent`` validates the event before
+    it is stored, so an impossible ``status`` or a wrong type raises here and is
+    never recorded quietly. Returns the event that was appended.
     """
-    event = {
-        "run_id": envelope.run_id,
-        "seq": len(envelope.events) + 1,
-        "timestamp": clock(),
-        "name": name,
-    }
+    event = TraceEvent(
+        run_id=envelope.run_id,
+        seq=len(envelope.events) + 1,
+        timestamp=clock(),
+        name=name,
+        arguments=arguments,
+        status=status,
+        duration_ms=duration_ms,
+    )
     envelope.events.append(event)
     return event
 
