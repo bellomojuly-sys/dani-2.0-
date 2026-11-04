@@ -173,8 +173,9 @@ are pulled into the plan.
    agent is no longer enough.
 9. **The app:** the designed front-end, production hosting and the final proof.
 
-The full V3 rows for these (D2-036 to D2-190) stay in git history and in the
-archived V3 Notion page.
+The full V3 rows for these (D2-036 to D2-190) stay in git history (commit
+`a3e346d`, `docs/ROADMAP.md`) and in the September portfolio page "Dani roadmap
+evolution: phases → versions → Dani 2.0".
 
 ## Old ID → new ID
 
