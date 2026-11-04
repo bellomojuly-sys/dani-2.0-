@@ -6,7 +6,11 @@ Dani 2.0 is my personal planning assistant, rebuilt from scratch. The first vers
 
 **Final goal:** Dani is my own AI, trained on my needs and life goals. It organises my tasks, does the ones it can, writes and calls for me, keeps my shopping list, keeps me on track, and has a personality I can chat with.
 
-**By December 2026:** I tell Dani what changed in my day, and Dani plans my real tasks from Notion into the free time in my real calendar, asking me before it writes anything. Talking to Dani from my phone is an extra if time allows (roadmap V4, 3 November 2026).
+**By 13 November 2026 (Sprint 3 demo):** a working app I can talk to, by text or voice (Whisper). Dani reads my plan (my Tasks in Notion) and all my Google calendars, follows my planning rules, and organises things for me ("move Thursday's call to 4 pm", "plan my free time on Wednesday", "new task: …"). It shows every change first and writes it only after my yes. The front-end is the PWA of the first Dani, reused (roadmap V5, 4 November 2026).
+
+**By December 2026:** the same app, reliable on a real week: it respects all my rules, says what slips and how far when something moves, and an evaluation set proves it still works after every change.
+
+**Why it is worth building:** an assistant that reads a company's own tools, follows its rules and asks before it writes is a service I can offer to small companies (MG Integration).
 
 ## First MVP (Sprint 2, 5–16 October 2026)
 
@@ -32,6 +36,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-10-13 | Every tool takes one `arguments` dict and validates it at the top of its body, returning `{"error": ...}` on bad input | Keeps a single, predictable calling convention for all tools; a wrong call never crashes and never invents a result, and the structured error can be handed back to the LLM (D2-011a) |
 | 2026-10-29 | Test quality is measured by mutation testing (target: no surviving non-equivalent mutants) and 100% line+branch coverage; `main.py`'s real decisions are refactored into tested functions while only its `__main__` wiring is excluded; dev-only tools live in `requirements-dev.txt` | Coverage alone passed at 97% while 51 mutants survived — mutation testing is what proves a test fails when the code is broken; testing `main.py`'s decisions (not just excluding the file) answers the teacher's point, and `mutate_only_covered_lines` keeps the untestable wiring out (D2-020a) |
 | 2026-11-03 | Roadmap V4: connect my real Notion tasks first (M05), write the priority back (M06), and only then write a skill, measured against tool descriptions alone (M07); December scope cut to the planning product (Notion → free time → calendar); steps renumbered in build order | Ruud's feedback (3 Nov): the model picks a tool from its description, so a skill is worth adding only when a workflow is too complex for the plain prompt. V3 (190 steps) aimed at the final vision and left real data for December; V4 builds the product I use every day first. Old → new IDs in `docs/ROADMAP.md` |
+| 2026-11-04 | Roadmap V5: a working chat app by 13 Nov — Notion, all my Google calendars, my rules in the system prompt, preview → yes → write, the first Dani's PWA as front-end, Whisper for voice, Render for hosting; the model does the planning, code checks it (overlaps, rules) and evaluations prove it | V4 delivered the thing I use every day only in mid-December, after a free-time algorithm and a memory layer. A system prompt with rules and a few typed tools already plans well in a chat; what needs engineering is the integrations, the safety of writes and the evaluation. Four Decision Logs to write during Sprint 3 are listed in `docs/ROADMAP.md` |
 | 2026-11-03 | Trace redaction decides a field is sensitive by its NAME (explicit list: `api_key`, `token`, `secret`, `password`, `authorization`), not by scanning values, and hides it with the marker `[REDACTED]` instead of removing the field | By-name is deterministic, explainable in one sentence and easy to test; the marker keeps the trace reconstructable (Gate M04). The accepted limit — a secret under an innocent field name is not caught — is recorded, with value-pattern scanning left as a future roadmap row (D2-023; full text in `docs/DECISION-LOG-D2-023-redaction.md`) |
 
 ## How to run
@@ -49,7 +54,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-024 — create five representative cases (M04)**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-024 — Task model for my Notion tasks (M05)**.
 
 | Step | What | State |
 |---|---|---|

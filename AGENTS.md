@@ -22,7 +22,7 @@ Giulia should never have to tell you which task is next.
 
 ## The study cycle comes before the code
 
-From `docs/STUDY-PLAN.md`. **Theory never happens here.** Giulia studies the topic and writes her notes in her notebook (NotebookLM), not in Claude Code. So in this session you **never explain theory, never give theoretical background, and never ask her to study or to confirm she has taken notes.** Assume the Teoria and Appunti steps of the study cycle are done elsewhere. Here your only job is to guide the execution of the active microphase.
+From `docs/STUDY-PLAN.md`. **Theory never happens here.** Giulia studies the topic and writes her notes in her notebook (NotebookLM), not in Claude Code. So in this session you **never explain theory, never give theoretical background, and never ask her to study or to confirm she has taken notes.** Assume the Teoria and Appunti steps of the study cycle are done elsewhere (since V5, 20–30 minutes at the start of the same work block, outside this session). Here your only job is to guide the execution of the active microphase.
 
 When a microphase starts a study objective, the part of the cycle that runs here is:
 
@@ -36,8 +36,9 @@ Objectives already closed in code but not understood (D-A on M01–M03, F2, F3) 
 
 - Step IDs are numbered in build order (`D2-024`, `D2-025`, …), with no letter suffixes; done IDs never change. **Build only the active step.** A new idea becomes a proposed new row in `docs/ROADMAP.md`, inserted where it belongs: only the ⬜ steps after it are renumbered, and the change goes in the "Changes" table. Not code.
 - One new concept per microphase.
-- Python first. One agent.
-- Not yet in Dani's code: anything in the "Later" section of `docs/ROADMAP.md` (web interface, database, MCP, supervisor, specialist agents). Notion arrives at M05, Google Calendar at M08 (read) and M10 (write); cloud hosting and voice only in the extra M11. (This is about Dani's product code. Updating Giulia's Notion pages as part of this workflow is a different thing and is required, see below.)
+- Python first for the back-end. One agent.
+- In scope for Sprint 3 (V5, in this order): Notion read (M05), Google Calendar read via a service account (M06), rules in the system prompt and a FastAPI chat endpoint (M07), preview → yes → write on calendar and Notion (M08), the first Dani's PWA front-end in `web/`, Whisper and Render (M09). Not yet in Dani's code: anything in the "Later" section of `docs/ROADMAP.md` (database, memory, MCP, supervisor, specialist agents). (This is about Dani's product code. Updating Giulia's Notion pages as part of this workflow is a different thing and is required, see below.)
+- Writes to Giulia's real calendars and Notion happen only through the confirm endpoint, after her explicit yes, with no notifications and only on the single occurrence of a repeating event.
 - Tools are typed Python functions that work and are tested on their own before they are exposed to the LLM.
 - Actions with money, bookings, cancellations or external messages are always ask-first.
 
@@ -73,7 +74,7 @@ If a Notion tool is not available in this session, do steps 1, 3 (in the repo) a
 
 | What | Where |
 |---|---|
-| Roadmap copy + Feedback brief | page "Dani 2.0 roadmap (V4)" · `3f2ba5db-4125-817c-aac6-f4b320cbd438` |
+| Roadmap copy + Feedback brief | page "Dani 2.0 roadmap" · `3f2ba5db-4125-817c-aac6-f4b320cbd438` |
 | Project hub | page "Dani" · `3fbba5db-4125-8188-a3c5-d8371083033d` |
 | Tasks (to tick) | data source `collection://68813571-2eb0-41ce-9f91-4982829837db` |
 | Portfolio MA-AAI | data source `collection://4fa3e468-3263-4b4d-b016-f2a7b73111f4`, Collection = "ai personal assistant", Mese = current month |
