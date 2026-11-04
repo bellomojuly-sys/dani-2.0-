@@ -37,17 +37,17 @@ writes anything.
 
 | Field | Value |
 |---|---|
-| Done | D2-001 to D2-003, D2-005 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
+| Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
 | **Active** | **D2-024 — five test questions with expected answers (M04)** |
 | Then | D2-025 (M04), then M05 — real tasks from Notion |
-| Open | D2-004 — a teacher confirms the December scope (V4) |
+| Open | — (D2-004 closed: Olga confirmed the December/later split, in class, late Oct 2026, before the V4 rewrite) |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 
 ## Done (7 October – 3 November)
 
 | Milestone | What works | Steps | Commits |
 |---|---|---|---|
-| M00 — Product contract | New repository, vision, first MVP | D2-001–D2-003, D2-005 (D2-004 open) | `b74f59f` |
+| M00 — Product contract | New repository, vision, first MVP; December/later split confirmed by Olga (in class, late Oct 2026) | D2-001–D2-005 | `b74f59f` |
 | M01 — LLM bootstrap | One request to DeepSeek; key in `.env`; the answer is validated with pydantic | D2-006–D2-010 | `b74f59f` `2a0d23f` `75d461a` `60634bc` `52ab164` |
 | M02 — A Python function as an LLM tool | The model asks for `read_tasks`, my code runs it once, the result goes back; wrong arguments return an error | D2-011, D2-011a, D2-012–D2-015 | `3e5b345` `a756c88` `f860948` `5254892` `5bd7d7e` `6da6130` |
 | M03 — First three-tool agent | Read → prioritise → validate in a bounded loop, behind a written skill; honest failure, nothing invented | D2-016, D2-017, D2-017a, D2-018–D2-020 | `cda5ca0` `4e40ec6` `42ebe5c` `c97aa5e` `7ee4b32` `e308727` |

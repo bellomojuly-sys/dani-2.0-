@@ -18,7 +18,7 @@ A terminal program where one LLM chooses between three Python tools and returns 
 
 ## Scope confirmation
 
-- The roadmap, split into "by December" and "outside December", has been shown to my teachers and accepted, on the condition that it stays feasible and that I present concrete results.
+- The roadmap, split into "by December" and "outside December", has been shown to my teachers and accepted, on the condition that it stays feasible and that I present concrete results. Olga confirmed this split in class in late October 2026 (before the V4 rewrite of 3 November), which closes D2-004.
 - Confirmation of the first MVP scope: planned for 8 October 2026. *To be updated with the dated feedback.*
 
 ## Decisions
@@ -56,7 +56,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-001 | New project created | Done |
 | D2-002 | Vision recorded | Done |
 | D2-003 | First MVP defined | Done |
-| D2-004 | Scope confirmed by teacher | Planned 8 Oct |
+| D2-004 | Scope confirmed by teacher (Olga: December/later split) | Done — in class, late Oct 2026 |
 | D2-005 | Clean Python repository | Done |
 | D2-006 | Provider, model and SDK chosen | Done |
 | D2-007 | First fixed request to the model | Done |
@@ -89,6 +89,7 @@ Every closed microphase can be traced to one commit and checked from the termina
 | Step | Commit | Proof | Check in the terminal |
 |---|---|---|---|
 | D2-001 → D2-006 | `b74f59f` | README (vision, MVP, decisions) | `git show b74f59f --stat` |
+| D2-004 | — (scope note, no code) | Olga confirmed the December/later split, in class, late Oct 2026 | README → "Scope confirmation" |
 | D2-007 | `2a0d23f` | Missing key gives "Missing DEEPSEEK_API_KEY" | run `python3 main.py` without `.env` |
 | D2-008 | `75d461a` | Key only in `.env`, which git ignores | `git ls-files \| grep env` → only `.env.example` |
 | D2-009 | `60634bc` | Only the system and user message are sent | `git show 60634bc` |
