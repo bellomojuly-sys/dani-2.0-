@@ -62,9 +62,9 @@ rewritten on this model after F5 and the pending quizzes.
 
 | Field | Value |
 |---|---|
-| Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-024 — Task model for my Notion tasks (M05)** |
-| Then | D2-025, D2-026 (M05), then M06 — my calendars |
+| Done | D2-001 to D2-024 (7 Oct–5 Nov 2026). Gates M01, M02, M03 passed in code |
+| **Active** | **D2-025 — Notion integration: `notion_client.py` reads my open tasks (M05)** |
+| Then | D2-026 (M05), then M06 — my calendars |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 
@@ -88,7 +88,7 @@ Each milestone is usable on its own from the terminal before the next starts.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-024 | Task model with the fields planning needs: title, area, status, deadline, duration | Typed Task objects | A task with a missing or wrong field fails with a clear error | ⬜ |
+| D2-024 | Task model with the fields planning needs: title, area, status, deadline, duration | Typed Task objects | A task with a missing or wrong field fails with a clear error | ✅ 2026-11-05 `5a32d61` |
 | D2-025 | Notion integration shared only with my Tasks database, token in `.env`; `notion_client.py` reads my open tasks; one real answer saved, with private data removed, as a test fixture | Real tasks + offline fixture | Tests run without internet; the secret scan passes | ⬜ |
 | D2-026 | `read_tasks` reads Notion instead of the three fake tasks; its description stays the same | Answers on my real tasks | "What do I have to do this week?" is answered on my real tasks; the trace shows the model picked the tool from its description | ⬜ |
 

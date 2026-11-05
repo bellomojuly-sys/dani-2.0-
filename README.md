@@ -54,7 +54,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-024 — Task model for my Notion tasks (M05)**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-025 — Notion integration: `notion_client.py` reads my open tasks (M05)**.
 
 | Step | What | State |
 |---|---|---|
@@ -86,6 +86,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-021 | Trace envelope: a run has a unique run ID and timestamps; every event shares the run ID | Done |
 | D2-022 | Each trace event is a typed record of the tool call: name, arguments, status and duration | Done |
 | D2-023 | `safe_trace` redacts sensitive fields by name (`[REDACTED]`), so a secret in a traced field is absent from the saved trace | Done |
+| D2-024 | Typed `Task` model for my Notion tasks; `Area`/`Status` enums from the real Notion DB | Done |
 
 ## Traceability
 
@@ -114,13 +115,14 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
 | D2-022 | `3696a21` | Each event is a typed TraceEvent (tool, arguments, status, duration); a malformed event is refused | `-k "trace"` (15) |
 | D2-023 | `b1563af` | A fake key in a traced field is absent from `safe_trace`; `[REDACTED]` takes its place; a secret under an innocent name is deliberately not caught | `-k "redact or safe_trace or sensitive"` (6) |
+| D2-024 | `5a32d61` | A valid task is accepted and typed; a missing or wrong field (empty title, unknown area/status, non-positive duration, bad date, unknown field name) fails with a clear error | `python3 -m pytest test_task.py` (15) |
 
-All 92 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 107 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
 
 ```bash
-python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=skill --cov=tracing --cov-branch --cov-report=term-missing
+python3 -m pytest -q --cov=tools --cov=agent --cov=answer --cov=task --cov=skill --cov=tracing --cov-branch --cov-report=term-missing
 mutmut run && mutmut results   # writes a git-ignored mutants/ dir; rm -rf mutants before pytest
 ```
