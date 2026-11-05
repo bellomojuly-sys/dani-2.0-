@@ -68,6 +68,38 @@ rewritten on this model after F5 and the pending quizzes.
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 
+## Direction change towards V6 — dashboard-first (5 November 2026, to confirm at design review)
+
+Giulia's decision (5 Nov): the main surface is no longer a chat but a
+**dashboard on PC and phone, like the first Dani**. It opens in the morning and
+shows, at a glance: today's and the week's activities, the **project timeline**
+(where each project stands) and the **areas of attention** (mail and similar).
+**For now only Notion and Google Calendar.**
+
+What this changes, and what it does not:
+
+- **Unchanged — the foundation stays the next work.** Showing today's tasks
+  still needs reading Notion (M05: D2-024 → D2-025 → D2-026); showing the week
+  still needs reading the calendars (M06). We keep building these first; a
+  dashboard-first product does not change them.
+- **To rework at the Sprint 3 design review.** M07–M09 were written as a chat
+  (`/api/chat`) + "write after yes". They become the dashboard UI instead. The
+  read → preview → yes → write path is kept; whether any text/command input
+  stays, and the exact screens, are decided at the design review (as agreed).
+- **New December targets (proposed, after the dashboard core).** These are not
+  yet scheduled steps — they get IDs when the dashboard core is in place:
+  - **Project timeline.** Needs a Project model and task dependencies first
+    (study D-B, currently in "Later"). Proposed to move into December as its own
+    microphase — one new concept, so it is not folded into another step.
+  - **Areas of attention / mail.** Needs a **new integration (Gmail): new
+    credentials and a new scope**. This widens Dani's reach, so it is a stop
+    condition: it needs Giulia's explicit yes and a Decision Log, and the
+    teacher-accepted scope was "as long as it stays feasible" for the 13 Nov
+    demo. Proposed into December, **after** the Notion + Calendar dashboard.
+
+The full V6 rewrite (reshaped milestones M07–M09, the two new rows with IDs)
+is written after the design review, so done IDs are not renumbered prematurely.
+
 ## Done (7 October – 3 November)
 
 | Milestone | What works | Steps | Commits |
@@ -227,3 +259,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 |---|---|
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
+| 2026-11-05 | Direction change towards V6: main surface becomes a dashboard (PC + phone, like the first Dani) instead of a chat; M05–M06 unchanged, M07–M09 reworked as the dashboard UI at the design review; project timeline (needs D-B) and mail (needs Gmail credentials + a Decision Log) proposed as December targets after the dashboard core; full V6 rewrite after the design review. (D2-024 was built twice in parallel sessions; the fuller `5a32d61` version — area/status enums from the real Notion DB, extra="forbid", 15 tests — was kept.) |
