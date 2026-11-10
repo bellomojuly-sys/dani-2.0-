@@ -114,7 +114,8 @@ function tick(kind, id, title) {
     }
   }, UNDO_MS);
   pending.set(id, timer);
-  const what = kind === "task" ? "Notion → Done" : "nascosto, da cancellare dal calendario";
+  const what = kind === "task" ? "Notion → Done"
+    : (state.calendar_write && state.calendar_write.delete ? "cancellato da Google Calendar" : "nascosto, da cancellare dal calendario");
   toast(`Fatto: ${title} (${what})`, {
     action: "Annulla", ms: UNDO_MS,
     onAction: () => { clearTimeout(timer); pending.delete(id); render(); },
@@ -374,10 +375,39 @@ async function send(text) {
     waiting.remove();
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
+    if (answer.proposal) addProposal(answer.proposal);
   } catch (failure) {
     waiting.remove();
     addMessage("note", `Dani non ha risposto: ${failure.message}`);
   }
+}
+
+// A move proposed by Dani: nothing is written until Conferma is pressed.
+function addProposal(proposal) {
+  const when = (a, b) => `${dateIt(dayOf(a))} ${clock(a)}–${clock(b)}`;
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, proposal.title), h("div", {}, `da ${when(proposal.old_start, proposal.old_end)}`),
+    h("div", {}, `a ${when(proposal.new_start, proposal.new_end)}`),
+    proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
+  const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
+  buttons.append(
+    h("button", { class: "btn small", onclick: async () => {
+      close("Scrivo sul calendario…");
+      try {
+        const done = await api("/api/confirm", { method: "POST", json: { id: proposal.id } });
+        close(done.read_back ? "Fatto: spostato, riletto dal calendario." : "Scritto, ma la rilettura non lo trova ancora.");
+        history.push({ role: "user", content: "Confermo." }, { role: "assistant", content: "Spostato." });
+        poll();
+      } catch (failure) { close(`Non spostato: ${failure.message}`); }
+    } }, "Conferma"),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
+      close("Rifiutata: non ho cambiato nulla.");
+      history.push({ role: "user", content: "No, non spostarlo." });
+    } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
 }
 
 // Voice in: Whisper through the server when it is set up, otherwise the

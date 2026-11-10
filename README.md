@@ -48,6 +48,8 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-11-10 | The dashboard is served live by FastAPI (`server.py`) with a cache (`live.py`): sources re-read every 60 s, page polls every 5 s, LLM priority only when tasks or context change; local first, network only behind `DANI_PIN` | A static file cannot tick, save settings or chat; FastAPI was already planned for D2-031 and validates bodies with pydantic. Three new dependencies: `fastapi`, `uvicorn`, `httpx` |
 | 2026-11-10 | A tick on the dashboard is my "yes" to write (Notion Status = Done), with 5 s of undo, a server-side check and read-back; calendar events are only hidden until the Calendar API is connected in writing | The action is mine, on one named item, reversible, with no model in the path; the preview → yes rule stays for changes proposed by the model |
 | 2026-11-10 | Voice: Whisper when `OPENAI_API_KEY` is set, the browser's dictation otherwise; answers read aloud by the browser | The chat works with no new key and Whisper is one variable away; no new package |
+| 2026-11-10 | Google Calendar through the Calendar API with a service account (key file outside the repo, path in `.env`); new dependency `google-auth` (+ `requests`) only to get the access token | No login that expires every 7 days and no browser needed on a server; I decide per calendar what the account may do. iCal stays as the fallback for calendars not shared with it |
+| 2026-11-10 | Dani may write in my real calendars, only as: the model proposes (`propose_move`), code checks (fixed calendars refused, overlaps flagged), I confirm, one occurrence is changed without notifications and read back | "Move this session" is the core use and my sessions are in my real calendars; the model itself has no tool that writes |
 
 ## How to run
 
@@ -68,6 +70,10 @@ python server.py --host 0.0.0.0   # reachable from the phone on the same Wi-Fi; 
 and serves `web/`. My private settings (context, cycle, hidden events) are in
 `data/settings.json`, ignored by git; `data.example/` shows the shape.
 `OPENAI_API_KEY` is optional and switches voice input to Whisper.
+`GOOGLE_SERVICE_ACCOUNT_FILE` is optional too: with it the calendars shared with
+the service account are read and written through the Calendar API
+(`gcal_client.py`), ticked events are deleted, and the chat can propose a move
+that is written only after Confirm (`propose.py`).
 
 `dashboard.py` needs `NOTION_TOKEN`, `NOTION_TASKS_DB_ID` and `GCAL_ICS_URL`
 in `.env` (see `.env.example`); `DEEPSEEK_API_KEY` is optional for it: without

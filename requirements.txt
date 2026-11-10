@@ -9,3 +9,6 @@ recurring-ical-events
 fastapi
 uvicorn
 httpx
+# Google Calendar API (2026-11-10): turns the service-account key into an access token.
+google-auth
+requests

@@ -125,6 +125,10 @@ border-radius:28px;background:rgba(255,255,255,0.86);border:1px solid #fff;box-s
 .msg.user{align-self:flex-end;background:var(--berry);color:#fff;border-bottom-right-radius:6px}
 .msg.assistant{align-self:flex-start;background:var(--blush);border-bottom-left-radius:6px}
 .msg.note{align-self:center;background:none;color:var(--ink-3);font-size:13px;text-align:center}
+.msg.proposal{align-self:stretch;max-width:none;background:#fff;border:1px solid var(--peony);display:flex;flex-direction:column;gap:4px;white-space:normal}
+.msg.proposal .warn{color:#8E1F1F;font-weight:700;font-size:14px}
+.msg.proposal .row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.msg.proposal .meta{font-size:13px;color:var(--ink-2)}
 #chat-form{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(158,47,90,0.15)}
 
 @media (max-width:900px){

@@ -96,3 +96,46 @@ def test_empty_recording_and_empty_transcript_are_refused():
         speech_to_text(FakeWhisper("x"), b"")
     with pytest.raises(ValueError, match="no speech"):
         speech_to_text(FakeWhisper("  "), b"audio")
+
+
+# --- a turn that may propose a move ---------------------------------------------
+
+from chat import chat_turn  # noqa: E402
+from propose import PROPOSE_MOVE_SCHEMA  # noqa: E402
+
+
+class FakeToolChat:
+    """Answers with text and/or tool calls; remembers what it was sent."""
+
+    def __init__(self, text="", calls=()):
+        self.text, self.calls, self.seen = text, calls, None
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, model, messages, tools):
+        self.seen = {"messages": messages, "tools": tools}
+        tool_calls = [SimpleNamespace(function=SimpleNamespace(name=name, arguments=arguments)) for name, arguments in self.calls]
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self.text, tool_calls=tool_calls or None))])
+
+
+def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule():
+    client = FakeToolChat("Va bene.")
+    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None}
+    system = client.seen["messages"][0]["content"]
+    assert "- e1: 2026-11-10 17:00-23:00 [lavoro] Turno ristorante" in system
+    assert "call the propose_move tool" in system and "not connected yet" not in system
+    assert client.seen["tools"] == [PROPOSE_MOVE_SCHEMA]
+
+
+def test_a_propose_move_call_comes_back_as_unchecked_arguments():
+    client = FakeToolChat("", [("propose_move", '{"event": "e1", "new_start": "2026-11-12T16:00"}')])
+    turn = chat_turn(client, "", STATE, [], "sposta la call alle 16", PROPOSE_MOVE_SCHEMA)
+    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}}
+
+
+def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
+    other = FakeToolChat("Ecco.", [("delete_everything", "{}")])
+    assert chat_turn(other, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA)["move"] is None
+    with pytest.raises(ValueError, match="not JSON"):
+        chat_turn(FakeToolChat("", [("propose_move", "{event: e1")]), "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA)
+    with pytest.raises(ValueError, match="empty answer"):
+        chat_turn(FakeToolChat(""), "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA)

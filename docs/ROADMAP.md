@@ -153,7 +153,7 @@ walked through the code and can explain it.
 | D2-043 | `server.py` (FastAPI): state, refresh, tick, settings, cycle, PIN | The API behind the page | Every endpoint tested with fake sources, accepted case and each refusal | 🟡 |
 | D2-044 | `web/`: Home, Calendar (week grid), Meal prep (placeholder), Settings; tick with 5 s of undo | The dashboard on Mac and phone | Browser check on real data at desktop and 375 px width | 🟡 |
 | D2-045 | Chat bubble: `POST /api/chat` with my context and the week's data, read-only; voice in (Whisper if a key is set, else browser dictation) and spoken answers | I talk with Dani | Fake model: context and data are in the prompt; the chat never writes | 🟡 |
-| D2-046 | Google Calendar in writing (service account): delete the ticked occurrences; move an event from the chat after my yes | Real calendar changes | Read-back matches; only the single occurrence; no notifications | ⬜ |
+| D2-046 | Google Calendar through the API with a service account (`gcal_client.py`): events read live; a ticked event is deleted; the chat proposes a move (`propose.py`) and `POST /api/confirm` applies it after my yes | Real calendar changes | Fake HTTP: only the single occurrence, no notifications, read-back; a shift cannot be moved; the calendar is unchanged after a proposal. Real read checked; the first real write is mine | 🟡 |
 
 Overlap with the Sprint 3 rows: D2-030 (my context in the prompt, edited from
 Settings instead of `rules.md`), D2-031 (chat over HTTP, without the tool loop
@@ -252,4 +252,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 |---|---|
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
-| 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Four Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
+| 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Six Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |

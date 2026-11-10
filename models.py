@@ -50,6 +50,10 @@ class Event(BaseModel):
     # The iCal UID. A repeating event has one UID for all its occurrences, so
     # one occurrence is identified by UID + start (see ``key``).
     uid: str = ""
+    # Filled only when the event was read through the Calendar API (not iCal):
+    # the id of this occurrence and of its calendar, needed to change it.
+    api_id: str = ""
+    calendar_id: str = ""
 
     @property
     def key(self):

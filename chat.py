@@ -10,6 +10,8 @@ system prompt as short lines, so an answer can be checked against the page.
 separate provider (OpenAI) with its own key, so it is optional.
 """
 
+import json
+
 MODEL = "deepseek-flash"
 MAX_HISTORY = 12  # older turns are dropped so the prompt stays small
 MAX_TASKS = 20
@@ -22,10 +24,10 @@ def _clock(iso):
 def describe_state(state):
     """Turn the dashboard data into the plain lines the model reads."""
     lines = [f"Now: {state['now']} (Europe/Amsterdam). The week shown: {state['days'][0]} to {state['days'][-1]}."]
-    lines.append("Calendar events this week:")
-    for event in state["events"]:
+    lines.append("Calendar events this week (the name in front, e1, e2..., is the event reference):")
+    for number, event in enumerate(state["events"], 1):
         when = "all day" if event["all_day"] else f"{_clock(event['start'])}-{_clock(event['end'])}"
-        lines.append(f"- {event['start'][:10]} {when} [{event['calendar']}] {event['title']}")
+        lines.append(f"- e{number}: {event['start'][:10]} {when} [{event['calendar']}] {event['title']}")
     if not state["events"]:
         lines.append("- none")
     lines.append("Planned study blocks (proposed by the planner, not in the calendar):")
@@ -41,8 +43,24 @@ def describe_state(state):
     return "\n".join(lines)
 
 
-def build_chat_messages(context, state, history, message):
+NO_WRITE_RULE = (
+    "You cannot change the calendar or Notion from this chat. If she asks for a change, say "
+    "exactly what you would change and that writing from the chat is not connected yet; never say "
+    "it is done and never offer to do it yourself."
+)
+MOVE_RULE = (
+    "You cannot change the calendar or Notion yourself. To move a calendar event, call the "
+    "propose_move tool once: it only creates a proposal that she confirms with a button. Never say "
+    "a change is done. Events in calendars she cannot tick (shifts, lessons) are fixed. You cannot "
+    "create or delete events and you cannot change Notion."
+)
+
+
+def build_chat_messages(context, state, history, message, can_move=False):
     """Return the messages for the model: system prompt, recent turns, new message.
+
+    ``can_move`` says whether the calendar is connected in writing: only then
+    is the model told about the propose_move tool.
 
     ``history`` is what the page sends back: a list of {"role", "content"}.
     Only "user" and "assistant" turns are kept (a "system" turn from the page
@@ -55,10 +73,9 @@ def build_chat_messages(context, state, history, message):
         "You are Dani, Giulia's personal planning assistant. Answer in Italian, short and warm, "
         "like a spoken answer: no tables, no markdown.\n"
         "Use only the data below. If something is not in the data, say you do not know.\n"
-        "You cannot change the calendar or Notion from this chat. If she asks for a change, say "
-        "exactly what you would change and that writing from the chat is not connected yet; never say "
-        "it is done and never offer to do it yourself.\n\n"
-        f"What Giulia told you about herself and her rules:\n{about_giulia}\n\n"
+        + (MOVE_RULE if can_move else NO_WRITE_RULE)
+        + "\n\n"
+        + f"What Giulia told you about herself and her rules:\n{about_giulia}\n\n"
         f"{describe_state(state)}"
     )
     turns = [
@@ -79,6 +96,30 @@ def chat_reply(client, context, state, history, message, model=MODEL):
     if not text:
         raise ValueError("the model returned an empty answer")
     return text
+
+
+def chat_turn(client, context, state, history, message, move_schema, model=MODEL):
+    """One turn in which the model may ask to move an event.
+
+    Returns {"text": str, "move": dict or None}. ``move`` is the arguments of
+    the first propose_move call, still unchecked: propose.build_proposal
+    validates them. Arguments that are not JSON raise ValueError; so does an
+    answer with neither text nor a call.
+    """
+    messages = build_chat_messages(context, state, history, message, can_move=True)
+    response = client.chat.completions.create(model=model, messages=messages, tools=[move_schema])
+    answer = response.choices[0].message
+    text = (answer.content or "").strip()
+    for call in answer.tool_calls or []:
+        if call.function.name == "propose_move":
+            try:
+                arguments = json.loads(call.function.arguments)
+            except ValueError:
+                raise ValueError("the model sent arguments that are not JSON") from None
+            return {"text": text, "move": arguments}
+    if not text:
+        raise ValueError("the model returned an empty answer")
+    return {"text": text, "move": None}
 
 
 def speech_to_text(client, audio, filename="voice.webm"):

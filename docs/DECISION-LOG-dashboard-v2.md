@@ -151,3 +151,88 @@ device's Italian voice, not a chosen one.
 
 Evidence — `chat.speech_to_text`, `server.py` (`/api/transcribe`),
 `web/app.js` (`toggleMic`, `sayAloud`), `test_chat.py`.
+
+---
+
+# [DL] How does Dani get into Google Calendar: service account or my own OAuth login?
+Date: 2026-11-10 · Microphase: D2-046 · Study objective: D-F
+
+Context — The iCal addresses are read-only and Google refreshes them with a
+delay. To delete or move an event Dani needs the Calendar API, and the API
+needs an identity.
+
+Options
+- OAuth with my own Google account (a "client ID"). Pro: Dani sees exactly
+  what I see, nothing to share. Con: a consent screen in the browser, a
+  refresh token to store, and in Google's testing mode the permission expires
+  every 7 days; on a server (Render) there is no browser to log in again.
+- A service account: a robot account with its own e-mail, to which I share
+  each calendar. Pro: no expiry, no browser, works the same on my Mac and on
+  a server; I decide calendar by calendar what it may do (see only / change
+  events). Con: a key file that must never be committed; one more thing to
+  share when I create a calendar.
+
+Decision — Service account. The key is a JSON file outside the repository;
+`.env` holds only its path (`GOOGLE_SERVICE_ACCOUNT_FILE`). One new dependency,
+`google-auth` (with `requests`), used only to turn the key into an access
+token; every Calendar request is plain `urllib`, like the Notion client.
+Calendars shared with the account are read through the API; a calendar that is
+not shared stays on its iCal address.
+
+Why — Tested on 10 Nov: the account reads 6 of my 7 calendars, and Google
+reports its role per calendar (writer on personale, reader on lavoro,
+Università and studio). So the sharing setting, not Dani's code, is the outer
+limit of what can be written. I first downloaded an OAuth client file by
+mistake: the two are easy to confuse, a service-account key has
+`"type": "service_account"`.
+
+Consequences — Reading through the API makes the calendar side live too (no
+iCal delay). The scopes are `calendar.events` and `calendar.readonly`. If the
+key leaks, I delete it in Google Cloud and create another. A calendar shared
+as "see only" answers HTTP 403 to a write, and the dashboard shows that error.
+
+Evidence — `gcal_client.py`, `test_gcal_client.py`; real read of 10 Nov
+(35 events, the same as through iCal).
+
+---
+
+# [DL] May Dani write in my real calendars, and how is it kept safe?
+Date: 2026-11-10 · Microphase: D2-046 · Study objective: D-F, F5
+
+Context — "Move this session" is the core use, and my sessions live in my real
+calendars (studio, personale), not in a separate "Dani" calendar. Writing there
+widens Dani's authority: a stop condition of the roadmap, decided by me.
+
+Options
+- A separate Dani calendar, the only one Dani may write. Pro: my calendars
+  cannot be damaged. Con: Dani cannot move the sessions that already exist.
+- Write in my real calendars with a path of checks.
+- Let the model write directly with a tool. Pro: fewer steps. Con: one wrong
+  tool call changes my week with nobody looking.
+
+Decision — Dani writes in my real calendars, only on this path:
+1. the model can only call `propose_move`; it has no tool that writes;
+2. `propose.py` checks the request in code: the event must be one of those
+   shown, in a calendar I marked as tickable (shifts and lessons are refused),
+   not all-day, with an end after the start; an overlap or a Sunday is flagged
+   in the preview, never silently accepted;
+3. nothing changes until I press Conferma (`POST /api/confirm`); a proposal is
+   applied once, and is refused if the event changed in the meantime;
+4. the write touches one occurrence, sends only start and end, uses
+   `sendUpdates=none` (no e-mails), and is read back.
+Deleting follows the tick rule of the earlier Decision Log.
+
+Why — Each refusal has a test (`test_propose.py`, `test_server.py`): a shift
+cannot be moved; a move onto a shift carries the warning; the calendar is
+unchanged after a proposal; confirming twice changes nothing more. On the real
+data the model proposed moving "Upper body" from 07:30 to 18:00 and, asked to
+move a restaurant shift that is not in the week, answered that it could not
+find it instead of inventing one.
+
+Consequences — Only moves for now: creating events and Notion tasks from the
+chat are not built. Proposals live in memory and are lost when the server
+restarts. The real confirm has not been run by the agent: the first real write
+is mine, in the app.
+
+Evidence — `propose.py`, `server.py` (`/api/chat`, `/api/confirm`,
+`/api/reject`), `test_propose.py`, `test_server.py`.
