@@ -92,3 +92,65 @@ def test_one_bad_page_stops_the_whole_query():
     broken["results"][1]["properties"]["Task Name"]["title"] = []
     with pytest.raises(ValueError):
         query_open_tasks("tok", "db", http=lambda url, headers, body: broken)
+
+
+# --- the one write: mark_done ---------------------------------------------------
+
+def test_mark_done_patches_only_the_status_of_that_page():
+    from notion_client import mark_done
+
+    seen = {}
+
+    def http(url, headers, body):
+        seen.update(url=url, headers=headers, body=body)
+        return {"properties": {"Status": {"select": {"name": "Done"}}}}
+
+    assert mark_done("tok", "page-1", http=http) is True
+    assert seen["url"] == "https://api.notion.com/v1/pages/page-1"
+    assert seen["body"] == {"properties": {"Status": {"select": {"name": "Done"}}}}
+    assert seen["headers"]["Authorization"] == "Bearer tok"
+
+
+def test_mark_done_refuses_an_answer_that_is_not_done():
+    from notion_client import mark_done
+
+    with pytest.raises(RuntimeError, match="did not confirm Status = Done"):
+        mark_done("tok", "page-1", http=lambda url, headers, body: {"properties": {"Status": {"select": {"name": "In Progress"}}}})
+    with pytest.raises(RuntimeError, match="did not confirm"):
+        mark_done("tok", "page-1", http=lambda url, headers, body: {})
+
+
+def test_patch_json_uses_the_patch_method_and_hides_the_token_on_failure():
+    import io
+    from urllib import error
+
+    from notion_client import patch_json
+
+    methods = []
+
+    class Answer(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def opener(req, timeout):
+        methods.append(req.get_method())
+        return Answer(b'{"ok": true}')
+
+    assert patch_json("https://x", {"Authorization": "Bearer secret"}, {}, opener=opener) == {"ok": True}
+    assert methods == ["PATCH"]
+
+    def failing(req, timeout):
+        raise error.HTTPError("https://x", 403, "Forbidden", {}, io.BytesIO(b"no update capability"))
+
+    with pytest.raises(RuntimeError) as caught:
+        patch_json("https://x", {"Authorization": "Bearer secret"}, {}, opener=failing)
+    assert "403" in str(caught.value) and "secret" not in str(caught.value)
+
+    def unreachable(req, timeout):
+        raise error.URLError("no route")
+
+    with pytest.raises(RuntimeError, match="could not be reached"):
+        patch_json("https://x", {}, {}, opener=unreachable)

@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {"name": "dani-demo", "runtimeExecutable": ".venv/bin/python", "runtimeArgs": ["server.py", "--demo", "--port", "8011"], "port": 8011},
+    {"name": "dani", "runtimeExecutable": ".venv/bin/python", "runtimeArgs": ["server.py"], "port": 8000}
+  ]
+}

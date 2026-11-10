@@ -4,3 +4,8 @@ pydantic
 pytest
 # Expands repeating iCal events one occurrence at a time (Google Calendar read, 2026-11-05).
 recurring-ical-events
+# Live dashboard server (2026-11-10): the HTTP API, the process that runs it,
+# and httpx for the test client of FastAPI.
+fastapi
+uvicorn
+httpx

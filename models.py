@@ -47,6 +47,15 @@ class Event(BaseModel):
     start: datetime
     end: datetime
     all_day: bool = False
+    # The iCal UID. A repeating event has one UID for all its occurrences, so
+    # one occurrence is identified by UID + start (see ``key``).
+    uid: str = ""
+
+    @property
+    def key(self):
+        """Identify this single occurrence: the UID (or the title when the feed
+        gave none) plus the start time."""
+        return f"{self.uid or self.title}|{self.start.isoformat()}"
 
     @model_validator(mode="after")
     def _end_after_start(self):

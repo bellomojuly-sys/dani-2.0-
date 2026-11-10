@@ -10,3 +10,7 @@ mutmut-stats.json
 
 # the generated dashboard holds private data (tasks, events)
 dashboard.html
+.venv
+
+# private settings written by the live dashboard (context, cycle, hidden events)
+data/

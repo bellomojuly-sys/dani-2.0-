@@ -69,3 +69,12 @@ def test_split_urls_ignores_blanks():
 def test_malformed_ics_is_refused():
     with pytest.raises(ValueError):
         events_from_ics(b"not a calendar", date(2026, 11, 9), date(2026, 11, 16))
+
+
+def test_occurrences_of_a_repeating_event_share_the_uid_but_not_the_key():
+    from datetime import date as _date
+
+    events = events_from_ics(open("fixtures/calendar.ics", "rb").read(), _date(2026, 11, 10), _date(2026, 11, 24))
+    lessons = [event for event in events if event.title == "Lezione MA-AAI"]
+    assert len(lessons) >= 2 and lessons[0].uid and lessons[0].uid == lessons[1].uid
+    assert lessons[0].key != lessons[1].key

@@ -66,6 +66,7 @@ def events_from_ics(ics_bytes, start, end, calendar_name=None):
                 start=_to_amsterdam(begins),
                 end=_to_amsterdam(occurrence["DTEND"].dt),
                 all_day=not isinstance(begins, datetime),
+                uid=str(occurrence.get("UID", "")),
             )
         )
     return sorted(events, key=lambda event: event.start)

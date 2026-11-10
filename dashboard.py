@@ -77,13 +77,16 @@ def make_read_tasks(tasks):
     return read_tasks
 
 
-def build_messages(today):
+def build_messages(today, context=""):
+    """The priority request. ``context`` is Giulia's own text from Settings
+    (habits, rules): when it is not empty it becomes part of the system prompt."""
+    about_giulia = f"\nWhat Giulia told you about herself and her rules:\n{context.strip()}\n" if context.strip() else ""
     return [
         {
             "role": "system",
             "content": (
                 "You are Dani, a personal planning assistant. Today is "
-                f"{today.isoformat()} ({today.strftime('%A')}).\n" + TOOLBOX_SKILL + "\n"
+                f"{today.isoformat()} ({today.strftime('%A')}).\n" + TOOLBOX_SKILL + "\n" + about_giulia +
                 "Decide the order by deadline first, then by the priority label, then by "
                 "whether the task is a next action. Keep each reason to one short line in Italian."
             ),
@@ -92,7 +95,7 @@ def build_messages(today):
     ]
 
 
-def ask_priority(client, tasks, today):
+def ask_priority(client, tasks, today, context=""):
     """Run the bounded tool loop on the real tasks and return (outcome, run).
 
     If there is no client (no key) or the API fails, the outcome is an honest
@@ -108,7 +111,7 @@ def ask_priority(client, tasks, today):
         run = end_run(start_run())
         return {"ok": False, "reason": "no DEEPSEEK_API_KEY", "priority": None}, run
     try:
-        result = run_tool_loop(client, build_messages(today), schemas, model="deepseek-flash", tools=tools)
+        result = run_tool_loop(client, build_messages(today, context), schemas, model="deepseek-flash", tools=tools)
     except Exception as failure:  # the network or the provider, never our code
         run = end_run(start_run())
         return {"ok": False, "reason": f"model unavailable: {type(failure).__name__}", "priority": None}, run

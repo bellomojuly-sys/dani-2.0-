@@ -1,0 +1,6 @@
+{
+  "context": "Example: no study on Sundays. At most 7 hours of study a day. I work at the restaurant on ...",
+  "cycle": { "start": "2026-01-01", "cycle_length": 28, "period_length": 5, "confirmed": false },
+  "tickable_calendars": ["personale", "studio"],
+  "hidden_events": []
+}

@@ -44,6 +44,10 @@ A terminal program where one LLM chooses between three Python tools and returns 
 | 2026-11-03 | Roadmap V4: connect my real Notion tasks first (M05), write the priority back (M06), and only then write a skill, measured against tool descriptions alone (M07); December scope cut to the planning product (Notion → free time → calendar); steps renumbered in build order | Ruud's feedback (3 Nov): the model picks a tool from its description, so a skill is worth adding only when a workflow is too complex for the plain prompt. V3 (190 steps) aimed at the final vision and left real data for December; V4 builds the product I use every day first. Old → new IDs in `docs/ROADMAP.md` |
 | 2026-11-04 | Roadmap V5: a working chat app by 13 Nov — Notion, all my Google calendars, my rules in the system prompt, preview → yes → write, the first Dani's PWA as front-end, Whisper for voice, Render for hosting; the model does the planning, code checks it (overlaps, rules) and evaluations prove it | V4 delivered the thing I use every day only in mid-December, after a free-time algorithm and a memory layer. A system prompt with rules and a few typed tools already plans well in a chat; what needs engineering is the integrations, the safety of writes and the evaluation. Four Decision Logs to write during Sprint 3 are listed in `docs/ROADMAP.md` |
 | 2026-11-03 | Trace redaction decides a field is sensitive by its NAME (explicit list: `api_key`, `token`, `secret`, `password`, `authorization`), not by scanning values, and hides it with the marker `[REDACTED]` instead of removing the field | By-name is deterministic, explainable in one sentence and easy to test; the marker keeps the trace reconstructable (Gate M04). The accepted limit — a secret under an innocent field name is not caught — is recorded, with value-pattern scanning left as a future roadmap row (D2-023; full text in `docs/DECISION-LOG-D2-023-redaction.md`) |
+| 2026-11-10 | New multi-page front-end in `web/` (plain HTML/CSS/JS, no build) instead of copying the first Dani's PWA | I can explain every line; the four pages I need do not exist in the old PWA (full text in `docs/DECISION-LOG-dashboard-v2.md`) |
+| 2026-11-10 | The dashboard is served live by FastAPI (`server.py`) with a cache (`live.py`): sources re-read every 60 s, page polls every 5 s, LLM priority only when tasks or context change; local first, network only behind `DANI_PIN` | A static file cannot tick, save settings or chat; FastAPI was already planned for D2-031 and validates bodies with pydantic. Three new dependencies: `fastapi`, `uvicorn`, `httpx` |
+| 2026-11-10 | A tick on the dashboard is my "yes" to write (Notion Status = Done), with 5 s of undo, a server-side check and read-back; calendar events are only hidden until the Calendar API is connected in writing | The action is mine, on one named item, reversible, with no model in the path; the preview → yes rule stays for changes proposed by the model |
+| 2026-11-10 | Voice: Whisper when `OPENAI_API_KEY` is set, the browser's dictation otherwise; answers read aloud by the browser | The chat works with no new key and Whisper is one variable away; no new package |
 
 ## How to run
 
@@ -55,7 +59,15 @@ cp .env.example .env   # then fill in the keys
 python main.py          # the terminal run: one question, three tools (M01–M04)
 python dashboard.py     # the dashboard: real Notion tasks + real calendars -> dashboard.html
 python dashboard.py --demo   # same page from the saved fixtures, no Notion and no download
+python server.py        # the live dashboard on http://127.0.0.1:8000 (Home, Calendar, Meal prep, Settings, chat)
+python server.py --demo # the same with the saved fixtures; ticking writes nowhere
+python server.py --host 0.0.0.0   # reachable from the phone on the same Wi-Fi; needs DANI_PIN in .env
 ```
+
+`server.py` keeps tasks and events in memory, re-reads them every 60 seconds
+and serves `web/`. My private settings (context, cycle, hidden events) are in
+`data/settings.json`, ignored by git; `data.example/` shows the shape.
+`OPENAI_API_KEY` is optional and switches voice input to Whisper.
 
 `dashboard.py` needs `NOTION_TOKEN`, `NOTION_TASKS_DB_ID` and `GCAL_ICS_URL`
 in `.env` (see `.env.example`); `DEEPSEEK_API_KEY` is optional for it: without

@@ -5,6 +5,9 @@ visible request we can read and explain (Decision Log 2026-11-05). The token
 comes from the environment and travels only in the Authorization header; it is
 never part of a URL or of an error message.
 
+One write exists, ``mark_done``: it sets Status = Done on a single page and is
+called only after Giulia ticks that task (Decision Log 2026-11-10).
+
 Two layers, so each can be tested on its own:
   - ``task_from_page``    turns one Notion page (a dict) into a typed Task;
   - ``query_open_tasks``  calls the API (through an injectable ``http``
@@ -28,21 +31,33 @@ VERSION = "2022-06-28"
 OPEN_FILTER = {"property": "Status", "select": {"does_not_equal": "Done"}}
 
 
-def post_json(url, headers, body, opener=request.urlopen, timeout=20):
-    """POST a JSON body and return the decoded JSON answer.
+def send_json(method, url, headers, body, opener=request.urlopen, timeout=20):
+    """Send a JSON body with ``method`` and return the decoded JSON answer.
 
     A failed request raises RuntimeError with the status code and the start of
     the body. The headers (where the token lives) are never in the message.
     ``opener`` is injectable so tests never touch the network.
     """
     data = json.dumps(body).encode()
-    req = request.Request(url, data=data, headers=headers, method="POST")
+    req = request.Request(url, data=data, headers=headers, method=method)
     try:
         with opener(req, timeout=timeout) as response:
             return json.loads(response.read())
     except error.HTTPError as failure:
         detail = failure.read().decode(errors="replace")[:300]
         raise RuntimeError(f"Notion answered HTTP {failure.code}: {detail}") from None
+    except error.URLError as failure:
+        raise RuntimeError(f"Notion could not be reached: {failure.reason}") from None
+
+
+def post_json(url, headers, body, opener=request.urlopen, timeout=20):
+    """POST: used to query the database (a read)."""
+    return send_json("POST", url, headers, body, opener, timeout)
+
+
+def patch_json(url, headers, body, opener=request.urlopen, timeout=20):
+    """PATCH: used to change one page (a write)."""
+    return send_json("PATCH", url, headers, body, opener, timeout)
 
 
 def _headers(token):
@@ -107,3 +122,18 @@ def query_open_tasks(token, database_id, http=post_json):
         if not answer.get("has_more"):
             return tasks
         cursor = answer["next_cursor"]
+
+
+def mark_done(token, page_id, http=patch_json):
+    """Set Status = Done on one task page, and check Notion really did it.
+
+    The only field sent is Status, so nothing else on the page can change.
+    Notion answers with the updated page: if its Status is not "Done" we raise
+    instead of reporting a success that did not happen (read-back).
+    """
+    body = {"properties": {"Status": {"select": {"name": "Done"}}}}
+    answer = http(f"{API}/pages/{page_id}", _headers(token), body)
+    status = _select_name((answer.get("properties") or {}).get("Status") or {})
+    if status != "Done":
+        raise RuntimeError(f"Notion did not confirm Status = Done (it says {status!r})")
+    return True

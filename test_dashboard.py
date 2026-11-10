@@ -159,3 +159,10 @@ def test_sunday_card_has_no_blocks_and_oversized_task_is_reported():
     summary = run_dashboard(TODAY, lambda: big, lambda s, e: [], None, pages.append)
     assert summary["blocks"] == 0 and summary["unplaced"] == ["Thesis"]
     assert "non piazzato" in pages[0]
+
+
+def test_context_from_settings_enters_the_priority_prompt_only_when_written():
+    plain = build_messages(TODAY)[0]["content"]
+    with_context = build_messages(TODAY, "Il mercoledì lavoro al ristorante")[0]["content"]
+    assert "Il mercoledì lavoro al ristorante" in with_context
+    assert "What Giulia told you" not in plain and build_messages(TODAY, "   ")[0]["content"] == plain

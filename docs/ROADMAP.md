@@ -67,6 +67,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Then | D2-025, D2-026 (M05), then M06 — my calendars |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
+| Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
 
 ## Done (7 October – 3 November)
 
@@ -136,6 +137,30 @@ one command tells me whether it still works.
 **Gate M09 — the demo (13 November):** from the app on my phone I say "move
 Thursday's call to 4 pm" or "plan my free time on Wednesday"; Dani reads Notion
 and my calendars, proposes, and after my yes the change is in my calendar.
+
+### Dashboard v2 — live, multi-page, with chat (10 November, my decision)
+
+Built on the Notion and iCal links of the 5 Nov MVP, before closing D2-024.
+🟡 = built, tests green, checked in the browser; closed only after I have
+walked through the code and can explain it.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-039 | `cycle.py`: phase estimate from start date, mean cycle and period length; "in arrivo" when the expected start has passed unconfirmed | Phase on the Home page | One test per phase, per refusal, and for cycles after a confirmed one | 🟡 |
+| D2-040 | `store.py`: my private settings (context, cycle, tickable calendars, hidden events) in `data/settings.json`, outside git | Settings that survive a restart | A broken file is refused; write then read gives the same settings | 🟡 |
+| D2-041 | `notion_client.mark_done`: PATCH Status = Done on one page, with read-back | A ticked task is Done in Notion | Fake HTTP: only Status is sent; an answer that is not Done raises | 🟡 |
+| D2-042 | `live.py`: cache of tasks and events, refresh with time and ok/error per source, LLM priority only when tasks or context change | "aggiornato alle HH:MM:SS" | A failing source keeps the last data; the priority is asked once | 🟡 |
+| D2-043 | `server.py` (FastAPI): state, refresh, tick, settings, cycle, PIN | The API behind the page | Every endpoint tested with fake sources, accepted case and each refusal | 🟡 |
+| D2-044 | `web/`: Home, Calendar (week grid), Meal prep (placeholder), Settings; tick with 5 s of undo | The dashboard on Mac and phone | Browser check on real data at desktop and 375 px width | 🟡 |
+| D2-045 | Chat bubble: `POST /api/chat` with my context and the week's data, read-only; voice in (Whisper if a key is set, else browser dictation) and spoken answers | I talk with Dani | Fake model: context and data are in the prompt; the chat never writes | 🟡 |
+| D2-046 | Google Calendar in writing (service account): delete the ticked occurrences; move an event from the chat after my yes | Real calendar changes | Read-back matches; only the single occurrence; no notifications | ⬜ |
+
+Overlap with the Sprint 3 rows: D2-030 (my context in the prompt, edited from
+Settings instead of `rules.md`), D2-031 (chat over HTTP, without the tool loop
+yet), D2-036 (a new front-end instead of the old PWA) and D2-037 (Whisper
+endpoint, inactive until `OPENAI_API_KEY` exists) are partly covered. D2-046
+merges D2-027 and D2-033–D2-035. Decision Logs:
+`docs/DECISION-LOG-dashboard-v2.md`.
 
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
@@ -227,3 +252,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 |---|---|
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
+| 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Four Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
