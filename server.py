@@ -161,7 +161,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             hidden_events=current.hidden_events,
         )
         write_settings(updated, settings_path)
-        return updated.model_dump(mode="json")
+        # Her context must act now, not at the next background refresh: re-ask
+        # the priority with the new context (update_priority already skips the
+        # LLM call when nothing changed). The plan follows by itself, because
+        # /api/state rebuilds the blocks from the priority at every call.
+        answer = updated.model_dump(mode="json")
+        try:
+            live.update_priority(updated.context)
+            answer["priority_recalculated"] = True
+        except Exception:  # the model or the network; the save must survive it
+            answer["priority_recalculated"] = False
+        return answer
 
     @api.post("/cycle/started")
     def post_cycle_started():

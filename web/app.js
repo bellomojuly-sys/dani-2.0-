@@ -304,8 +304,10 @@ async function saveSettings() {
     cycle: start ? { start, cycle_length: Number($("#cycle-length").value), period_length: Number($("#period-length").value), confirmed: $("#cycle-confirmed").checked } : null,
   };
   try {
-    await api("/api/settings", { method: "PUT", json: body });
-    $("#save-note").textContent = "Salvato. La priorità si ricalcola al prossimo aggiornamento.";
+    const saved = await api("/api/settings", { method: "PUT", json: body });
+    $("#save-note").textContent = saved.priority_recalculated
+      ? "Salvato. Priorità e blocchi ricalcolati."
+      : "Salvato, ma il modello non risponde: la priorità si ricalcola al prossimo aggiornamento.";
     await poll();
   } catch (failure) {
     $("#save-note").textContent = "";

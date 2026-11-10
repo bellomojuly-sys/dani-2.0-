@@ -25,13 +25,13 @@ NOW = datetime(2026, 11, 10, 13, 21, 5, tzinfo=AMSTERDAM)
 class Rig:
     """One app with its fakes, so a test can look at what was written."""
 
-    def __init__(self, tmp_path, chat=None, voice=None, pin=None, mark_done=None):
+    def __init__(self, tmp_path, chat=None, voice=None, pin=None, mark_done=None, prioritize=None):
         self.done = []
         self.path = str(tmp_path / "settings.json")
         self.live = Live(
             lambda: list(TASKS),
             lambda start, end: read_calendars(["fixture"], start, end, fetch=lambda url: ICS),
-            lambda tasks, today, context: {"ok": False, "reason": "no model in tests", "priority": None},
+            prioritize or (lambda tasks, today, context: {"ok": False, "reason": "no model in tests", "priority": None}),
             clock=lambda: NOW,
         )
         self.live.refresh("all")
@@ -118,8 +118,49 @@ def test_settings_are_saved_and_keep_the_hidden_events(rig):
     assert saved["context"] == "Max 7 ore al giorno"
     assert saved["tickable_calendars"] == ["studio", "personale"]
     assert len(saved["hidden_events"]) == 1  # the page cannot erase them by saving
+    assert saved.pop("priority_recalculated") is True
     assert rig.http.get("/api/settings").json() == saved
     assert rig.http.get("/api/state").json()["cycle"]["phase"] == "in arrivo"
+
+
+def test_saving_a_new_context_reasks_the_priority_at_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        rows = [{"id": task.id, "reason": "test"} for task in tasks]
+        return {"ok": True, "reason": "verified", "priority": rows}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"}).json()
+    assert answer["priority_recalculated"] is True
+    assert asked == ["Prima gli esami"]  # the model saw the new context, now
+    assert rig.http.get("/api/state").json()["priority"]["ok"] is True
+
+
+def test_saving_the_same_context_twice_asks_the_model_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        return {"ok": True, "reason": "verified",
+                "priority": [{"id": task.id, "reason": "test"} for task in tasks]}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert asked == ["Prima gli esami"]  # update_priority skipped the second call
+
+
+def test_a_priority_failure_does_not_lose_the_save(tmp_path):
+    def refuse(tasks, today, context):
+        raise RuntimeError("model down")
+
+    rig = Rig(tmp_path, prioritize=refuse)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert answer.status_code == 200
+    assert answer.json()["priority_recalculated"] is False
+    assert read_settings(rig.path).context == "Prima gli esami"  # saved on disk anyway
 
 
 def test_invalid_settings_are_refused_and_nothing_is_saved(rig):
