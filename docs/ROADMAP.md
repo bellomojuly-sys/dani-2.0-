@@ -154,12 +154,12 @@ Milestones only; steps get IDs when the sprint starts.
 - **Real-week test:** one week planned only with Dani, measured against what I
   actually did. This is the portfolio proof.
 
-### Proposed additions (10 November, to confirm) — toward the real assistant
+### Additions confirmed 10 November — toward the real assistant
 
-After the dashboard core, in this order. Milestones only; steps get IDs when
-each one starts. These pull parts of "Later" #2 and #5 forward and add the
-integrations the final goal needs that no version named yet (Gmail, body
-signals).
+Confirmed by Giulia on 10 November. After the dashboard core, in this order.
+Milestones only; steps get IDs when each one starts. These pull parts of
+"Later" #2 and #5 forward and add the integrations the final goal needs that
+no version named yet (Gmail, body signals).
 
 - **M14 — Context under my control** (pulls "Later" #2 forward, builds on
   D2-030). Everything Dani knows about me lives in files I own: `rules.md`
@@ -177,10 +177,11 @@ signals).
   stop condition. Study: D-F.
 - **M16 — Dani knows my energy (body signals).** Phase 1: manual input (cycle
   phase, "I'm tired") already in the M10 rules — no new integration. Phase 2:
-  automatic only after a Decision Log on the source, because the Google Fit
-  API is shut down and Health Connect has no cloud API; the real options
-  depend on my device (Fitbit/Oura/Garmin web APIs, an Apple Health export, a
-  Health Connect bridge app). Gate: the plan for a low-energy day is visibly
+  automatic through the **Fitbit Web API** (my device is a Fitbit; the Google
+  Fit API is shut down and Health Connect has no cloud API). Fitbit needs its
+  own OAuth app and token — a new credential class, so a Decision Log on the
+  exact scopes (sleep, activity; read-only) when the step starts. Gate: the
+  plan for a low-energy day is visibly
   lighter, and I can see which signal caused it. Study: D-F.
 
 **Drafting mails (preview → yes → send) stays in "Later" #5:** writing on my
@@ -262,3 +263,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
 | 2026-11-10 | Proposed M14–M16 (to confirm): context under my control (memory file next to `rules.md`, pulls Later #2 forward), Gmail read-only (new OAuth credential, Decision Log), body signals (manual first; automatic source needs a Decision Log — Google Fit API is shut down). Mail writing stays in Later #5 |
+| 2026-11-10 | M14–M16 confirmed by Giulia. Her device is a Fitbit, so M16 phase 2 goes through the Fitbit Web API (read-only scopes, own OAuth app, Decision Log at step start) |
