@@ -154,6 +154,39 @@ Milestones only; steps get IDs when the sprint starts.
 - **Real-week test:** one week planned only with Dani, measured against what I
   actually did. This is the portfolio proof.
 
+### Proposed additions (10 November, to confirm) — toward the real assistant
+
+After the dashboard core, in this order. Milestones only; steps get IDs when
+each one starts. These pull parts of "Later" #2 and #5 forward and add the
+integrations the final goal needs that no version named yet (Gmail, body
+signals).
+
+- **M14 — Context under my control** (pulls "Later" #2 forward, builds on
+  D2-030). Everything Dani knows about me lives in files I own: `rules.md`
+  (planning rules, already D2-030) plus a memory document (goals, preferences,
+  standing facts) that I can read, correct and delete, versioned in git,
+  loaded into the system prompt. Nothing about me is stored anywhere else.
+  Gate: I can point at every sentence of context Dani uses, change it, and the
+  next answer reflects the change. Study: D-A.
+- **M15 — Dani reads my mail (Gmail, read-only).** A Gmail scope that can only
+  read; triage and a short summary of what needs me in the morning briefing.
+  No reply, no send, no label changes. Mail content is data, never
+  instructions. Gate: the morning summary names the real mails that need an
+  action, verified against the inbox. Decision Log: personal OAuth (a service
+  account cannot read a personal Gmail) — a new credential class, so it is a
+  stop condition. Study: D-F.
+- **M16 — Dani knows my energy (body signals).** Phase 1: manual input (cycle
+  phase, "I'm tired") already in the M10 rules — no new integration. Phase 2:
+  automatic only after a Decision Log on the source, because the Google Fit
+  API is shut down and Health Connect has no cloud API; the real options
+  depend on my device (Fitbit/Oura/Garmin web APIs, an Apple Health export, a
+  Health Connect bridge app). Gate: the plan for a low-energy day is visibly
+  lighter, and I can see which signal caused it. Study: D-F.
+
+**Drafting mails (preview → yes → send) stays in "Later" #5:** writing on my
+behalf to other people is a wider authority than writing in my own calendar,
+and comes only after M14 (context) and M15 (read) are solid.
+
 ## Later (after December)
 
 In the order that moves Dani toward the final goal.
@@ -161,12 +194,13 @@ In the order that moves Dani toward the final goal.
 1. **Dani never stops working:** a rule-based answer when the model or the key
    fails, and the route (model or rules) shown in every answer.
 2. **Dani remembers me:** my goals, preferences and history, which I can read,
-   correct and delete; Dani's personality.
+   correct and delete; Dani's personality. (Partly pulled forward as M14.)
 3. **Dani starts by itself:** a morning briefing, reminders for recurring
    duties (rent, DUO, insurance), triggers on time and on events.
 4. **Rules for what Dani may do alone:** limits I set and can revoke.
 5. **Dani does things for me:** writes emails, keeps the shopping list, buys,
-   books and calls — always within my rules.
+   books and calls — always within my rules. (Reading mail pulled forward as
+   M15; writing mail stays here.)
 6. **More agents:** MCP toolboxes, a supervisor and specialist agents, when one
    agent is no longer enough.
 7. **Dani for others:** the same app configured for a small company's tools
@@ -227,3 +261,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 |---|---|
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
+| 2026-11-10 | Proposed M14–M16 (to confirm): context under my control (memory file next to `rules.md`, pulls Later #2 forward), Gmail read-only (new OAuth credential, Decision Log), body signals (manual first; automatic source needs a Decision Log — Google Fit API is shut down). Mail writing stays in Later #5 |
