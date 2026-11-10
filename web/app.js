@@ -124,8 +124,42 @@ function tick(kind, id, title) {
 }
 
 function tickButton(kind, id, title) {
-  return h("button", { class: "tick", "aria-label": `Segna come fatto: ${title}`, title: "Fatto", onclick: () => tick(kind, id, title) }, "✓");
+  // stopPropagation: the element around the button opens the chat on click.
+  return h("button", { class: "tick", "aria-label": `Segna come fatto: ${title}`, title: "Fatto",
+    onclick: (event) => { event.stopPropagation(); tick(kind, id, title); } }, "✓");
 }
+
+// --- asking Dani about one event or block ------------------------------------
+
+// Clicking an event or a planner block opens the chat with its reference
+// already written, so she only adds what she wants ("riprogrammalo",
+// "questo blocco mi serve libero"). Nothing is sent and nothing is written:
+// a move still goes model → proposal → her Conferma (propose.py).
+
+function whenPhrase(item) {
+  return item.all_day ? dateIt(dayOf(item.start)) : `${dateIt(dayOf(item.start))} ${clock(item.start)}–${clock(item.end)}`;
+}
+
+function prefillChat(text) {
+  openChat();
+  const input = $("#chat-input");
+  input.value = text;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function askAboutEvent(event) {
+  // The chat numbers the events exactly as /api/state lists them (e1, e2, …).
+  const index = state.events.findIndex((e) => e.key === event.key);
+  const ref = index >= 0 ? `${"e" + (index + 1)} ` : "";
+  prefillChat(`Sull'evento ${ref}«${event.title}» (${whenPhrase(event)}): `);
+}
+
+function askAboutBlock(block) {
+  prefillChat(`Sul blocco di studio «${block.title}» (${whenPhrase(block)}): `);
+}
+
+const ASK_HINT = "Clicca per parlarne con Dani";
 
 // --- Home --------------------------------------------------------------------
 
@@ -136,7 +170,7 @@ function renderHome() {
   const rows = [];
   for (const event of state.events) {
     if (dayOf(event.start) !== today || gone(event.key)) continue;
-    rows.push({ sort: event.all_day ? -1 : minutes(event.start), node: h("div", { class: "item" },
+    rows.push({ sort: event.all_day ? -1 : minutes(event.start), node: h("div", { class: "item ask", title: ASK_HINT, onclick: () => askAboutEvent(event) },
       h("div", { class: "when" }, event.all_day ? "tutto il giorno" : `${clock(event.start)}–${clock(event.end)}`),
       h("div", { class: "body" }, h("div", { class: "title" }, event.title),
         h("div", { class: "meta" }, h("span", { class: "chip " + calendarClass(event.calendar) }, event.calendar))),
@@ -144,7 +178,7 @@ function renderHome() {
   }
   for (const block of state.blocks) {
     if (dayOf(block.start) !== today || gone(block.task_id)) continue;
-    rows.push({ sort: minutes(block.start), node: h("div", { class: "item block" },
+    rows.push({ sort: minutes(block.start), node: h("div", { class: "item block ask", title: ASK_HINT, onclick: () => askAboutBlock(block) },
       h("div", { class: "when" }, `${clock(block.start)}–${clock(block.end)}`),
       h("div", { class: "body" }, h("div", { class: "title" }, block.title), h("div", { class: "meta" }, "blocco proposto dal planner")),
       tickButton("task", block.task_id, block.title)) });
@@ -227,18 +261,19 @@ function renderWeek() {
       if (e.all_day || dayOf(e.start) !== day || gone(e.key)) continue;
       const to = dayOf(e.end) === day ? minutes(e.end) : 24 * 60;
       items.push({ from: minutes(e.start), to, title: e.title, cls: calendarClass(e.calendar), label: `${clock(e.start)}–${clock(e.end)}`,
-        tick: e.tickable ? ["event", e.key] : null });
+        tick: e.tickable ? ["event", e.key] : null, ask: () => askAboutEvent(e) });
     }
     for (const b of state.blocks) {
       if (dayOf(b.start) !== day || gone(b.task_id)) continue;
-      items.push({ from: minutes(b.start), to: minutes(b.end), title: b.title, cls: "block", label: `${clock(b.start)}–${clock(b.end)}`, tick: ["task", b.task_id] });
+      items.push({ from: minutes(b.start), to: minutes(b.end), title: b.title, cls: "block", label: `${clock(b.start)}–${clock(b.end)}`,
+        tick: ["task", b.task_id], ask: () => askAboutBlock(b) });
     }
     const column = h("div", { class: "col" + (new Date(day + "T12:00:00").getDay() === 0 ? " sunday" : ""), style: `height:${height}px` });
     for (const item of withLanes(items)) {
       const from = Math.max(item.from, top), to = Math.min(item.to, bottom);
       if (to <= from) continue;
       const width = 100 / item.lanes;
-      column.append(h("div", { class: "ev " + item.cls, title: `${item.label} ${item.title}`,
+      column.append(h("div", { class: "ev ask " + item.cls, title: `${item.label} ${item.title} — ${ASK_HINT}`, onclick: item.ask,
         style: `top:${(from - top) / 60 * HOUR_PX}px;height:${Math.max((to - from) / 60 * HOUR_PX - 2, 20)}px;left:calc(${item.lane * width}% + 2px);width:calc(${width}% - 4px)` },
         h("b", {}, item.title), h("span", { class: "t" }, item.label),
         item.tick && tickButton(item.tick[0], item.tick[1], item.title)));
@@ -450,12 +485,14 @@ async function toggleMic() {
   recognition.start(); mic.classList.add("rec");
 }
 
+function openChat() {
+  $("#chat").hidden = false; $("#chat-open").hidden = true; $("#chat-input").focus();
+  if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
+}
+
 function setupChat() {
   const panel = $("#chat"), open = $("#chat-open");
-  open.addEventListener("click", () => {
-    panel.hidden = false; open.hidden = true; $("#chat-input").focus();
-    if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
-  });
+  open.addEventListener("click", openChat);
   $("#chat-close").addEventListener("click", () => { panel.hidden = true; open.hidden = false; speechSynthesis && speechSynthesis.cancel(); });
   $("#chat-form").addEventListener("submit", (event) => { event.preventDefault(); const input = $("#chat-input"); send(input.value); input.value = ""; });
   $("#mic").addEventListener("click", toggleMic);

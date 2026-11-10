@@ -47,6 +47,8 @@ h2 small{letter-spacing:0;text-transform:none;font-weight:600;color:var(--ink-3)
 .item .title{font-weight:700;overflow-wrap:anywhere}
 .item .meta{font-size:13px;color:var(--ink-2);margin-top:2px;overflow-wrap:anywhere}
 .item.block{border-style:dashed;border-color:var(--peony)}
+.ask{cursor:pointer}
+.ask:hover{outline:2px solid rgba(158,47,90,0.35)}
 .tick{width:26px;height:26px;flex-shrink:0;border-radius:50%;border:2px solid var(--berry);background:rgba(255,255,255,0.7);cursor:pointer;padding:0;color:transparent;font-size:14px;line-height:1}
 .tick:hover{background:var(--berry);color:#fff}
 .tick:focus-visible,.btn:focus-visible,.icon:focus-visible,.nav a:focus-visible,.bubble:focus-visible{outline:3px solid var(--berry-deep);outline-offset:2px}
