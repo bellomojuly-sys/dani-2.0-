@@ -163,8 +163,8 @@ def test_a_hidden_event_disappears_and_frees_its_time_for_study():
     after = live.state(hidden)
     assert lesson["key"] not in [event["key"] for event in after["events"]]
     assert len(after["events"]) == len(before["events"]) - 1
-    assert after["blocks"][0]["start"] == "2026-11-10T09:00:00+01:00"  # the lesson's slot is free now
-    assert before["blocks"][0]["start"] != "2026-11-10T09:00:00+01:00"
+    assert after["blocks"][0]["start"] == "2026-11-10T09:30:00+01:00"  # the lesson's slot is free now
+    assert before["blocks"][0]["start"] != "2026-11-10T09:30:00+01:00"
 
 
 def test_cycle_is_in_the_state_only_when_set():

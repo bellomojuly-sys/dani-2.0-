@@ -63,8 +63,8 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-048 — Fontys timetable as a fixed calendar** (needs the link) |
-| Then | D2-049, D2-050 (planner blocks), D2-051 (Whisper), D2-032 (evaluations), D2-038 (online) |
+| **Active** | **D2-048 — Day rules in the planner (09:30 start, 16:00 on shift days)** |
+| Then | D2-049 (settings act at once), D2-050 (event actions from the dashboard), D2-051 (Fontys, needs the link), D2-052–D2-053 (planner blocks), D2-054 (Whisper), D2-032 (evaluations), D2-038 (online) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 | Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
@@ -171,10 +171,13 @@ covered (marked ↪ above). What the demo still needs, in build order. Every
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
 | D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
-| D2-048 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
-| D2-049 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
-| D2-050 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | ⬜ |
-| D2-051 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
+| D2-048 | Day rules in the planner: blocks start at 09:30 (morning routine, gym and commute end then, in calendar or not); on a day with a shift (an event in a work calendar, `lavoro`/Eitje) blocks end at 16:00 — from 16:00 she gets ready for the 17:00 shift — otherwise at 20:00 | Blocks that respect my real day | Tests: a shift day has no block after 16:00; a day without a shift keeps 20:00; no block before 09:30; a lesson does not cut the day to 16:00 | ⬜ |
+| D2-049 | Saving the Settings acts at once: `PUT /api/settings` re-asks the priority with the new context, so the dashboard shows the new priorities and blocks without waiting for the periodic refresh | New context, new plan, immediately | Tests: the save re-asks the priority with the new context; a priority failure does not lose the save | ⬜ |
+| D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | ⬜ |
+| D2-051 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
+| D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
+| D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | ⬜ |
+| D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
 
 Then D2-032 (five evaluation cases, one command) and D2-038 (online with a
 PIN, replacing the static Cloudflare snapshot) close Sprint 3.
@@ -244,7 +247,7 @@ git history (commit `f687d37`).
 | D2-032 | D2-024, D2-025 | evaluation set and one command |
 | D2-033–D2-035 | D2-031–D2-033, D2-044–D2-046 | one preview → yes → read-back path for calendar and Notion |
 | D2-036 | — | new: the first Dani's front-end, reused |
-| D2-037 | D2-048 | Whisper |
+| D2-037 | D2-054 | Whisper |
 | D2-038 | D2-047 | Render, behind a key |
 | M10–M11 | D2-040–D2-043 | free time and planning are done by the model and checked by code and evaluations |
 | M12 | D2-034, D2-035 | skill vs descriptions, after the demo |
@@ -271,3 +274,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
 | 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Six Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
 | 2026-11-10 | Revision after the dashboard v2: M05–M09 rows covered by the MVP and D2-039–D2-046 marked ↪; new rows D2-047 (Eitje shifts), D2-048 (Fontys), D2-049–D2-050 (accept, reject and move planner blocks), D2-051 (Whisper live); D2-032 and D2-038 keep their IDs and close Sprint 3 |
+| 2026-11-10 | Giulia's feedback on the live dashboard: the pasted context alone did not change the plan. New rows D2-048 (day rules in the planner: 09:30 start, 16:00 on shift days), D2-049 (settings act at once) and D2-050 (event actions from the dashboard) inserted after D2-047; the ⬜ rows after them renumbered: Fontys → D2-051, planner blocks → D2-052/D2-053, Whisper live → D2-054 |
