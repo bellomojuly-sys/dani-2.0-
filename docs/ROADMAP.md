@@ -63,8 +63,8 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-051 — Fontys timetable as a fixed calendar** (needs the link) |
-| Then | D2-052–D2-053 (planner blocks), D2-054 (Whisper), D2-032 (evaluations), D2-038 (online) |
+| **Active** | **D2-051 — Fontys timetable as a fixed calendar** (needs the link from Giulia) |
+| Then | D2-054 (Whisper live, needs `OPENAI_API_KEY`), D2-038 (online on Render, needs the secrets on Render). D2-052, D2-053 and D2-032 are built (🟡, 10 Nov): the daily walk-throughs close them |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 | Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
@@ -111,7 +111,7 @@ Each milestone is usable on its own from the terminal before the next starts.
 |---|---|---|---|---|
 | D2-030 | `rules.md` — my planning rules (days, fixed commitments, load, cycle phase, how to move things) — loaded into the system prompt | Rules in the prompt | A test checks the prompt is built from the file; changing the file changes the prompt | ↪ D2-040, D2-045 (context from Settings) |
 | D2-031 | FastAPI server: `POST /api/chat` keeps the conversation and runs the tool loop | Chat over HTTP | A request returns Dani's answer; tests use a fake client, never the real API | ↪ D2-043, D2-045 (no tool loop yet) |
-| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | ⬜ |
+| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | 🟡 10 Nov `fdb87e5` |
 
 **Gate M07:** I can chat with Dani about my real week from the terminal, and
 one command tells me whether it still works.
@@ -175,8 +175,8 @@ covered (marked ↪ above). What the demo still needs, in build order. Every
 | D2-049 | Saving the Settings acts at once: `PUT /api/settings` re-asks the priority with the new context, so the dashboard shows the new priorities and blocks without waiting for the periodic refresh | New context, new plan, immediately | Tests: the save re-asks the priority with the new context; a priority failure does not lose the save | 🟡 10 Nov `a1e125a` |
 | D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | 🟡 10 Nov `1c740f7` |
 | D2-051 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
-| D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
-| D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | ⬜ |
+| D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | 🟡 10 Nov `fc82993` |
+| D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | 🟡 10 Nov `fc82993` |
 | D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
 
 Then D2-032 (five evaluation cases, one command) and D2-038 (online with a
@@ -316,3 +316,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-10 | Giulia's feedback on the live dashboard: the pasted context alone did not change the plan. New rows D2-048 (day rules in the planner: 09:30 start, 16:00 on shift days), D2-049 (settings act at once) and D2-050 (event actions from the dashboard) inserted after D2-047; the ⬜ rows after them renumbered: Fontys → D2-051, planner blocks → D2-052/D2-053, Whisper live → D2-054 |
 | 2026-11-10 | Proposed M14–M16 (to confirm): context under my control (memory file next to `rules.md`, pulls Later #2 forward), Gmail read-only (new OAuth credential, Decision Log), body signals (manual first; automatic source needs a Decision Log — Google Fit API is shut down). Mail writing stays in Later #5 |
 | 2026-11-10 | M14–M16 confirmed by Giulia. Her device is a Fitbit, so M16 phase 2 goes through the Fitbit Web API (read-only scopes, own OAuth app, Decision Log at step start) |
+| 2026-11-10 | Gap completion on Giulia's request: the branches of the day (dashboard v2, planner rules, M14–M16 roadmap) unified on one branch; D2-052, D2-053 (accept, reject, move a planner block, preview → yes → write in the study calendar) and D2-032 (five evaluations, `python3 evals.py`) built, 🟡 pending her walk-through. Still ⬜ because they need her: D2-051 (Fontys link), D2-054 (`OPENAI_API_KEY`), D2-038 (secrets on Render) |
