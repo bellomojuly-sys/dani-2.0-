@@ -153,6 +153,34 @@ def delete_event(token, calendar_id, event_id, http=send):
     return True
 
 
+def create_event(token, calendar_id, title, start, end, http=send):
+    """Create one timed event (a study block Giulia accepted), silently.
+
+    Only title, start and end are sent. ``sendUpdates=none``: nobody gets an
+    e-mail. Read-back: the answer must carry an id and exactly the times we
+    asked for; anything else raises. Returns the new event's id.
+    """
+    if end <= start:
+        raise ValueError("the end must be after the start")
+    if not title.strip():
+        raise ValueError("the event needs a title")
+    body = {
+        "summary": title.strip(),
+        "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Amsterdam"},
+        "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Amsterdam"},
+    }
+    answer = http("POST", _events_url(calendar_id) + "?sendUpdates=none", token, body)
+    try:
+        created_id = answer["id"]
+        got_start, _ = _moment(answer["start"])
+        got_end, _ = _moment(answer["end"])
+    except (KeyError, ValueError):
+        raise RuntimeError("Google Calendar did not send the created event back") from None
+    if (got_start, got_end) != (start, end):
+        raise RuntimeError("Google Calendar did not confirm the event's time")
+    return created_id
+
+
 def move_event(token, calendar_id, event_id, new_start, new_end, http=send):
     """Move one event (one occurrence) to new_start–new_end, silently.
 

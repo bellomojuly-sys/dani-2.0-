@@ -159,6 +159,47 @@ function askAboutBlock(block) {
   prefillChat(`Sul blocco di studio «${block.title}» (${whenPhrase(block)}): `);
 }
 
+// --- accepting and rejecting planner blocks (D2-052) -------------------------
+
+// Accept asks the server for a preview (nothing is written) and shows it in
+// the chat with Conferma / Rifiuta. Reject hides the block and tells the
+// planner not to propose it again, with 5 s of Annulla.
+
+async function acceptBlock(block) {
+  openChat();
+  if (!state.calendar_write.create_block) {
+    addMessage("note", "Il calendario studio non è collegato in scrittura: non posso creare il blocco.");
+    return;
+  }
+  try {
+    const answer = await api("/api/block", { method: "POST", json: { task_id: block.task_id, start: block.start, end: block.end } });
+    addMessage("assistant", answer.reply);
+    addBlockProposal(answer.proposal);
+  } catch (failure) {
+    addMessage("note", `Non posso proporre il blocco: ${failure.message}`);
+  }
+}
+
+async function rejectBlock(block) {
+  try {
+    await api("/api/block/reject", { method: "POST", json: { task_id: block.task_id } });
+    toast(`Blocco «${block.title}» rifiutato: non lo propongo più.`, {
+      action: "Annulla", ms: UNDO_MS,
+      onAction: async () => { await api("/api/block/restore", { method: "POST", json: { task_id: block.task_id } }).catch(() => {}); poll(); },
+    });
+    poll();
+  } catch (failure) {
+    toast(`Non rifiutato: ${failure.message}`, { bad: true });
+  }
+}
+
+function blockButtons(block) {
+  const stop = (fn) => (event) => { event.stopPropagation(); fn(block); };
+  return h("div", { class: "row" },
+    h("button", { class: "btn small", title: "Metti questo blocco nel calendario studio", onclick: stop(acceptBlock) }, "Accetta"),
+    h("button", { class: "btn ghost small", title: "Non proporre più questo blocco", onclick: stop(rejectBlock) }, "Rifiuta"));
+}
+
 const ASK_HINT = "Clicca per parlarne con Dani";
 
 // --- Home --------------------------------------------------------------------
@@ -180,7 +221,7 @@ function renderHome() {
     if (dayOf(block.start) !== today || gone(block.task_id)) continue;
     rows.push({ sort: minutes(block.start), node: h("div", { class: "item block ask", title: ASK_HINT, onclick: () => askAboutBlock(block) },
       h("div", { class: "when" }, `${clock(block.start)}–${clock(block.end)}`),
-      h("div", { class: "body" }, h("div", { class: "title" }, block.title), h("div", { class: "meta" }, "blocco proposto dal planner")),
+      h("div", { class: "body" }, h("div", { class: "title" }, block.title), h("div", { class: "meta" }, "blocco proposto dal planner"), blockButtons(block)),
       tickButton("task", block.task_id, block.title)) });
   }
   rows.sort((a, b) => a.sort - b.sort);
@@ -442,6 +483,31 @@ function addProposal(proposal) {
       await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
       close("Rifiutata: non ho cambiato nulla.");
       history.push({ role: "user", content: "No, non spostarlo." });
+    } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+
+// A study block she accepted: nothing is written until Conferma is pressed.
+function addBlockProposal(proposal) {
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, proposal.title),
+    h("div", {}, `${dateIt(dayOf(proposal.start))} ${clock(proposal.start)}–${clock(proposal.end)} · calendario studio`),
+    proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
+  const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
+  buttons.append(
+    h("button", { class: "btn small", onclick: async () => {
+      close("Scrivo sul calendario…");
+      try {
+        const done = await api("/api/confirm", { method: "POST", json: { id: proposal.id } });
+        close(done.read_back ? "Fatto: creato, riletto dal calendario." : "Scritto, ma la rilettura non lo trova ancora.");
+        poll();
+      } catch (failure) { close(`Non creato: ${failure.message}`); }
+    } }, "Conferma"),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
+      close("Rifiutata: non ho scritto nulla.");
     } }, "Rifiuta"));
   $("#messages").append(card);
   $("#messages").scrollTop = $("#messages").scrollHeight;

@@ -170,7 +170,11 @@ class Live:
         tickable = {name.casefold() for name in settings.tickable_calendars}
         events = [event for event in all_events if event.key not in hidden]
         ordered = order_tasks(tasks, outcome)
-        plan = plan_study_blocks(ordered, events + _time_already_gone(now), days)
+        # A task whose block she rejected keeps its place in the list, but the
+        # planner stops proposing a block for it (D2-052).
+        rejected = set(settings.rejected_blocks)
+        plannable = [task for task in ordered if task.id not in rejected]
+        plan = plan_study_blocks(plannable, events + _time_already_gone(now), days)
         reasons = {row["id"]: row["reason"] for row in outcome["priority"]} if outcome["ok"] else {}
 
         def event_row(event):
@@ -197,6 +201,7 @@ class Live:
             "events": [event_row(event) for event in events],
             "blocks": [block.model_dump(mode="json") for block in plan["blocks"]],
             "unplaced": [task.id for task in plan["unplaced"]],
+            "rejected_blocks": sorted(rejected),
             "tasks": [
                 {**task.model_dump(mode="json"), "reason": reasons.get(task.id)} for task in ordered
             ],

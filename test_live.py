@@ -172,3 +172,15 @@ def test_cycle_is_in_the_state_only_when_set():
     assert live.state(UserSettings())["cycle"] is None
     cycle = live.state(UserSettings(cycle=CycleSettings(start=date(2026, 11, 8))))["cycle"]
     assert cycle["phase"] == "in arrivo" and cycle["late_days"] == 2 and cycle["next_start"] == "2026-11-08"
+
+
+def test_a_rejected_block_is_not_planned_but_the_task_stays_listed():
+    live = _live()
+    live.refresh("all")
+    with_blocks = live.state(UserSettings())
+    planned = {block["task_id"] for block in with_blocks["blocks"]}
+    rejected_id = sorted(planned)[0]
+    state = live.state(UserSettings(rejected_blocks=[rejected_id]))
+    assert rejected_id not in {block["task_id"] for block in state["blocks"]}
+    assert rejected_id in [task["id"] for task in state["tasks"]]  # still a task to do
+    assert state["rejected_blocks"] == [rejected_id]

@@ -44,6 +44,9 @@ class UserSettings(BaseModel):
     # Fixed commitments (restaurant shifts, lessons) are not here on purpose.
     tickable_calendars: list[str] = ["personale", "studio"]
     hidden_events: list[HiddenEvent] = []
+    # Task ids whose planner block she rejected: the planner stops proposing
+    # a block for them until she restores them (or the task is done).
+    rejected_blocks: list[str] = []
 
 
 def read_settings(path=SETTINGS_FILE):
@@ -84,3 +87,16 @@ def unhide_event(settings, key):
     """Return new settings without the hidden event ``key``."""
     kept = [hidden for hidden in settings.hidden_events if hidden.key != key]
     return settings.model_copy(update={"hidden_events": kept})
+
+
+def reject_block(settings, task_id):
+    """Return new settings with the task's planner block rejected (once)."""
+    if task_id in settings.rejected_blocks:
+        return settings
+    return settings.model_copy(update={"rejected_blocks": settings.rejected_blocks + [task_id]})
+
+
+def restore_block(settings, task_id):
+    """Return new settings where the task may get a planner block again."""
+    kept = [rejected for rejected in settings.rejected_blocks if rejected != task_id]
+    return settings.model_copy(update={"rejected_blocks": kept})
