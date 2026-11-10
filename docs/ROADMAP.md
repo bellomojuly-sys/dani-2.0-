@@ -63,8 +63,8 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-050 — Event actions from the dashboard (click → chat → proposal)** |
-| Then | D2-051 (Fontys, needs the link), D2-052–D2-053 (planner blocks), D2-054 (Whisper), D2-032 (evaluations), D2-038 (online) |
+| **Active** | **D2-051 — Fontys timetable as a fixed calendar** (needs the link) |
+| Then | D2-052–D2-053 (planner blocks), D2-054 (Whisper), D2-032 (evaluations), D2-038 (online) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 | Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
@@ -173,7 +173,7 @@ covered (marked ↪ above). What the demo still needs, in build order. Every
 | D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
 | D2-048 | Day rules in the planner: blocks start at 09:30 (morning routine, gym and commute end then, in calendar or not); on a day with a shift (an event in a work calendar, `lavoro`/Eitje) blocks end at 16:00 — from 16:00 she gets ready for the 17:00 shift — otherwise at 20:00 | Blocks that respect my real day | Tests: a shift day has no block after 16:00; a day without a shift keeps 20:00; no block before 09:30; a lesson does not cut the day to 16:00 | 🟡 10 Nov `09a1562` |
 | D2-049 | Saving the Settings acts at once: `PUT /api/settings` re-asks the priority with the new context, so the dashboard shows the new priorities and blocks without waiting for the periodic refresh | New context, new plan, immediately | Tests: the save re-asks the priority with the new context; a priority failure does not lose the save | 🟡 10 Nov `a1e125a` |
-| D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | ⬜ |
+| D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | 🟡 10 Nov `1c740f7` |
 | D2-051 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
 | D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
 | D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | ⬜ |
