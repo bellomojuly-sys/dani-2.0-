@@ -143,7 +143,11 @@ Milestones only; steps get IDs when the sprint starts.
 
 - **M10 — Dani follows all my rules.** The evaluation set grows to about 20
   real cases (no Sundays, max 7 hours, one free hour during lessons, stop by
-  20:00, cycle phase, "I'm tired"). Study: F6, D-D.
+  20:00, **on restaurant days stop by 16:00** — the shift starts at 17:00 and
+  she gets ready from 16:00, so the hour before a shift is never planned —
+  cycle phase, "I'm tired"). Her morning routine (5:45–9:00: routine, travel,
+  gym, travel) comes from the calendar and the context; mornings start at
+  9:30–10:00 when there is no lesson. Study: F6, D-D.
 - **M11 — Dani says what slips.** When something moves, Dani moves the next
   roadmap tasks in order into the first free slot and lists what slips and how
   far. Study: D-D.
