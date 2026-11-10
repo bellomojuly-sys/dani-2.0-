@@ -1,0 +1,31 @@
+# Render Blueprint for Dani (D2-038). One web service serves the API and the
+# front-end in web/. Secrets are never in this file: "sync: false" makes Render
+# ask for each value once, in its dashboard. The Google service-account key is
+# uploaded as a Render Secret File named google-service-account.json.
+services:
+  - type: web
+    name: dani
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: claude/planner-calendars-whisper-8acbac
+    buildCommand: pip install -r requirements.txt
+    # server.py refuses to listen outside localhost without DANI_PIN.
+    startCommand: python server.py --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.7
+      - key: DANI_PIN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_TASKS_DB_ID
+        sync: false
+      - key: GCAL_ICS_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_FILE
+        value: /etc/secrets/google-service-account.json
