@@ -1,0 +1,46 @@
+{
+  "object": "list",
+  "results": [
+    {
+      "object": "page",
+      "id": "11111111-1111-1111-1111-111111111111",
+      "properties": {
+        "Task Name": {"type": "title", "title": [{"type": "text", "plain_text": "Finish the Notion client"}]},
+        "Area": {"type": "select", "select": {"name": "University"}},
+        "Status": {"type": "select", "select": {"name": "In Progress"}},
+        "Due Date": {"type": "date", "date": {"start": "2026-11-12", "end": null}},
+        "Estimated Time": {"type": "number", "number": 90},
+        "Priority": {"type": "select", "select": {"name": "P1 - Critical"}},
+        "Next Action": {"type": "checkbox", "checkbox": true}
+      }
+    },
+    {
+      "object": "page",
+      "id": "22222222-2222-2222-2222-222222222222",
+      "properties": {
+        "Task Name": {"type": "title", "title": [{"type": "text", "plain_text": "Write the feedback brief"}]},
+        "Area": {"type": "select", "select": {"name": "University"}},
+        "Status": {"type": "select", "select": {"name": "Not Started"}},
+        "Due Date": {"type": "date", "date": null},
+        "Estimated Time": {"type": "number", "number": null},
+        "Priority": {"type": "select", "select": {"name": "P2 - Important"}},
+        "Next Action": {"type": "checkbox", "checkbox": false}
+      }
+    },
+    {
+      "object": "page",
+      "id": "33333333-3333-3333-3333-333333333333",
+      "properties": {
+        "Task Name": {"type": "title", "title": [{"type": "text", "plain_text": "Book the dentist"}]},
+        "Area": {"type": "select", "select": {"name": "health"}},
+        "Status": {"type": "select", "select": {"name": "Waiting"}},
+        "Due Date": {"type": "date", "date": {"start": "2026-11-20T10:00:00.000+01:00", "end": null}},
+        "Estimated Time": {"type": "number", "number": 15},
+        "Priority": {"type": "select", "select": null},
+        "Next Action": {"type": "checkbox", "checkbox": false}
+      }
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

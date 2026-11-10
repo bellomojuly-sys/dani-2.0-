@@ -2,3 +2,5 @@ openai
 python-dotenv
 pydantic
 pytest
+# Expands repeating iCal events one occurrence at a time (Google Calendar read, 2026-11-05).
+recurring-ical-events

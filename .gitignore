@@ -7,3 +7,6 @@ mutants/
 .mutmut-cache
 mutmut-stats.json
 .coverage
+
+# the generated dashboard holds private data (tasks, events)
+dashboard.html
