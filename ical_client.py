@@ -21,10 +21,19 @@ import recurring_ical_events
 from models import AMSTERDAM, Event
 
 
+def to_https(url):
+    """Apps like Eitje give a ``webcal://`` subscription link. It is the same
+    address served over HTTPS, but urllib does not know the webcal scheme, so
+    we swap it. Any other address is returned unchanged."""
+    if url.lower().startswith("webcal://"):
+        return "https://" + url[len("webcal://"):]
+    return url
+
+
 def fetch_bytes(url, opener=request.urlopen, timeout=20):
     """Download one iCal address. The URL is secret, so it is not in errors."""
     try:
-        with opener(url, timeout=timeout) as response:
+        with opener(to_https(url), timeout=timeout) as response:
             return response.read()
     except error.HTTPError as failure:
         raise RuntimeError(f"a calendar address answered HTTP {failure.code}") from None

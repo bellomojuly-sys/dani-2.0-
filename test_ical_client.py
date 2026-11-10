@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 import pytest
 
-from ical_client import events_from_ics, read_calendars, split_urls
+from ical_client import events_from_ics, fetch_bytes, read_calendars, split_urls, to_https
 from models import AMSTERDAM
 
 with open("fixtures/calendar.ics", "rb") as handle:
@@ -78,3 +78,29 @@ def test_occurrences_of_a_repeating_event_share_the_uid_but_not_the_key():
     lessons = [event for event in events if event.title == "Lezione MA-AAI"]
     assert len(lessons) >= 2 and lessons[0].uid and lessons[0].uid == lessons[1].uid
     assert lessons[0].key != lessons[1].key
+
+
+def test_a_webcal_link_is_downloaded_over_https():
+    asked = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b"ics"
+
+    def opener(url, timeout):
+        asked.append(url)
+        return Response()
+
+    assert fetch_bytes("webcal://example.com/cal/secret.ics", opener=opener) == b"ics"
+    assert asked == ["https://example.com/cal/secret.ics"]
+
+
+def test_an_https_address_is_left_unchanged():
+    assert to_https("https://example.com/a.ics") == "https://example.com/a.ics"
+    assert to_https("WEBCAL://example.com/a.ics") == "https://example.com/a.ics"
