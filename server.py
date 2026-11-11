@@ -31,11 +31,28 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from propose import PROPOSE_MOVE_SCHEMA, build_proposal, describe, event_refs
+from propose import (
+    PROPOSE_MOVE_SCHEMA,
+    BlockProposal,
+    build_block_proposal,
+    build_proposal,
+    describe,
+    describe_block,
+    event_refs,
+)
 
 from chat import chat_reply, chat_turn, speech_to_text
 from cycle import CycleSettings
-from store import SETTINGS_FILE, UserSettings, hide_event, read_settings, unhide_event, write_settings
+from store import (
+    SETTINGS_FILE,
+    UserSettings,
+    hide_event,
+    read_settings,
+    reject_block,
+    restore_block,
+    unhide_event,
+    write_settings,
+)
 
 REFRESH_SECONDS = 60
 
@@ -71,13 +88,30 @@ class ChatBody(BaseModel):
     history: list[dict] = []
 
 
+class BlockBody(BaseModel):
+    """Accept a planner block: which task, at which time. ``start`` may be a
+    different time than the planner proposed (D2-053); ``end`` defaults to the
+    task's estimated duration."""
+
+    task_id: str = Field(min_length=1)
+    start: datetime
+    end: datetime | None = None
+
+
+class TaskBody(BaseModel):
+    task_id: str = Field(min_length=1)
+
+
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
-               settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None):
+               settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
+               create_block=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
-    delete_event(event) and move_event(event, start, end) perform the Google
-    Calendar writes, or are None while the calendar is read-only."""
+    delete_event(event), move_event(event, start, end) and
+    create_block(title, start, end) -> event id perform the Google Calendar
+    writes, or are None while the calendar is read-only (create_block writes
+    in the study calendar)."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -99,7 +133,11 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         state = live.state(current)
         state["hidden_events"] = [entry.model_dump(mode="json") for entry in current.hidden_events]
         state["chat"] = {"text": chat_client is not None, "whisper": voice_client is not None}
-        state["calendar_write"] = {"delete": delete_event is not None, "move": move_event is not None}
+        state["calendar_write"] = {
+            "delete": delete_event is not None,
+            "move": move_event is not None,
+            "create_block": create_block is not None,
+        }
         return state
 
     @api.get("/state")
@@ -161,7 +199,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             hidden_events=current.hidden_events,
         )
         write_settings(updated, settings_path)
-        return updated.model_dump(mode="json")
+        # Her context must act now, not at the next background refresh: re-ask
+        # the priority with the new context (update_priority already skips the
+        # LLM call when nothing changed). The plan follows by itself, because
+        # /api/state rebuilds the blocks from the priority at every call.
+        answer = updated.model_dump(mode="json")
+        try:
+            live.update_priority(updated.context)
+            answer["priority_recalculated"] = True
+        except Exception:  # the model or the network; the save must survive it
+            answer["priority_recalculated"] = False
+        return answer
 
     @api.post("/cycle/started")
     def post_cycle_started():
@@ -198,12 +246,57 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         proposals[proposal.id] = proposal
         return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json")}
 
+    @api.post("/block")
+    def post_block(body: BlockBody):
+        """Her Accept on a planner block: only a preview, nothing is written.
+
+        The time may differ from the planner's (D2-053): it goes through the
+        same checks as a move, so a block on a shift or on Sunday is flagged.
+        """
+        if create_block is None:
+            raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
+        current = settings()
+        hidden = {entry.key for entry in current.hidden_events}
+        visible = [event for event in live.events if event.key not in hidden]
+        try:
+            proposal = build_block_proposal(body.model_dump(), live.tasks, visible, uuid.uuid4().hex[:8])
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem))
+        proposals[proposal.id] = proposal
+        return {"reply": describe_block(proposal), "proposal": proposal.model_dump(mode="json")}
+
+    @api.post("/block/reject")
+    def post_block_reject(body: TaskBody):
+        """Her Reject on a planner block: hidden, and not proposed again."""
+        write_settings(reject_block(settings(), body.task_id), settings_path)
+        return {"ok": True}
+
+    @api.post("/block/restore")
+    def post_block_restore(body: TaskBody):
+        """Undo a Reject: the planner may propose a block for the task again."""
+        write_settings(restore_block(settings(), body.task_id), settings_path)
+        return {"ok": True}
+
     @api.post("/confirm")
     def post_confirm(body: ProposalBody):
         """Her yes: apply one proposal, once, then read the calendar back."""
         proposal = proposals.get(body.id)
         if proposal is None:
             raise HTTPException(status_code=404, detail="proposta non trovata (già confermata o rifiutata)")
+        if isinstance(proposal, BlockProposal):
+            if create_block is None:
+                raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
+            if live.find_task(proposal.task_id) is None:
+                del proposals[body.id]
+                raise HTTPException(status_code=409, detail="il task non è più fra quelli aperti: richiedi il blocco di nuovo")
+            try:
+                created = create_block(proposal.title, proposal.start, proposal.end)
+            except (RuntimeError, ValueError) as failure:
+                raise HTTPException(status_code=502, detail=str(failure))
+            del proposals[body.id]  # confirming twice changes nothing more
+            live.refresh("calendar")
+            made = [e for e in live.events if e.api_id == created]
+            return {"ok": True, "title": proposal.title, "read_back": bool(made)}
         if move_event is None:
             raise HTTPException(status_code=503, detail="il calendario non è collegato in scrittura")
         event = live.find_event(proposal.event_key)
@@ -289,7 +382,7 @@ if __name__ == "__main__":  # pragma: no cover
     chat_client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com") if deepseek_key else None
     voice_client = OpenAI(api_key=openai_key) if openai_key else None
 
-    delete_event = move_event = None
+    delete_event = move_event = create_block = None
     if demo:
         fetch_tasks, fetch_events = demo_sources()
         clock = lambda: datetime.combine(date(2026, 11, 10), datetime.now(AMSTERDAM).time(), tzinfo=AMSTERDAM)
@@ -327,11 +420,15 @@ if __name__ == "__main__":  # pragma: no cover
 
             delete_event = lambda event: gcal_client.delete_event(token(), event.calendar_id, event.api_id)
             move_event = lambda event, start, end: gcal_client.move_event(token(), event.calendar_id, event.api_id, start, end)
+            # Accepted planner blocks are created in the study calendar only.
+            study_id = next((cid for cid, name in through_api.items() if name.casefold() == "studio"), None)
+            if study_id:
+                create_block = lambda title, start, end: gcal_client.create_event(token(), study_id, title, start, end)
 
     prioritize = lambda tasks, today, context: ask_priority(chat_client, tasks, today, context)[0]
     live = Live(fetch_tasks, fetch_events, prioritize, clock)
     threading.Thread(target=refresh_forever, args=(live, settings_path), daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
-                     delete_event=delete_event, move_event=move_event)
+                     delete_event=delete_event, move_event=move_event, create_block=create_block)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

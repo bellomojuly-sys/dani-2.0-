@@ -124,8 +124,83 @@ function tick(kind, id, title) {
 }
 
 function tickButton(kind, id, title) {
-  return h("button", { class: "tick", "aria-label": `Segna come fatto: ${title}`, title: "Fatto", onclick: () => tick(kind, id, title) }, "✓");
+  // stopPropagation: the element around the button opens the chat on click.
+  return h("button", { class: "tick", "aria-label": `Segna come fatto: ${title}`, title: "Fatto",
+    onclick: (event) => { event.stopPropagation(); tick(kind, id, title); } }, "✓");
 }
+
+// --- asking Dani about one event or block ------------------------------------
+
+// Clicking an event or a planner block opens the chat with its reference
+// already written, so she only adds what she wants ("riprogrammalo",
+// "questo blocco mi serve libero"). Nothing is sent and nothing is written:
+// a move still goes model → proposal → her Conferma (propose.py).
+
+function whenPhrase(item) {
+  return item.all_day ? dateIt(dayOf(item.start)) : `${dateIt(dayOf(item.start))} ${clock(item.start)}–${clock(item.end)}`;
+}
+
+function prefillChat(text) {
+  openChat();
+  const input = $("#chat-input");
+  input.value = text;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function askAboutEvent(event) {
+  // The chat numbers the events exactly as /api/state lists them (e1, e2, …).
+  const index = state.events.findIndex((e) => e.key === event.key);
+  const ref = index >= 0 ? `${"e" + (index + 1)} ` : "";
+  prefillChat(`Sull'evento ${ref}«${event.title}» (${whenPhrase(event)}): `);
+}
+
+function askAboutBlock(block) {
+  prefillChat(`Sul blocco di studio «${block.title}» (${whenPhrase(block)}): `);
+}
+
+// --- accepting and rejecting planner blocks (D2-052) -------------------------
+
+// Accept asks the server for a preview (nothing is written) and shows it in
+// the chat with Conferma / Rifiuta. Reject hides the block and tells the
+// planner not to propose it again, with 5 s of Annulla.
+
+async function acceptBlock(block) {
+  openChat();
+  if (!state.calendar_write.create_block) {
+    addMessage("note", "Il calendario studio non è collegato in scrittura: non posso creare il blocco.");
+    return;
+  }
+  try {
+    const answer = await api("/api/block", { method: "POST", json: { task_id: block.task_id, start: block.start, end: block.end } });
+    addMessage("assistant", answer.reply);
+    addBlockProposal(answer.proposal);
+  } catch (failure) {
+    addMessage("note", `Non posso proporre il blocco: ${failure.message}`);
+  }
+}
+
+async function rejectBlock(block) {
+  try {
+    await api("/api/block/reject", { method: "POST", json: { task_id: block.task_id } });
+    toast(`Blocco «${block.title}» rifiutato: non lo propongo più.`, {
+      action: "Annulla", ms: UNDO_MS,
+      onAction: async () => { await api("/api/block/restore", { method: "POST", json: { task_id: block.task_id } }).catch(() => {}); poll(); },
+    });
+    poll();
+  } catch (failure) {
+    toast(`Non rifiutato: ${failure.message}`, { bad: true });
+  }
+}
+
+function blockButtons(block) {
+  const stop = (fn) => (event) => { event.stopPropagation(); fn(block); };
+  return h("div", { class: "row" },
+    h("button", { class: "btn small", title: "Metti questo blocco nel calendario studio", onclick: stop(acceptBlock) }, "Accetta"),
+    h("button", { class: "btn ghost small", title: "Non proporre più questo blocco", onclick: stop(rejectBlock) }, "Rifiuta"));
+}
+
+const ASK_HINT = "Clicca per parlarne con Dani";
 
 // --- Home --------------------------------------------------------------------
 
@@ -136,7 +211,7 @@ function renderHome() {
   const rows = [];
   for (const event of state.events) {
     if (dayOf(event.start) !== today || gone(event.key)) continue;
-    rows.push({ sort: event.all_day ? -1 : minutes(event.start), node: h("div", { class: "item" },
+    rows.push({ sort: event.all_day ? -1 : minutes(event.start), node: h("div", { class: "item ask", title: ASK_HINT, onclick: () => askAboutEvent(event) },
       h("div", { class: "when" }, event.all_day ? "tutto il giorno" : `${clock(event.start)}–${clock(event.end)}`),
       h("div", { class: "body" }, h("div", { class: "title" }, event.title),
         h("div", { class: "meta" }, h("span", { class: "chip " + calendarClass(event.calendar) }, event.calendar))),
@@ -144,9 +219,9 @@ function renderHome() {
   }
   for (const block of state.blocks) {
     if (dayOf(block.start) !== today || gone(block.task_id)) continue;
-    rows.push({ sort: minutes(block.start), node: h("div", { class: "item block" },
+    rows.push({ sort: minutes(block.start), node: h("div", { class: "item block ask", title: ASK_HINT, onclick: () => askAboutBlock(block) },
       h("div", { class: "when" }, `${clock(block.start)}–${clock(block.end)}`),
-      h("div", { class: "body" }, h("div", { class: "title" }, block.title), h("div", { class: "meta" }, "blocco proposto dal planner")),
+      h("div", { class: "body" }, h("div", { class: "title" }, block.title), h("div", { class: "meta" }, "blocco proposto dal planner"), blockButtons(block)),
       tickButton("task", block.task_id, block.title)) });
   }
   rows.sort((a, b) => a.sort - b.sort);
@@ -227,18 +302,19 @@ function renderWeek() {
       if (e.all_day || dayOf(e.start) !== day || gone(e.key)) continue;
       const to = dayOf(e.end) === day ? minutes(e.end) : 24 * 60;
       items.push({ from: minutes(e.start), to, title: e.title, cls: calendarClass(e.calendar), label: `${clock(e.start)}–${clock(e.end)}`,
-        tick: e.tickable ? ["event", e.key] : null });
+        tick: e.tickable ? ["event", e.key] : null, ask: () => askAboutEvent(e) });
     }
     for (const b of state.blocks) {
       if (dayOf(b.start) !== day || gone(b.task_id)) continue;
-      items.push({ from: minutes(b.start), to: minutes(b.end), title: b.title, cls: "block", label: `${clock(b.start)}–${clock(b.end)}`, tick: ["task", b.task_id] });
+      items.push({ from: minutes(b.start), to: minutes(b.end), title: b.title, cls: "block", label: `${clock(b.start)}–${clock(b.end)}`,
+        tick: ["task", b.task_id], ask: () => askAboutBlock(b) });
     }
     const column = h("div", { class: "col" + (new Date(day + "T12:00:00").getDay() === 0 ? " sunday" : ""), style: `height:${height}px` });
     for (const item of withLanes(items)) {
       const from = Math.max(item.from, top), to = Math.min(item.to, bottom);
       if (to <= from) continue;
       const width = 100 / item.lanes;
-      column.append(h("div", { class: "ev " + item.cls, title: `${item.label} ${item.title}`,
+      column.append(h("div", { class: "ev ask " + item.cls, title: `${item.label} ${item.title} — ${ASK_HINT}`, onclick: item.ask,
         style: `top:${(from - top) / 60 * HOUR_PX}px;height:${Math.max((to - from) / 60 * HOUR_PX - 2, 20)}px;left:calc(${item.lane * width}% + 2px);width:calc(${width}% - 4px)` },
         h("b", {}, item.title), h("span", { class: "t" }, item.label),
         item.tick && tickButton(item.tick[0], item.tick[1], item.title)));
@@ -304,8 +380,10 @@ async function saveSettings() {
     cycle: start ? { start, cycle_length: Number($("#cycle-length").value), period_length: Number($("#period-length").value), confirmed: $("#cycle-confirmed").checked } : null,
   };
   try {
-    await api("/api/settings", { method: "PUT", json: body });
-    $("#save-note").textContent = "Salvato. La priorità si ricalcola al prossimo aggiornamento.";
+    const saved = await api("/api/settings", { method: "PUT", json: body });
+    $("#save-note").textContent = saved.priority_recalculated
+      ? "Salvato. Priorità e blocchi ricalcolati."
+      : "Salvato, ma il modello non risponde: la priorità si ricalcola al prossimo aggiornamento.";
     await poll();
   } catch (failure) {
     $("#save-note").textContent = "";
@@ -410,6 +488,31 @@ function addProposal(proposal) {
   $("#messages").scrollTop = $("#messages").scrollHeight;
 }
 
+// A study block she accepted: nothing is written until Conferma is pressed.
+function addBlockProposal(proposal) {
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, proposal.title),
+    h("div", {}, `${dateIt(dayOf(proposal.start))} ${clock(proposal.start)}–${clock(proposal.end)} · calendario studio`),
+    proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
+  const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
+  buttons.append(
+    h("button", { class: "btn small", onclick: async () => {
+      close("Scrivo sul calendario…");
+      try {
+        const done = await api("/api/confirm", { method: "POST", json: { id: proposal.id } });
+        close(done.read_back ? "Fatto: creato, riletto dal calendario." : "Scritto, ma la rilettura non lo trova ancora.");
+        poll();
+      } catch (failure) { close(`Non creato: ${failure.message}`); }
+    } }, "Conferma"),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
+      close("Rifiutata: non ho scritto nulla.");
+    } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+
 // Voice in: Whisper through the server when it is set up, otherwise the
 // browser's own dictation. Both end by sending the text like a typed message.
 let recorder = null, recognition = null;
@@ -448,12 +551,14 @@ async function toggleMic() {
   recognition.start(); mic.classList.add("rec");
 }
 
+function openChat() {
+  $("#chat").hidden = false; $("#chat-open").hidden = true; $("#chat-input").focus();
+  if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
+}
+
 function setupChat() {
   const panel = $("#chat"), open = $("#chat-open");
-  open.addEventListener("click", () => {
-    panel.hidden = false; open.hidden = true; $("#chat-input").focus();
-    if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
-  });
+  open.addEventListener("click", openChat);
   $("#chat-close").addEventListener("click", () => { panel.hidden = true; open.hidden = false; speechSynthesis && speechSynthesis.cancel(); });
   $("#chat-form").addEventListener("submit", (event) => { event.preventDefault(); const input = $("#chat-input"); send(input.value); input.value = ""; });
   $("#mic").addEventListener("click", toggleMic);

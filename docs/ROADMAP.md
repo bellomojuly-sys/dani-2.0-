@@ -62,10 +62,10 @@ rewritten on this model after F5 and the pending quizzes.
 
 | Field | Value |
 |---|---|
-| Done | D2-001 to D2-023, D2-048 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-049 — Accept or reject a planner block** |
-| Then | D2-050 (new task from the chat), D2-051 (Whisper). These three close V1 |
-| After the demo | Walk-through of the 🟡 rows, D2-032 (evaluations), D2-038 (live online), moving a proposed block |
+| Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
+| **Active** | **D2-055 — New task from the chat** |
+| Then | D2-054 (Whisper live, needs `OPENAI_API_KEY`). These two close V1 |
+| After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 | Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
@@ -112,7 +112,7 @@ Each milestone is usable on its own from the terminal before the next starts.
 |---|---|---|---|---|
 | D2-030 | `rules.md` — my planning rules (days, fixed commitments, load, cycle phase, how to move things) — loaded into the system prompt | Rules in the prompt | A test checks the prompt is built from the file; changing the file changes the prompt | ↪ D2-040, D2-045 (context from Settings) |
 | D2-031 | FastAPI server: `POST /api/chat` keeps the conversation and runs the tool loop | Chat over HTTP | A request returns Dani's answer; tests use a fake client, never the real API | ↪ D2-043, D2-045 (no tool loop yet) |
-| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | ⬜ |
+| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | 🟡 10 Nov `fdb87e5` |
 
 **Gate M07:** I can chat with Dani about my real week from the terminal, and
 one command tells me whether it still works.
@@ -174,15 +174,18 @@ the review happens in Sprint 4.
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
 | D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
-| D2-048 | Fontys as a fixed calendar: the link turned out to be the Canvas feed (`fhict.instructure.com`) — course deadlines and appointments, not lessons (lessons already live in the Università Google calendar). Feed added to `GCAL_ICS_URL`; iCal text escaping (RFC 5545) now removed from names and titles | Fontys deadlines in the week | Real: the 13 Nov Portfolio Check-in appears from the feed, calendar fixed (not tickable); all-day deadlines take no planner slot; 257 tests green | ✅ 11 Nov `a0218c7` |
-| D2-049 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
-| D2-050 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a task with a missing title is refused | ⬜ |
-| D2-051 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
+| D2-048 | Day rules in the planner: blocks start at 09:30 (morning routine, gym and commute end then, in calendar or not); on a day with a shift (an event in a work calendar, `lavoro`/Eitje) blocks end at 16:00 — from 16:00 she gets ready for the 17:00 shift — otherwise at 20:00 | Blocks that respect my real day | Tests: a shift day has no block after 16:00; a day without a shift keeps 20:00; no block before 09:30; a lesson does not cut the day to 16:00 | 🟡 10 Nov `09a1562` |
+| D2-049 | Saving the Settings acts at once: `PUT /api/settings` re-asks the priority with the new context, so the dashboard shows the new priorities and blocks without waiting for the periodic refresh | New context, new plan, immediately | Tests: the save re-asks the priority with the new context; a priority failure does not lose the save | 🟡 10 Nov `a1e125a` |
+| D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | 🟡 10 Nov `1c740f7` |
+| D2-051 | Fontys as a fixed calendar: the link turned out to be the Canvas feed (`fhict.instructure.com`) — course deadlines and appointments, not lessons (lessons already live in the Università Google calendar). Feed added to `GCAL_ICS_URL`; iCal text escaping (RFC 5545) now removed from names and titles | Fontys deadlines in the week | Real: the 13 Nov Portfolio Check-in appears from the feed, calendar fixed (not tickable); all-day deadlines take no planner slot; 287 tests green | ✅ 11 Nov `a0218c7` |
+| D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | 🟡 10 Nov `fc82993` |
+| D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | 🟡 10 Nov `fc82993` |
+| D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
+| D2-055 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a task with a missing title is refused | ⬜ |
 
-Moved after the demo (11 Nov): D2-032 (five evaluation cases, one command),
-D2-038 (the live app online with a PIN — today the static Cloudflare snapshot
-is the online piece), and moving a proposed block before accepting it (the old
-D2-050, now part of Sprint 4).
+D2-032 (five evaluation cases, one command) is built (🟡 10 Nov). Moved after
+the demo (11 Nov, my decision): D2-038 (the live app online with a PIN — today
+the static Cloudflare snapshot is the online piece) and D2-024a (secret guard).
 
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
@@ -190,7 +193,11 @@ Milestones only; steps get IDs when the sprint starts.
 
 - **M10 — Dani follows all my rules.** The evaluation set grows to about 20
   real cases (no Sundays, max 7 hours, one free hour during lessons, stop by
-  20:00, cycle phase, "I'm tired"). Study: F6, D-D.
+  20:00, **on restaurant days stop by 16:00** — the shift starts at 17:00 and
+  she gets ready from 16:00, so the hour before a shift is never planned —
+  cycle phase, "I'm tired"). Her morning routine (5:45–9:00: routine, travel,
+  gym, travel) comes from the calendar and the context; mornings start at
+  9:30–10:00 when there is no lesson. Study: F6, D-D.
 - **M11 — Dani says what slips.** When something moves, Dani moves the next
   roadmap tasks in order into the first free slot and lists what slips and how
   far. Study: D-D.
@@ -201,6 +208,40 @@ Milestones only; steps get IDs when the sprint starts.
 - **Real-week test:** one week planned only with Dani, measured against what I
   actually did. This is the portfolio proof.
 
+### Additions confirmed 10 November — toward the real assistant
+
+Confirmed by Giulia on 10 November. After the dashboard core, in this order.
+Milestones only; steps get IDs when each one starts. These pull parts of
+"Later" #2 and #5 forward and add the integrations the final goal needs that
+no version named yet (Gmail, body signals).
+
+- **M14 — Context under my control** (pulls "Later" #2 forward, builds on
+  D2-030). Everything Dani knows about me lives in files I own: `rules.md`
+  (planning rules, already D2-030) plus a memory document (goals, preferences,
+  standing facts) that I can read, correct and delete, versioned in git,
+  loaded into the system prompt. Nothing about me is stored anywhere else.
+  Gate: I can point at every sentence of context Dani uses, change it, and the
+  next answer reflects the change. Study: D-A.
+- **M15 — Dani reads my mail (Gmail, read-only).** A Gmail scope that can only
+  read; triage and a short summary of what needs me in the morning briefing.
+  No reply, no send, no label changes. Mail content is data, never
+  instructions. Gate: the morning summary names the real mails that need an
+  action, verified against the inbox. Decision Log: personal OAuth (a service
+  account cannot read a personal Gmail) — a new credential class, so it is a
+  stop condition. Study: D-F.
+- **M16 — Dani knows my energy (body signals).** Phase 1: manual input (cycle
+  phase, "I'm tired") already in the M10 rules — no new integration. Phase 2:
+  automatic through the **Fitbit Web API** (my device is a Fitbit; the Google
+  Fit API is shut down and Health Connect has no cloud API). Fitbit needs its
+  own OAuth app and token — a new credential class, so a Decision Log on the
+  exact scopes (sleep, activity; read-only) when the step starts. Gate: the
+  plan for a low-energy day is visibly
+  lighter, and I can see which signal caused it. Study: D-F.
+
+**Drafting mails (preview → yes → send) stays in "Later" #5:** writing on my
+behalf to other people is a wider authority than writing in my own calendar,
+and comes only after M14 (context) and M15 (read) are solid.
+
 ## Later (after December)
 
 In the order that moves Dani toward the final goal.
@@ -208,12 +249,13 @@ In the order that moves Dani toward the final goal.
 1. **Dani never stops working:** a rule-based answer when the model or the key
    fails, and the route (model or rules) shown in every answer.
 2. **Dani remembers me:** my goals, preferences and history, which I can read,
-   correct and delete; Dani's personality.
+   correct and delete; Dani's personality. (Partly pulled forward as M14.)
 3. **Dani starts by itself:** a morning briefing, reminders for recurring
    duties (rent, DUO, insurance), triggers on time and on events.
 4. **Rules for what Dani may do alone:** limits I set and can revoke.
 5. **Dani does things for me:** writes emails, keeps the shopping list, buys,
-   books and calls — always within my rules.
+   books and calls — always within my rules. (Reading mail pulled forward as
+   M15; writing mail stays here.)
 6. **More agents:** MCP toolboxes, a supervisor and specialist agents, when one
    agent is no longer enough.
 7. **Dani for others:** the same app configured for a small company's tools
@@ -249,7 +291,7 @@ git history (commit `f687d37`).
 | D2-032 | D2-024, D2-025 | evaluation set and one command |
 | D2-033–D2-035 | D2-031–D2-033, D2-044–D2-046 | one preview → yes → read-back path for calendar and Notion |
 | D2-036 | — | new: the first Dani's front-end, reused |
-| D2-037 | D2-048 | Whisper |
+| D2-037 | D2-054 | Whisper |
 | D2-038 | D2-047 | Render, behind a key |
 | M10–M11 | D2-040–D2-043 | free time and planning are done by the model and checked by code and evaluations |
 | M12 | D2-034, D2-035 | skill vs descriptions, after the demo |
@@ -276,4 +318,8 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
 | 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Six Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
 | 2026-11-10 | Revision after the dashboard v2: M05–M09 rows covered by the MVP and D2-039–D2-046 marked ↪; new rows D2-047 (Eitje shifts), D2-048 (Fontys), D2-049–D2-050 (accept, reject and move planner blocks), D2-051 (Whisper live); D2-032 and D2-038 keep their IDs and close Sprint 3 |
-| 2026-11-11 | Closing scope for V1, my decision: the daily walk-throughs of the 🟡 rows are suspended until after the demo; D2-050 becomes "new task from the chat" (the old D2-050, moving a block, goes to Sprint 4); D2-032 and D2-038 move after the demo (the Cloudflare snapshot is the online piece for now). V1 closes with D2-048, D2-049, D2-050, D2-051 |
+| 2026-11-10 | Giulia's feedback on the live dashboard: the pasted context alone did not change the plan. New rows D2-048 (day rules in the planner: 09:30 start, 16:00 on shift days), D2-049 (settings act at once) and D2-050 (event actions from the dashboard) inserted after D2-047; the ⬜ rows after them renumbered: Fontys → D2-051, planner blocks → D2-052/D2-053, Whisper live → D2-054 |
+| 2026-11-10 | Proposed M14–M16 (to confirm): context under my control (memory file next to `rules.md`, pulls Later #2 forward), Gmail read-only (new OAuth credential, Decision Log), body signals (manual first; automatic source needs a Decision Log — Google Fit API is shut down). Mail writing stays in Later #5 |
+| 2026-11-10 | M14–M16 confirmed by Giulia. Her device is a Fitbit, so M16 phase 2 goes through the Fitbit Web API (read-only scopes, own OAuth app, Decision Log at step start) |
+| 2026-11-10 | Gap completion on Giulia's request: the branches of the day (dashboard v2, planner rules, M14–M16 roadmap) unified on one branch; D2-052, D2-053 (accept, reject, move a planner block, preview → yes → write in the study calendar) and D2-032 (five evaluations, `python3 evals.py`) built, 🟡 pending her walk-through. Still ⬜ because they need her: D2-051 (Fontys link), D2-054 (`OPENAI_API_KEY`), D2-038 (secrets on Render) |
+| 2026-11-11 | Closing scope for V1, Giulia's decision: daily walk-throughs of the 🟡 rows suspended until after the demo; D2-038 and D2-024a move after the demo (the Cloudflare snapshot is the online piece for now); new row D2-055 (new task from the chat). D2-051 closed: the Fontys link is the Canvas feed (deadlines, not lessons — lessons stay in the Università calendar). V1 closes with D2-055 and D2-054 |

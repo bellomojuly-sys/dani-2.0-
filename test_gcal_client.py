@@ -10,6 +10,7 @@ from gcal_client import (
     GoogleError,
     calendar_id_from_ics_url,
     calendar_name,
+    create_event,
     delete_event,
     event_from_item,
     move_event,
@@ -163,3 +164,33 @@ def test_send_errors_carry_the_status_and_never_the_token():
 
     with pytest.raises(RuntimeError, match="could not be reached"):
         send("GET", "https://x", "tok", opener=unreachable)
+
+
+def test_create_event_sends_only_title_and_times_and_reads_back():
+    answer = {"id": "blk-1", "start": {"dateTime": "2026-11-12T10:00:00+01:00"},
+              "end": {"dateTime": "2026-11-12T11:00:00+01:00"}}
+    http = Fake(answer)
+    assert create_event("tok", "cal-s", " Studio AI ", at(12, 10), at(12, 11), http=http) == "blk-1"
+    method, url, body = http.calls[0]
+    assert method == "POST" and url.endswith("/calendars/cal-s/events?sendUpdates=none")
+    assert body == {"summary": "Studio AI",
+                    "start": {"dateTime": "2026-11-12T10:00:00+01:00", "timeZone": "Europe/Amsterdam"},
+                    "end": {"dateTime": "2026-11-12T11:00:00+01:00", "timeZone": "Europe/Amsterdam"}}
+
+
+def test_create_event_refuses_bad_input_before_any_request():
+    http = Fake()
+    with pytest.raises(ValueError, match="end must be after the start"):
+        create_event("tok", "cal-s", "Studio", at(12, 11), at(12, 10), http=http)
+    with pytest.raises(ValueError, match="needs a title"):
+        create_event("tok", "cal-s", "   ", at(12, 10), at(12, 11), http=http)
+    assert http.calls == []
+
+
+def test_create_event_raises_when_the_read_back_is_missing_or_wrong():
+    with pytest.raises(RuntimeError, match="did not send the created event back"):
+        create_event("tok", "cal-s", "Studio", at(12, 10), at(12, 11), http=Fake({"status": "confirmed"}))
+    moved = {"id": "blk-1", "start": {"dateTime": "2026-11-12T10:15:00+01:00"},
+             "end": {"dateTime": "2026-11-12T11:00:00+01:00"}}
+    with pytest.raises(RuntimeError, match="did not confirm the event's time"):
+        create_event("tok", "cal-s", "Studio", at(12, 10), at(12, 11), http=Fake(moved))

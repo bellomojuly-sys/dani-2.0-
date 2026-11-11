@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-049 — Accept or reject a planner block**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-055 — New task from the chat**.
 
 | Step | What | State |
 |---|---|---|
@@ -126,9 +126,14 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-021 | Trace envelope: a run has a unique run ID and timestamps; every event shares the run ID | Done |
 | D2-022 | Each trace event is a typed record of the tool call: name, arguments, status and duration | Done |
 | D2-023 | `safe_trace` redacts sensitive fields by name (`[REDACTED]`), so a secret in a traced field is absent from the saved trace | Done |
-| MVP 10 Nov | `dashboard.py`: real Notion tasks (`notion_client.py`), real calendars via iCal (`ical_client.py`), verified LLM priority, deterministic study blocks (`planner.py`), `dashboard.html` in the app mockup style (`render.py`); 50 new offline tests | Built, waiting for the Notion token and the iCal addresses in `.env` |
-| D2-039 → D2-047 | Live dashboard v2: FastAPI server with PIN, `web/` pages, settings and cycle, chat with my context, Google Calendar API writes after my yes (`propose.py` + `/api/confirm`), Eitje shifts via webcal | Built and tested; walk-through with Giulia after the demo |
-| D2-048 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar; iCal text escaping removed from names and titles | Done |
+| MVP 5 Nov | `dashboard.py`: real Notion tasks (`notion_client.py`), real calendars via iCal (`ical_client.py`), verified LLM priority, deterministic study blocks (`planner.py`), `dashboard.html` in the app mockup style (`render.py`) | Done |
+| D2-039 → D2-046 | Live multi-page dashboard: cycle phase, private settings, tick with undo, cache (`live.py`), FastAPI server behind a PIN, `web/` front-end, chat with voice in, Google Calendar API with delete on tick and move after Confirm | Built 🟡 (walk-through with Giulia pending) |
+| D2-047 → D2-050 | Eitje shifts via webcal; day rules in the planner (09:30 start, 16:00 on shift days); saving the Settings re-asks the priority at once; click an event or block to ask Dani about it | Built 🟡 |
+| D2-052, D2-053 | Accept, reject or move a planner block: preview → yes → event created in the study calendar with read-back; a rejected block is not proposed again | Built 🟡 |
+| D2-032 | Five evaluation questions with their facts; `python3 evals.py` prints PASS/FAIL per case | Built 🟡 |
+| M14 → M16 | Roadmap additions confirmed 10 Nov: context under Giulia's control, Gmail read-only, body signals via the Fitbit Web API | In the roadmap (no code yet) |
+| D2-051 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar — course deadlines (lessons stay in the Università calendar); iCal text escaping removed from names and titles | Done 11 Nov |
+| D2-055, D2-054, D2-038 | New task from the chat; Whisper live; online on Render | D2-055 active; D2-054 waits on `OPENAI_API_KEY`; D2-038 after the demo (secrets on Render) |
 
 ## Traceability
 
@@ -157,9 +162,19 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
 | D2-022 | `3696a21` | Each event is a typed TraceEvent (tool, arguments, status, duration); a malformed event is refused | `-k "trace"` (15) |
 | D2-023 | `b1563af` | A fake key in a traced field is absent from `safe_trace`; `[REDACTED]` takes its place; a secret under an innocent name is deliberately not caught | `-k "redact or safe_trace or sensitive"` (6) |
-| D2-048 | `a0218c7` | An escaped feed name (`Bellomo\, Giulia`) and title are unescaped; a literal backslash survives | `-k "unescap"` (2) |
+| MVP 5 Nov | `5971fec` | Dashboard from real Notion and iCal data, offline tests on fixtures | `-k "notion_client or ical or planner or render or dashboard"` |
+| D2-039 → D2-045 | `4234607` | Live dashboard: cycle, settings, tick with undo, cache, server behind a PIN, chat | `-k "cycle or store or live or server or chat"` |
+| D2-046 | `3f1027a` | Calendar API: delete on tick, move only after Confirm, read-back, a shift is never moved | `-k "gcal or confirm or proposal"` |
+| D2-047 | `b91a21f` | A `webcal://` link is downloaded over https | `-k "webcal"` |
+| D2-048 | `09a1562` | No block before 09:30; a shift day ends at 16:00, a free day at 20:00; a lesson does not cut the day | `-k "shift_day or day_rules or 0930 or free_slots"` |
+| D2-049 | `a1e125a` | Saving the Settings re-asks the priority with the new context, at once | `-k "reasks or saving_the_same or priority_failure"` |
+| D2-050 | `1c740f7` | A click on an event or block prefills the chat with its reference | browser check (`web/app.js`) |
+| D2-038 (part) | `1efb2cd` | Render blueprint: one service, secrets asked by Render, PIN required | `render.yaml`; deploy still pending |
+| D2-052, D2-053 | `fc82993` | Calendar unchanged after a block preview; created with read-back after yes; a block onto a shift is flagged; a rejected block is not proposed again | `-k "block"` |
+| D2-032 | `fdb87e5` | Five questions with their facts; a deliberate break fails naming the missing fact | `-k "evals"`; live: `python3 evals.py` |
+| D2-051 | `a0218c7` | An escaped feed name (`Bellomo\, Giulia`) and title are unescaped; a literal backslash survives | `-k "unescap"` (2) |
 
-All 257 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 287 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py`, `python3 server.py` and `python3 evals.py` are the only live runs.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):

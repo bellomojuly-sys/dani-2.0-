@@ -50,3 +50,16 @@ def test_two_occurrences_of_one_repeating_event_have_different_keys():
     next_week = GYM.model_copy(update={"start": datetime(2026, 11, 17, 18, 0, tzinfo=AMSTERDAM),
                                        "end": datetime(2026, 11, 17, 19, 0, tzinfo=AMSTERDAM)})
     assert GYM.key != next_week.key and GYM.uid == next_week.uid
+
+
+def test_rejecting_a_block_is_remembered_once_and_can_be_restored(tmp_path):
+    from store import reject_block, restore_block
+
+    path = str(tmp_path / "settings.json")
+    settings = reject_block(UserSettings(), "t1")
+    settings = reject_block(settings, "t1")  # rejecting twice adds nothing
+    assert settings.rejected_blocks == ["t1"]
+    write_settings(settings, path)
+    assert read_settings(path).rejected_blocks == ["t1"]  # survives a restart
+    assert restore_block(settings, "t1").rejected_blocks == []
+    assert restore_block(settings, "other").rejected_blocks == ["t1"]  # unknown id changes nothing

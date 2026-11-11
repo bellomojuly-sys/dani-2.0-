@@ -6,7 +6,11 @@ and explained line by line. The rules it applies are Giulia's, written as
 constants at the top so they are visible and changeable in one place:
 
   - no study on Sunday;
-  - study only between START_HOUR and END_HOUR;
+  - study starts at DAY_START (9:30): the morning routine, the gym and the
+    commute end around then, whether or not they are in the calendar;
+  - study ends at END_HOUR (20:00) — but at SHIFT_END_HOUR (16:00) on a day
+    with a restaurant shift (an event in a work calendar, see WORK_CALENDAR_WORDS),
+    because from 16:00 she gets ready for the 17:00 shift;
   - at most MAX_MINUTES_PER_DAY of study per day;
   - a block is never shorter than MIN_BLOCK_MINUTES;
   - timed calendar events block the time they occupy; all-day events do not.
@@ -22,8 +26,12 @@ from pydantic import BaseModel
 
 from models import AMSTERDAM
 
-START_HOUR = 9
+DAY_START = time(9, 30)
 END_HOUR = 20
+SHIFT_END_HOUR = 16
+# A day is a shift day when any of its events is in a calendar whose name
+# contains one of these words (her Eitje shifts live in "lavoro").
+WORK_CALENDAR_WORDS = ("lavoro", "eitje", "turno")
 MAX_MINUTES_PER_DAY = 7 * 60
 MIN_BLOCK_MINUTES = 30
 DEFAULT_TASK_MINUTES = 60
@@ -39,18 +47,28 @@ class StudyBlock(BaseModel):
     end: datetime
 
 
+def is_work_event(event):
+    """True when the event sits in a work calendar (a restaurant shift)."""
+    name = event.calendar.casefold()
+    return any(word in name for word in WORK_CALENDAR_WORDS)
+
+
 def free_slots(day, events):
     """Return the free (start, end) pairs of ``day`` inside the study window.
 
-    Only timed events of that day block time; all-day events are skipped. The
-    events may overlap each other or spill over the window edges: we clip them
-    to the window and walk through them in start order, so a gap shorter than
-    MIN_BLOCK_MINUTES is never offered. Sunday has no slots at all.
+    The window is DAY_START to END_HOUR — to SHIFT_END_HOUR when one of the
+    day's events is a shift (is_work_event), even if the shift itself starts
+    after the window. Only timed events of that day block time; all-day events
+    are skipped. The events may overlap each other or spill over the window
+    edges: we clip them to the window and walk through them in start order, so
+    a gap shorter than MIN_BLOCK_MINUTES is never offered. Sunday has no slots
+    at all.
     """
     if day.weekday() == SUNDAY:
         return []
-    window_start = datetime.combine(day, time(START_HOUR), tzinfo=AMSTERDAM)
-    window_end = datetime.combine(day, time(END_HOUR), tzinfo=AMSTERDAM)
+    end_hour = SHIFT_END_HOUR if any(is_work_event(event) for event in events) else END_HOUR
+    window_start = datetime.combine(day, DAY_START, tzinfo=AMSTERDAM)
+    window_end = datetime.combine(day, time(end_hour), tzinfo=AMSTERDAM)
     busy = sorted(
         (max(event.start, window_start), min(event.end, window_end))
         for event in events

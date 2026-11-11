@@ -25,13 +25,13 @@ NOW = datetime(2026, 11, 10, 13, 21, 5, tzinfo=AMSTERDAM)
 class Rig:
     """One app with its fakes, so a test can look at what was written."""
 
-    def __init__(self, tmp_path, chat=None, voice=None, pin=None, mark_done=None):
+    def __init__(self, tmp_path, chat=None, voice=None, pin=None, mark_done=None, prioritize=None):
         self.done = []
         self.path = str(tmp_path / "settings.json")
         self.live = Live(
             lambda: list(TASKS),
             lambda start, end: read_calendars(["fixture"], start, end, fetch=lambda url: ICS),
-            lambda tasks, today, context: {"ok": False, "reason": "no model in tests", "priority": None},
+            prioritize or (lambda tasks, today, context: {"ok": False, "reason": "no model in tests", "priority": None}),
             clock=lambda: NOW,
         )
         self.live.refresh("all")
@@ -118,8 +118,49 @@ def test_settings_are_saved_and_keep_the_hidden_events(rig):
     assert saved["context"] == "Max 7 ore al giorno"
     assert saved["tickable_calendars"] == ["studio", "personale"]
     assert len(saved["hidden_events"]) == 1  # the page cannot erase them by saving
+    assert saved.pop("priority_recalculated") is True
     assert rig.http.get("/api/settings").json() == saved
     assert rig.http.get("/api/state").json()["cycle"]["phase"] == "in arrivo"
+
+
+def test_saving_a_new_context_reasks_the_priority_at_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        rows = [{"id": task.id, "reason": "test"} for task in tasks]
+        return {"ok": True, "reason": "verified", "priority": rows}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"}).json()
+    assert answer["priority_recalculated"] is True
+    assert asked == ["Prima gli esami"]  # the model saw the new context, now
+    assert rig.http.get("/api/state").json()["priority"]["ok"] is True
+
+
+def test_saving_the_same_context_twice_asks_the_model_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        return {"ok": True, "reason": "verified",
+                "priority": [{"id": task.id, "reason": "test"} for task in tasks]}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert asked == ["Prima gli esami"]  # update_priority skipped the second call
+
+
+def test_a_priority_failure_does_not_lose_the_save(tmp_path):
+    def refuse(tasks, today, context):
+        raise RuntimeError("model down")
+
+    rig = Rig(tmp_path, prioritize=refuse)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert answer.status_code == 200
+    assert answer.json()["priority_recalculated"] is False
+    assert read_settings(rig.path).context == "Prima gli esami"  # saved on disk anyway
 
 
 def test_invalid_settings_are_refused_and_nothing_is_saved(rig):
@@ -197,20 +238,21 @@ class CalendarRig:
     """An app whose events come "from the API" (they have ids) and whose
     calendar writes are recorded and applied to an in-memory calendar."""
 
-    def __init__(self, tmp_path, chat=None, fail=None):
+    def __init__(self, tmp_path, chat=None, fail=None, tasks=None):
         self.calendar = [
             Event(calendar="personale", title="Palestra", uid="gym", api_id="gym-1", calendar_id="c-p", start=at(11, 7, 30), end=at(11, 9)),
             Event(calendar="studio", title="Call con Ruud", uid="call", api_id="call-1", calendar_id="c-s", start=at(12, 15), end=at(12, 15, 30)),
             Event(calendar="lavoro", title="Turno ristorante", uid="shift", api_id="shift-1", calendar_id="c-l", start=at(12, 17), end=at(12, 23)),
             Event(calendar="studio", title="Blocco iCal", uid="ical", start=at(13, 10), end=at(13, 11)),  # no api_id
         ]
-        self.deleted, self.moved, self.fail = [], [], fail
+        self.tasks = list(tasks or [])
+        self.deleted, self.moved, self.created, self.fail = [], [], [], fail
         self.path = str(tmp_path / "settings.json")
-        self.live = Live(lambda: [], lambda start, end: list(self.calendar),
+        self.live = Live(lambda: list(self.tasks), lambda start, end: list(self.calendar),
                          lambda tasks, today, context: {"ok": False, "reason": "none", "priority": None}, clock=lambda: NOW)
         self.live.refresh("all")
         app = create_app(self.live, lambda task_id: None, chat, None, None, self.path, web_dir=None,
-                         delete_event=self._delete, move_event=self._move)
+                         delete_event=self._delete, move_event=self._move, create_block=self._create)
         self.http = TestClient(app)
 
     def _delete(self, event):
@@ -225,6 +267,14 @@ class CalendarRig:
         self.moved.append((event.api_id, start, end))
         self.calendar = [e.model_copy(update={"start": start, "end": end}) if e.api_id == event.api_id else e for e in self.calendar]
 
+    def _create(self, title, start, end):
+        if self.fail:
+            raise self.fail
+        api_id = f"blk-{len(self.created) + 1}"
+        self.created.append((title, start, end))
+        self.calendar.append(Event(calendar="studio", title=title, uid=api_id, api_id=api_id, calendar_id="c-s", start=start, end=end))
+        return api_id
+
     def key(self, title):
         return next(e.key for e in self.calendar if e.title == title)
 
@@ -235,7 +285,7 @@ def test_ticking_an_api_event_deletes_it_from_the_calendar(tmp_path):
     assert answer.json()["calendar"] == "deleted" and rig.deleted == ["gym-1"]
     state = rig.http.get("/api/state").json()
     assert "Palestra" not in [e["title"] for e in state["events"]] and state["hidden_events"] == []
-    assert state["calendar_write"] == {"delete": True, "move": True}
+    assert state["calendar_write"] == {"delete": True, "move": True, "create_block": True}
 
 
 def test_a_fixed_calendar_is_never_deleted_and_an_ical_event_is_only_hidden(tmp_path):
@@ -321,4 +371,70 @@ def test_without_calendar_write_the_chat_only_talks_and_confirm_is_refused(tmp_p
     assert rig.http.post("/api/chat", json={"message": "sposta la call"}).json() == {"reply": "Non posso ancora spostarlo."}
     assert "not connected yet" in chat.seen["messages"][0]["content"]
     assert rig.http.post("/api/confirm", json={"id": "x"}).status_code == 404
-    assert rig.http.get("/api/state").json()["calendar_write"] == {"delete": False, "move": False}
+    assert rig.http.get("/api/state").json()["calendar_write"] == {"delete": False, "move": False, "create_block": False}
+
+
+# --- study blocks: accept, move, reject (D2-052, D2-053) ----------------------
+
+from models import Task  # noqa: E402
+
+STUDY_TASK = Task(id="t-study", title="Studio AI", status="In Progress", duration_minutes=60)
+
+
+def test_accepting_a_block_changes_nothing_until_confirmed_and_confirming_twice_adds_nothing(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    answer = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()
+    assert "Propongo di creare il blocco di studio «Studio AI»" in answer["reply"]
+    assert answer["proposal"]["warnings"] == []
+    assert rig.created == []  # the calendar is unchanged after a proposal
+
+    done = rig.http.post("/api/confirm", json={"id": answer["proposal"]["id"]})
+    assert done.json() == {"ok": True, "title": "Studio AI", "read_back": True}
+    assert rig.created == [("Studio AI", at(12, 10), at(12, 11))]
+    assert rig.http.post("/api/confirm", json={"id": answer["proposal"]["id"]}).status_code == 404
+    assert len(rig.created) == 1
+
+
+def test_a_block_moved_onto_a_shift_is_flagged_before_her_yes(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    answer = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T16:30"}).json()
+    assert answer["proposal"]["warnings"] == ["si sovrappone a «Turno ristorante» (17:00–23:00, lavoro)"]
+    assert rig.created == []
+
+
+def test_block_requests_the_code_refuses_and_without_calendar_write(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    assert rig.http.post("/api/block", json={"task_id": "ghost", "start": "2026-11-12T10:00"}).status_code == 422
+    read_only = Rig(tmp_path)  # no create_block wired
+    answer = read_only.http.post("/api/block", json={"task_id": TASKS[0].id, "start": "2026-11-12T10:00"})
+    assert answer.status_code == 503
+    assert rig.created == [] and read_only.done == []
+
+
+def test_confirm_refuses_a_block_whose_task_was_closed_in_the_meantime(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    proposal = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()["proposal"]
+    rig.tasks = []
+    rig.live.refresh("notion")  # the task was done (or removed) after the proposal
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 409
+    assert rig.created == []
+
+
+def test_a_failed_calendar_write_keeps_the_block_proposal(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    proposal = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()["proposal"]
+    rig.fail = RuntimeError("Google Calendar answered HTTP 403: need writer access")
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 502
+    rig.fail = None  # she can confirm again once it is fixed
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200
+
+
+def test_a_rejected_block_is_not_proposed_again_and_restore_undoes_it(rig):
+    blocks = rig.http.get("/api/state").json()["blocks"]
+    rejected_id = blocks[0]["task_id"]
+    assert rig.http.post("/api/block/reject", json={"task_id": rejected_id}).json() == {"ok": True}
+    state = rig.http.get("/api/state").json()
+    assert rejected_id not in {block["task_id"] for block in state["blocks"]}
+    assert read_settings(rig.path).rejected_blocks == [rejected_id]  # survives a restart
+    rig.http.post("/api/block/restore", json={"task_id": rejected_id})
+    assert rejected_id in {block["task_id"] for block in rig.http.get("/api/state").json()["blocks"]}

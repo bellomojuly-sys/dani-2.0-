@@ -67,3 +67,49 @@ def test_sunday_is_flagged():
 def test_refusals(arguments, reason):
     with pytest.raises(ValueError, match=reason):
         build_proposal(arguments, REFS, MOVABLE, "p1")
+
+
+# --- study-block proposals (D2-052, D2-053) -----------------------------------
+
+from models import Task  # noqa: E402
+from propose import build_block_proposal, describe_block  # noqa: E402
+
+BLOCK_TASKS = [Task(id="t1", title="Studio AI", status="In Progress", duration_minutes=90),
+               Task(id="t2", title="Email Fontys", status="Not Started")]
+
+
+def block(**arguments):
+    return build_block_proposal(arguments, BLOCK_TASKS, [GYM, CALL, SHIFT, DEMO], "b1")
+
+
+def test_accepting_a_block_keeps_the_task_duration_and_reads_like_a_preview():
+    proposal = block(task_id="t1", start="2026-11-12T10:00")
+    assert (proposal.start, proposal.end) == (at(12, 10), at(12, 11, 30))  # 90 minutes
+    assert (proposal.kind, proposal.task_id, proposal.warnings) == ("block", "t1", [])
+    assert describe_block(proposal) == ("Propongo di creare il blocco di studio «Studio AI» il 12/11 "
+                                        "dalle 10:00 alle 11:30 nel calendario studio. Confermi?")
+
+
+def test_a_task_without_an_estimate_gets_one_hour_and_an_explicit_end_wins():
+    assert block(task_id="t2", start="2026-11-12T10:00").end == at(12, 11)
+    assert block(task_id="t2", start="2026-11-12T10:00", end="2026-11-12T12:00").end == at(12, 12)
+
+
+def test_a_block_moved_onto_a_shift_or_a_sunday_is_flagged_not_silently_accepted():
+    moved = block(task_id="t1", start="2026-11-12T16:00")  # ends 17:30, the shift starts at 17:00
+    assert moved.warnings == ["si sovrappone a «Turno ristorante» (17:00–23:00, lavoro)"]
+    assert "Attenzione: si sovrappone a «Turno ristorante»" in describe_block(moved)
+    assert block(task_id="t1", start="2026-11-15T10:00").warnings == ["è di domenica"]
+
+
+@pytest.mark.parametrize(
+    "arguments, reason",
+    [
+        ({"task_id": "t9", "start": "2026-11-12T10:00"}, "non conosco il task"),
+        ({"task_id": "t1", "start": "2026-11-12T10:00", "end": "2026-11-12T09:00"}, "la fine deve essere dopo"),
+        ({"task_id": "t1"}, "non valida"),  # no start at all
+    ],
+)
+def test_block_requests_the_code_refuses(arguments, reason):
+    with pytest.raises(ValueError, match=reason):
+        build_block_proposal(arguments, BLOCK_TASKS, [SHIFT], "b1")
