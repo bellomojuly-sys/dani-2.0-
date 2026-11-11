@@ -62,9 +62,9 @@ rewritten on this model after F5 and the pending quizzes.
 
 | Field | Value |
 |---|---|
-| Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-048 — Fontys timetable as a fixed calendar** (needs the link) |
-| Then | D2-049 (accept/reject planner blocks), D2-050 (new task from the chat), D2-051 (Whisper). These four close V1 |
+| Done | D2-001 to D2-023, D2-048 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
+| **Active** | **D2-049 — Accept or reject a planner block** |
+| Then | D2-050 (new task from the chat), D2-051 (Whisper). These three close V1 |
 | After the demo | Walk-through of the 🟡 rows, D2-032 (evaluations), D2-038 (live online), moving a proposed block |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
@@ -174,7 +174,7 @@ the review happens in Sprint 4.
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
 | D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
-| D2-048 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
+| D2-048 | Fontys as a fixed calendar: the link turned out to be the Canvas feed (`fhict.instructure.com`) — course deadlines and appointments, not lessons (lessons already live in the Università Google calendar). Feed added to `GCAL_ICS_URL`; iCal text escaping (RFC 5545) now removed from names and titles | Fontys deadlines in the week | Real: the 13 Nov Portfolio Check-in appears from the feed, calendar fixed (not tickable); all-day deadlines take no planner slot; 257 tests green | ✅ 11 Nov `a0218c7` |
 | D2-049 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
 | D2-050 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a task with a missing title is refused | ⬜ |
 | D2-051 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |

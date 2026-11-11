@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-024 — Task model for my Notion tasks (M05)**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-049 — Accept or reject a planner block**.
 
 | Step | What | State |
 |---|---|---|
@@ -127,6 +127,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-022 | Each trace event is a typed record of the tool call: name, arguments, status and duration | Done |
 | D2-023 | `safe_trace` redacts sensitive fields by name (`[REDACTED]`), so a secret in a traced field is absent from the saved trace | Done |
 | MVP 10 Nov | `dashboard.py`: real Notion tasks (`notion_client.py`), real calendars via iCal (`ical_client.py`), verified LLM priority, deterministic study blocks (`planner.py`), `dashboard.html` in the app mockup style (`render.py`); 50 new offline tests | Built, waiting for the Notion token and the iCal addresses in `.env` |
+| D2-039 → D2-047 | Live dashboard v2: FastAPI server with PIN, `web/` pages, settings and cycle, chat with my context, Google Calendar API writes after my yes (`propose.py` + `/api/confirm`), Eitje shifts via webcal | Built and tested; walk-through with Giulia after the demo |
+| D2-048 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar; iCal text escaping removed from names and titles | Done |
 
 ## Traceability
 
@@ -155,8 +157,9 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-021 | `a319f85` | A run has one run ID and timestamps; every event shares the run ID | `-k "trace"` (10) |
 | D2-022 | `3696a21` | Each event is a typed TraceEvent (tool, arguments, status, duration); a malformed event is refused | `-k "trace"` (15) |
 | D2-023 | `b1563af` | A fake key in a traced field is absent from `safe_trace`; `[REDACTED]` takes its place; a secret under an innocent name is deliberately not caught | `-k "redact or safe_trace or sensitive"` (6) |
+| D2-048 | `a0218c7` | An escaped feed name (`Bellomo\, Giulia`) and title are unescaped; a literal backslash survives | `-k "unescap"` (2) |
 
-All 92 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
+All 257 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py` is the only live run.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
