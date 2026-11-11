@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-055 — New task from the chat**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-054 — Whisper live** (needs `OPENAI_API_KEY`).
 
 | Step | What | State |
 |---|---|---|
@@ -133,7 +133,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-032 | Five evaluation questions with their facts; `python3 evals.py` prints PASS/FAIL per case | Built 🟡 |
 | M14 → M16 | Roadmap additions confirmed 10 Nov: context under Giulia's control, Gmail read-only, body signals via the Fitbit Web API | In the roadmap (no code yet) |
 | D2-051 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar — course deadlines (lessons stay in the Università calendar); iCal text escaping removed from names and titles | Done 11 Nov |
-| D2-055, D2-054, D2-038 | New task from the chat; Whisper live; online on Render | D2-055 active; D2-054 waits on `OPENAI_API_KEY`; D2-038 after the demo (secrets on Render) |
+| D2-055 | New task from the chat: `propose_task` → preview card → her Conferma → `create_task` in Notion with read-back; unknown areas and empty titles refused | Built 🟡 (her first real Confirm closes it) |
+| D2-054, D2-038 | Whisper live; online on Render | D2-054 waits on `OPENAI_API_KEY`; D2-038 after the demo (secrets on Render) |
 
 ## Traceability
 
@@ -173,8 +174,9 @@ Every closed microphase can be traced to one commit and checked from the termina
 | D2-052, D2-053 | `fc82993` | Calendar unchanged after a block preview; created with read-back after yes; a block onto a shift is flagged; a rejected block is not proposed again | `-k "block"` |
 | D2-032 | `fdb87e5` | Five questions with their facts; a deliberate break fails naming the missing fact | `-k "evals"`; live: `python3 evals.py` |
 | D2-051 | `a0218c7` | An escaped feed name (`Bellomo\, Giulia`) and title are unescaped; a literal backslash survives | `-k "unescap"` (2) |
+| D2-055 | `ff6ee81` | Notion unchanged after a task proposal; created with read-back after yes; empty title, unknown area and a second Confirm refused | `-k "task_proposal or create_task or propose_task"` |
 
-All 287 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py`, `python3 server.py` and `python3 evals.py` are the only live runs.
+All 305 tests: `python3 -m pytest -v`. The tests never call the real API; `python3 main.py`, `python3 server.py` and `python3 evals.py` are the only live runs.
 
 Coverage and mutation testing (D2-020a) need the dev tools in
 `requirements-dev.txt` (`pip install -r requirements-dev.txt`):

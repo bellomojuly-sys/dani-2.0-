@@ -63,8 +63,8 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-055 — New task from the chat** |
-| Then | D2-054 (Whisper live, needs `OPENAI_API_KEY`). These two close V1 |
+| **Active** | **D2-054 — Whisper live** (needs `OPENAI_API_KEY`) |
+| Then | D2-055 is built (🟡 11 Nov `ff6ee81`): her first real Confirm in the app closes it. These two close V1 |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
@@ -181,7 +181,7 @@ the review happens in Sprint 4.
 | D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | 🟡 10 Nov `fc82993` |
 | D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | 🟡 10 Nov `fc82993` |
 | D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
-| D2-055 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a task with a missing title is refused | ⬜ |
+| D2-055 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back. An area that is not one of mine is refused, so no new option is silently added to the database | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a missing title and an unknown area are refused; confirming twice changes nothing more. Real: the model proposed the task from the chat in the browser; my first real Confirm closes the row | 🟡 11 Nov `ff6ee81` |
 
 D2-032 (five evaluation cases, one command) is built (🟡 10 Nov). Moved after
 the demo (11 Nov, my decision): D2-038 (the live app online with a PIN — today
