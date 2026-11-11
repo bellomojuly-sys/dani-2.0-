@@ -33,11 +33,15 @@ from pydantic import BaseModel, Field
 
 from propose import (
     PROPOSE_MOVE_SCHEMA,
+    PROPOSE_TASK_SCHEMA,
     BlockProposal,
+    TaskProposal,
     build_block_proposal,
     build_proposal,
+    build_task_proposal,
     describe,
     describe_block,
+    describe_task,
     event_refs,
 )
 
@@ -104,14 +108,16 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None):
+               create_block=None, create_task=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
     delete_event(event), move_event(event, start, end) and
     create_block(title, start, end) -> event id perform the Google Calendar
     writes, or are None while the calendar is read-only (create_block writes
-    in the study calendar)."""
+    in the study calendar); create_task(title, area, deadline,
+    duration_minutes) -> Task creates one Notion task (D2-055), or is None
+    while Notion is read-only for new tasks."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -138,6 +144,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             "move": move_event is not None,
             "create_block": create_block is not None,
         }
+        state["notion_write"] = {"create_task": create_task is not None}
         return state
 
     @api.get("/state")
@@ -227,13 +234,26 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         current = settings()
         state = live.state(current)
         try:
-            if move_event is None:
+            if move_event is None and create_task is None:
                 return {"reply": chat_reply(chat_client, current.context, state, body.history, body.message)}
-            turn = chat_turn(chat_client, current.context, state, body.history, body.message, PROPOSE_MOVE_SCHEMA)
+            turn = chat_turn(
+                chat_client, current.context, state, body.history, body.message,
+                PROPOSE_MOVE_SCHEMA if move_event is not None else None,
+                PROPOSE_TASK_SCHEMA if create_task is not None else None,
+            )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
         except Exception as failure:  # the provider or the network
             raise HTTPException(status_code=502, detail=f"modello non disponibile: {type(failure).__name__}")
+        if turn["task"] is not None:
+            # The model asked for a new task: check it in code and show it. Nothing is written here.
+            areas = {task.area for task in live.tasks if task.area}
+            try:
+                proposal = build_task_proposal(turn["task"], areas, uuid.uuid4().hex[:8], today=live.clock().date())
+            except ValueError as problem:
+                return {"reply": f"Non posso proporre questo task: {problem}."}
+            proposals[proposal.id] = proposal
+            return {"reply": describe_task(proposal), "proposal": proposal.model_dump(mode="json")}
         if turn["move"] is None:
             return {"reply": turn["text"]}
         # The model asked for a move: check it in code and show it. Nothing is written here.
@@ -283,6 +303,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         proposal = proposals.get(body.id)
         if proposal is None:
             raise HTTPException(status_code=404, detail="proposta non trovata (già confermata o rifiutata)")
+        if isinstance(proposal, TaskProposal):
+            if create_task is None:
+                raise HTTPException(status_code=503, detail="Notion non è collegato per creare task")
+            try:
+                made = create_task(proposal.title, proposal.area, proposal.deadline, proposal.duration_minutes)
+            except (RuntimeError, ValueError) as failure:
+                raise HTTPException(status_code=502, detail=str(failure))
+            del proposals[body.id]  # confirming twice changes nothing more
+            live.refresh("notion")
+            found = live.find_task(made.id) is not None
+            return {"ok": True, "title": proposal.title, "read_back": found}
         if isinstance(proposal, BlockProposal):
             if create_block is None:
                 raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
@@ -365,6 +396,7 @@ if __name__ == "__main__":  # pragma: no cover
     from ical_client import read_calendars
     from live import Live
     from models import AMSTERDAM
+    from notion_client import create_task as notion_create_task
     from notion_client import mark_done as notion_mark_done
     from notion_client import query_open_tasks
 
@@ -382,7 +414,7 @@ if __name__ == "__main__":  # pragma: no cover
     chat_client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com") if deepseek_key else None
     voice_client = OpenAI(api_key=openai_key) if openai_key else None
 
-    delete_event = move_event = create_block = None
+    delete_event = move_event = create_block = create_task = None
     if demo:
         fetch_tasks, fetch_events = demo_sources()
         clock = lambda: datetime.combine(date(2026, 11, 10), datetime.now(AMSTERDAM).time(), tzinfo=AMSTERDAM)
@@ -397,6 +429,9 @@ if __name__ == "__main__":  # pragma: no cover
         fetch_events = lambda start, end: read_calendars(env["ics_urls"], start, end)
         clock = lambda: datetime.now(AMSTERDAM)
         mark_done = lambda task_id: notion_mark_done(env["notion_token"], task_id)
+        create_task = lambda title, area, deadline, duration: notion_create_task(
+            env["notion_token"], env["notion_database_id"], title,
+            area=area, deadline=deadline, duration_minutes=duration)
         settings_path = SETTINGS_FILE
         key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
         if key_file:
@@ -429,6 +464,7 @@ if __name__ == "__main__":  # pragma: no cover
     live = Live(fetch_tasks, fetch_events, prioritize, clock)
     threading.Thread(target=refresh_forever, args=(live, settings_path), daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
-                     delete_event=delete_event, move_event=move_event, create_block=create_block)
+                     delete_event=delete_event, move_event=move_event, create_block=create_block,
+                     create_task=create_task)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

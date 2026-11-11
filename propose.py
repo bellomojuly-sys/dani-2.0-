@@ -1,25 +1,31 @@
-"""Turn a request to change the calendar into a proposal Giulia can read.
+"""Turn a request to change the calendar or Notion into a proposal Giulia can read.
 
-Nothing writes from here. Two kinds of proposal, both checked in code and both
+Nothing writes from here. Three kinds of proposal, all checked in code and all
 applied only after she presses Confirm (preview -> yes -> write, roadmap M08):
 
   - ``build_proposal``: the model asked, in the chat, to move one event;
   - ``build_block_proposal``: she pressed Accept on a planner study block
     (D2-052), possibly at a different time than the planner proposed
-    (D2-053) — the new time goes through the same checks.
+    (D2-053) — the new time goes through the same checks;
+  - ``build_task_proposal``: the model asked, in the chat, to create a new
+    Notion task (D2-055). Only a title is required; area, deadline and
+    duration are optional.
 
 Refused (ValueError, nothing is proposed):
   - a reference that is not one of the events shown to the model, or a task
     that is not one of the open tasks;
   - an event of a fixed calendar (shifts, lessons): only the calendars she
     marked as tickable in Settings can be moved;
-  - an all-day event, or an end that is not after the start.
+  - an all-day event, or an end that is not after the start;
+  - a new task with an empty title, or with an area that is not one of hers
+    (an unknown area would silently add an option to her Notion database).
 Flagged (the proposal is made, with a warning she sees before confirming):
   - the new time is on a Sunday;
-  - the new time overlaps another timed event (a shift included).
+  - the new time overlaps another timed event (a shift included);
+  - a new task whose deadline is already past.
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from pydantic import BaseModel, ValidationError
@@ -185,6 +191,103 @@ def build_block_proposal(arguments, tasks, events, proposal_id, default_minutes=
         end=end,
         warnings=_clashes(start, end, events),
     )
+
+
+PROPOSE_TASK_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "propose_task",
+        "description": (
+            "Propose to create a new task in Giulia's Notion task list. This does NOT write "
+            "anything: it creates a proposal that Giulia must confirm. Use an area only if it is "
+            "one she already uses (as shown in her open tasks); leave it out when unsure."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "What the task is, short, in her words"},
+                "area": {"type": "string", "description": "One of her existing areas, exactly as shown"},
+                "deadline": {"type": "string", "description": "Due date, YYYY-MM-DD. Leave out if none was given."},
+                "duration_minutes": {"type": "integer", "description": "Estimated minutes. Leave out if none was given."},
+            },
+            "required": ["title"],
+        },
+    },
+}
+
+
+class TaskRequest(BaseModel):
+    """The propose_task arguments the model sent, validated before anything else."""
+
+    title: str
+    area: Optional[str] = None
+    deadline: Optional[date] = None
+    duration_minutes: Optional[int] = None
+
+
+class TaskProposal(BaseModel):
+    """A new Notion task waiting for her Confirm. ``kind`` tells /api/confirm
+    (and the page) to create a task instead of touching the calendar."""
+
+    kind: str = "task"
+    id: str
+    title: str
+    area: Optional[str] = None
+    deadline: Optional[date] = None
+    duration_minutes: Optional[int] = None
+    warnings: list[str] = []
+
+
+def build_task_proposal(arguments, known_areas, proposal_id, today=None):
+    """Check the model's propose_task arguments and return a TaskProposal,
+    or raise ValueError.
+
+    ``known_areas`` are the areas of her open tasks: an area outside them is
+    refused, because writing it would silently add an option to her database.
+    A deadline already past is flagged, not refused: the task may be real.
+    """
+    try:
+        wanted = TaskRequest.model_validate(arguments)
+    except ValidationError as problem:
+        raise ValueError(f"richiesta non valida: {problem.errors()[0]['msg']}") from None
+    title = wanted.title.strip()
+    if not title:
+        raise ValueError("il task ha bisogno di un titolo")
+    area = (wanted.area or "").strip() or None
+    if area is not None:
+        by_fold = {name.casefold(): name for name in known_areas}
+        if area.casefold() not in by_fold:
+            raise ValueError(f"non conosco l'area {area!r}: lasciala vuota o usa una delle sue")
+        area = by_fold[area.casefold()]
+    if wanted.duration_minutes is not None and wanted.duration_minutes <= 0:
+        raise ValueError("la durata deve essere positiva")
+    warnings = []
+    if wanted.deadline is not None and today is not None and wanted.deadline < today:
+        warnings.append(f"la scadenza {wanted.deadline:%d/%m} è già passata")
+    return TaskProposal(
+        id=proposal_id,
+        title=title,
+        area=area,
+        deadline=wanted.deadline,
+        duration_minutes=wanted.duration_minutes,
+        warnings=warnings,
+    )
+
+
+def describe_task(proposal):
+    """The preview sentence shown before she confirms a new task."""
+    details = []
+    if proposal.area:
+        details.append(f"area {proposal.area}")
+    if proposal.deadline:
+        details.append(f"scadenza {proposal.deadline:%d/%m}")
+    if proposal.duration_minutes:
+        details.append(f"{proposal.duration_minutes} min")
+    extra = f" ({', '.join(details)})" if details else ""
+    text = f"Propongo di creare il task «{proposal.title}»{extra} nella tua lista Notion."
+    if proposal.warnings:
+        text += " Attenzione: " + "; ".join(proposal.warnings) + "."
+    return text + " Confermi?"
 
 
 def describe_block(proposal):

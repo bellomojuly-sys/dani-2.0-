@@ -226,7 +226,7 @@ def test_with_a_pin_every_api_call_needs_it(tmp_path):
 
 # --- Google Calendar connected in writing ------------------------------------------
 
-from models import Event  # noqa: E402
+from models import Event, Task  # noqa: E402
 from test_chat import FakeToolChat  # noqa: E402
 
 
@@ -246,13 +246,14 @@ class CalendarRig:
             Event(calendar="studio", title="Blocco iCal", uid="ical", start=at(13, 10), end=at(13, 11)),  # no api_id
         ]
         self.tasks = list(tasks or [])
-        self.deleted, self.moved, self.created, self.fail = [], [], [], fail
+        self.deleted, self.moved, self.created, self.created_tasks, self.fail = [], [], [], [], fail
         self.path = str(tmp_path / "settings.json")
         self.live = Live(lambda: list(self.tasks), lambda start, end: list(self.calendar),
                          lambda tasks, today, context: {"ok": False, "reason": "none", "priority": None}, clock=lambda: NOW)
         self.live.refresh("all")
         app = create_app(self.live, lambda task_id: None, chat, None, None, self.path, web_dir=None,
-                         delete_event=self._delete, move_event=self._move, create_block=self._create)
+                         delete_event=self._delete, move_event=self._move, create_block=self._create,
+                         create_task=self._create_task)
         self.http = TestClient(app)
 
     def _delete(self, event):
@@ -274,6 +275,15 @@ class CalendarRig:
         self.created.append((title, start, end))
         self.calendar.append(Event(calendar="studio", title=title, uid=api_id, api_id=api_id, calendar_id="c-s", start=start, end=end))
         return api_id
+
+    def _create_task(self, title, area, deadline, duration_minutes):
+        if self.fail:
+            raise self.fail
+        made = Task(id=f"nt-{len(self.created_tasks) + 1}", title=title, area=area,
+                    status="Not Started", deadline=deadline, duration_minutes=duration_minutes)
+        self.created_tasks.append(made)
+        self.tasks.append(made)
+        return made
 
     def key(self, title):
         return next(e.key for e in self.calendar if e.title == title)
@@ -438,3 +448,45 @@ def test_a_rejected_block_is_not_proposed_again_and_restore_undoes_it(rig):
     assert read_settings(rig.path).rejected_blocks == [rejected_id]  # survives a restart
     rig.http.post("/api/block/restore", json={"task_id": rejected_id})
     assert rejected_id in {block["task_id"] for block in rig.http.get("/api/state").json()["blocks"]}
+
+
+# --- a new Notion task from the chat (D2-055) ------------------------------------
+
+
+def _task_call(arguments):
+    return FakeToolChat("", [("propose_task", json.dumps(arguments))])
+
+
+def test_a_task_proposal_writes_nothing_until_confirmed_then_creates_and_reads_back(tmp_path):
+    existing = Task(id="t-1", title="Studiare F6", area="University", status="Not Started")
+    rig = CalendarRig(tmp_path, tasks=[existing],
+                      chat=_task_call({"title": "comprare le lenti", "area": "university", "deadline": "2026-11-20"}))
+    answer = rig.http.post("/api/chat", json={"message": "nuovo task: comprare le lenti"}).json()
+    proposal = answer["proposal"]
+    assert answer["reply"].startswith("Propongo di creare il task «comprare le lenti»")
+    assert answer["reply"].endswith("Confermi?")
+    assert proposal["kind"] == "task" and proposal["area"] == "University"
+    assert rig.created_tasks == []  # Notion is unchanged after a proposal
+
+    done = rig.http.post("/api/confirm", json={"id": proposal["id"]})
+    assert done.json() == {"ok": True, "title": "comprare le lenti", "read_back": True}
+    assert [made.title for made in rig.created_tasks] == ["comprare le lenti"]
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 404
+    assert len(rig.created_tasks) == 1  # confirming twice changes nothing more
+
+
+def test_an_unknown_area_is_refused_in_the_chat_and_nothing_is_proposed(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_task_call({"title": "x", "area": "Zumba"}))
+    answer = rig.http.post("/api/chat", json={"message": "nuovo task: x"}).json()
+    assert "Non posso proporre questo task" in answer["reply"] and "proposal" not in answer
+    assert rig.created_tasks == []
+
+
+def test_a_failed_notion_create_is_reported_and_the_proposal_survives(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_task_call({"title": "pagare DUO"}))
+    proposal = rig.http.post("/api/chat", json={"message": "nuovo task: pagare DUO"}).json()["proposal"]
+    rig.fail = RuntimeError("Notion answered HTTP 502: boom")
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 502
+    assert rig.created_tasks == []
+    rig.fail = None  # she can confirm again once it is fixed
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200

@@ -101,7 +101,7 @@ def test_empty_recording_and_empty_transcript_are_refused():
 # --- a turn that may propose a move ---------------------------------------------
 
 from chat import chat_turn  # noqa: E402
-from propose import PROPOSE_MOVE_SCHEMA  # noqa: E402
+from propose import PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA  # noqa: E402
 
 
 class FakeToolChat:
@@ -119,7 +119,7 @@ class FakeToolChat:
 
 def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule():
     client = FakeToolChat("Va bene.")
-    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None}
+    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None, "task": None}
     system = client.seen["messages"][0]["content"]
     assert "- e1: 2026-11-10 17:00-23:00 [lavoro] Turno ristorante" in system
     assert "call the propose_move tool" in system and "not connected yet" not in system
@@ -129,7 +129,7 @@ def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule()
 def test_a_propose_move_call_comes_back_as_unchecked_arguments():
     client = FakeToolChat("", [("propose_move", '{"event": "e1", "new_start": "2026-11-12T16:00"}')])
     turn = chat_turn(client, "", STATE, [], "sposta la call alle 16", PROPOSE_MOVE_SCHEMA)
-    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}}
+    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}, "task": None}
 
 
 def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
@@ -139,3 +139,30 @@ def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
         chat_turn(FakeToolChat("", [("propose_move", "{event: e1")]), "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA)
     with pytest.raises(ValueError, match="empty answer"):
         chat_turn(FakeToolChat(""), "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA)
+
+
+# --- a turn that may propose a new Notion task (D2-055) --------------------------
+
+
+def test_a_propose_task_call_comes_back_as_unchecked_arguments():
+    client = FakeToolChat("", [("propose_task", '{"title": "comprare le lenti", "deadline": "2026-11-20"}')])
+    turn = chat_turn(client, "", STATE, [], "nuovo task: comprare le lenti", PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA)
+    assert turn == {"text": "", "move": None, "task": {"title": "comprare le lenti", "deadline": "2026-11-20"}}
+    system = client.seen["messages"][0]["content"]
+    assert "call the propose_task tool" in system and "call the propose_move tool" in system
+    assert client.seen["tools"] == [PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA]
+
+
+def test_task_only_rule_still_says_moves_are_not_possible():
+    client = FakeToolChat("Va bene.")
+    turn = chat_turn(client, "", STATE, [], "ciao", None, PROPOSE_TASK_SCHEMA)
+    assert turn == {"text": "Va bene.", "move": None, "task": None}
+    system = client.seen["messages"][0]["content"]
+    assert "call the propose_task tool" in system
+    assert "cannot move calendar events" in system
+    assert client.seen["tools"] == [PROPOSE_TASK_SCHEMA]
+
+
+def test_chat_turn_without_any_schema_is_refused():
+    with pytest.raises(ValueError, match="at least one tool schema"):
+        chat_turn(FakeToolChat("Ciao."), "", STATE, [], "ciao")

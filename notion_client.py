@@ -5,8 +5,11 @@ visible request we can read and explain (Decision Log 2026-11-05). The token
 comes from the environment and travels only in the Authorization header; it is
 never part of a URL or of an error message.
 
-One write exists, ``mark_done``: it sets Status = Done on a single page and is
-called only after Giulia ticks that task (Decision Log 2026-11-10).
+Two writes exist, both behind an action of Giulia's:
+  - ``mark_done``   sets Status = Done on a single page, after she ticks it
+                    (Decision Log 2026-11-10);
+  - ``create_task`` creates one task page, after she confirms a proposal from
+                    the chat (D2-055).
 
 Two layers, so each can be tested on its own:
   - ``task_from_page``    turns one Notion page (a dict) into a typed Task;
@@ -122,6 +125,37 @@ def query_open_tasks(token, database_id, http=post_json):
         if not answer.get("has_more"):
             return tasks
         cursor = answer["next_cursor"]
+
+
+def create_task(token, database_id, title, area=None, deadline=None, duration_minutes=None, http=post_json):
+    """Create one task page in the Tasks database and return it as a typed Task.
+
+    Only the fields that were given are sent, plus Status = "Not Started" and
+    Type = "Task" so the new page is a normal open task. The answer is Notion's
+    own copy of the page: mapping it through ``task_from_page`` is the
+    read-back — a page Notion reports differently from what was asked raises
+    instead of reporting a success that did not happen.
+    """
+    title = (title or "").strip()
+    if not title:
+        raise ValueError("a task needs a title")
+    properties = {
+        "Task Name": {"title": [{"text": {"content": title}}]},
+        "Status": {"select": {"name": "Not Started"}},
+        "Type": {"select": {"name": "Task"}},
+    }
+    if area:
+        properties["Area"] = {"select": {"name": area}}
+    if deadline:
+        properties["Due Date"] = {"date": {"start": deadline.isoformat()}}
+    if duration_minutes:
+        properties["Estimated Time"] = {"number": duration_minutes}
+    body = {"parent": {"database_id": database_id}, "properties": properties}
+    answer = http(f"{API}/pages", _headers(token), body)
+    made = task_from_page(answer)
+    if made.title != title:
+        raise RuntimeError(f"Notion did not confirm the new task (it says {made.title!r})")
+    return made
 
 
 def mark_done(token, page_id, http=patch_json):

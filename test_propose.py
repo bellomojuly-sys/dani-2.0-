@@ -113,3 +113,55 @@ def test_a_block_moved_onto_a_shift_or_a_sunday_is_flagged_not_silently_accepted
 def test_block_requests_the_code_refuses(arguments, reason):
     with pytest.raises(ValueError, match=reason):
         build_block_proposal(arguments, BLOCK_TASKS, [SHIFT], "b1")
+
+
+# --- a new Notion task from the chat (D2-055) -----------------------------------
+
+from datetime import date  # noqa: E402
+
+from propose import build_task_proposal, describe_task  # noqa: E402
+
+AREAS = {"University", "Personal"}
+TODAY = date(2026, 11, 11)
+
+
+def task(**arguments):
+    return build_task_proposal(arguments, AREAS, "t1", today=TODAY)
+
+
+def test_a_full_task_proposal_is_built_and_described():
+    proposal = task(title=" comprare le lenti ", area="personal", deadline="2026-11-20", duration_minutes=30)
+    # The title is trimmed and the area takes her spelling, so Notion gets an existing option.
+    assert (proposal.title, proposal.area) == ("comprare le lenti", "Personal")
+    assert (proposal.deadline, proposal.duration_minutes, proposal.warnings) == (date(2026, 11, 20), 30, [])
+    assert describe_task(proposal) == (
+        "Propongo di creare il task «comprare le lenti» (area Personal, scadenza 20/11, 30 min) "
+        "nella tua lista Notion. Confermi?"
+    )
+
+
+def test_a_title_alone_is_enough():
+    proposal = task(title="chiamare il dentista")
+    assert (proposal.area, proposal.deadline, proposal.duration_minutes) == (None, None, None)
+    assert describe_task(proposal) == "Propongo di creare il task «chiamare il dentista» nella tua lista Notion. Confermi?"
+
+
+def test_a_past_deadline_is_flagged_not_refused():
+    proposal = task(title="pagare DUO", deadline="2026-11-01")
+    assert proposal.warnings == ["la scadenza 01/11 è già passata"]
+    assert "Attenzione: la scadenza 01/11 è già passata." in describe_task(proposal)
+
+
+@pytest.mark.parametrize(
+    "arguments, reason",
+    [
+        ({}, "non valida"),  # no title at all
+        ({"title": "   "}, "bisogno di un titolo"),
+        ({"title": "x", "deadline": "domani"}, "non valida"),
+        ({"title": "x", "duration_minutes": 0}, "la durata deve essere positiva"),
+        ({"title": "x", "area": "Zumba"}, "non conosco l'area"),
+    ],
+)
+def test_task_requests_the_code_refuses(arguments, reason):
+    with pytest.raises(ValueError, match=reason):
+        build_task_proposal(arguments, AREAS, "t1", today=TODAY)

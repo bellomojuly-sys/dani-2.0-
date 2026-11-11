@@ -48,19 +48,38 @@ NO_WRITE_RULE = (
     "exactly what you would change and that writing from the chat is not connected yet; never say "
     "it is done and never offer to do it yourself."
 )
-MOVE_RULE = (
-    "You cannot change the calendar or Notion yourself. To move a calendar event, call the "
-    "propose_move tool once: it only creates a proposal that she confirms with a button. Never say "
-    "a change is done. Events in calendars she cannot tick (shifts, lessons) are fixed. You cannot "
-    "create or delete events and you cannot change Notion."
-)
 
 
-def build_chat_messages(context, state, history, message, can_move=False):
+def write_rule(can_move, can_task):
+    """The paragraph that tells the model what it may propose (never do)."""
+    if not can_move and not can_task:
+        return NO_WRITE_RULE
+    parts = ["You cannot change the calendar or Notion yourself."]
+    if can_move:
+        parts.append(
+            "To move a calendar event, call the propose_move tool once: it only creates a proposal "
+            "that she confirms with a button. Events in calendars she cannot tick (shifts, lessons) "
+            "are fixed. You cannot create or delete events."
+        )
+    else:
+        parts.append("You cannot move calendar events from this chat.")
+    if can_task:
+        parts.append(
+            "When she asks for a new task, call the propose_task tool once: it only creates a "
+            "proposal that she confirms with a button. Use an area only if it is one of hers."
+        )
+    else:
+        parts.append("You cannot change Notion.")
+    parts.append("Never say a change is done.")
+    return " ".join(parts)
+
+
+def build_chat_messages(context, state, history, message, can_move=False, can_task=False):
     """Return the messages for the model: system prompt, recent turns, new message.
 
     ``can_move`` says whether the calendar is connected in writing: only then
-    is the model told about the propose_move tool.
+    is the model told about the propose_move tool. ``can_task`` does the same
+    for creating a Notion task with propose_task (D2-055).
 
     ``history`` is what the page sends back: a list of {"role", "content"}.
     Only "user" and "assistant" turns are kept (a "system" turn from the page
@@ -73,7 +92,7 @@ def build_chat_messages(context, state, history, message, can_move=False):
         "You are Dani, Giulia's personal planning assistant. Answer in Italian, short and warm, "
         "like a spoken answer: no tables, no markdown.\n"
         "Use only the data below. If something is not in the data, say you do not know.\n"
-        + (MOVE_RULE if can_move else NO_WRITE_RULE)
+        + write_rule(can_move, can_task)
         + "\n\n"
         + f"What Giulia told you about herself and her rules:\n{about_giulia}\n\n"
         f"{describe_state(state)}"
@@ -98,28 +117,38 @@ def chat_reply(client, context, state, history, message, model=MODEL):
     return text
 
 
-def chat_turn(client, context, state, history, message, move_schema, model=MODEL):
-    """One turn in which the model may ask to move an event.
+def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None, model=MODEL):
+    """One turn in which the model may ask to move an event or create a task.
 
-    Returns {"text": str, "move": dict or None}. ``move`` is the arguments of
-    the first propose_move call, still unchecked: propose.build_proposal
-    validates them. Arguments that are not JSON raise ValueError; so does an
-    answer with neither text nor a call.
+    Returns {"text": str, "move": dict or None, "task": dict or None}. The
+    dicts are the arguments of the first propose_move / propose_task call,
+    still unchecked: propose.build_proposal and propose.build_task_proposal
+    validate them. Arguments that are not JSON raise ValueError; so does an
+    answer with neither text nor a call. At least one schema must be given.
     """
-    messages = build_chat_messages(context, state, history, message, can_move=True)
-    response = client.chat.completions.create(model=model, messages=messages, tools=[move_schema])
+    tools = [schema for schema in (move_schema, task_schema) if schema is not None]
+    if not tools:
+        raise ValueError("chat_turn needs at least one tool schema")
+    messages = build_chat_messages(
+        context, state, history, message,
+        can_move=move_schema is not None, can_task=task_schema is not None,
+    )
+    response = client.chat.completions.create(model=model, messages=messages, tools=tools)
     answer = response.choices[0].message
     text = (answer.content or "").strip()
+    wanted = {"propose_move": "move", "propose_task": "task"}
     for call in answer.tool_calls or []:
-        if call.function.name == "propose_move":
-            try:
-                arguments = json.loads(call.function.arguments)
-            except ValueError:
-                raise ValueError("the model sent arguments that are not JSON") from None
-            return {"text": text, "move": arguments}
+        slot = wanted.get(call.function.name)
+        if slot is None:
+            continue
+        try:
+            arguments = json.loads(call.function.arguments)
+        except ValueError:
+            raise ValueError("the model sent arguments that are not JSON") from None
+        return {"text": text, "move": None, "task": None, slot: arguments}
     if not text:
         raise ValueError("the model returned an empty answer")
-    return {"text": text, "move": None}
+    return {"text": text, "move": None, "task": None}
 
 
 def speech_to_text(client, audio, filename="voice.webm"):

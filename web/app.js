@@ -453,7 +453,7 @@ async function send(text) {
     waiting.remove();
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
-    if (answer.proposal) addProposal(answer.proposal);
+    if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
   } catch (failure) {
     waiting.remove();
     addMessage("note", `Dani non ha risposto: ${failure.message}`);
@@ -483,6 +483,36 @@ function addProposal(proposal) {
       await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
       close("Rifiutata: non ho cambiato nulla.");
       history.push({ role: "user", content: "No, non spostarlo." });
+    } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+
+// A new Notion task proposed by Dani: nothing is written until Conferma is pressed.
+function addTaskProposal(proposal) {
+  const details = [];
+  if (proposal.area) details.push(`area ${proposal.area}`);
+  if (proposal.deadline) details.push(`scadenza ${dateIt(proposal.deadline)}`);
+  if (proposal.duration_minutes) details.push(`${proposal.duration_minutes} min`);
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, proposal.title),
+    h("div", {}, `nuovo task in Notion${details.length ? " · " + details.join(" · ") : ""}`),
+    proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
+  const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
+  buttons.append(
+    h("button", { class: "btn small", onclick: async () => {
+      close("Scrivo su Notion…");
+      try {
+        const done = await api("/api/confirm", { method: "POST", json: { id: proposal.id } });
+        close(done.read_back ? "Fatto: creato, riletto da Notion." : "Scritto, ma la rilettura non lo trova ancora.");
+        history.push({ role: "user", content: "Confermo." }, { role: "assistant", content: "Task creato." });
+        poll();
+      } catch (failure) { close(`Non creato: ${failure.message}`); }
+    } }, "Conferma"),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
+      close("Rifiutata: non ho scritto nulla.");
     } }, "Rifiuta"));
   $("#messages").append(card);
   $("#messages").scrollTop = $("#messages").scrollHeight;

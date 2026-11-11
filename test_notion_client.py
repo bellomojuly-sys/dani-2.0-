@@ -154,3 +154,73 @@ def test_patch_json_uses_the_patch_method_and_hides_the_token_on_failure():
 
     with pytest.raises(RuntimeError, match="could not be reached"):
         patch_json("https://x", {}, {}, opener=unreachable)
+
+
+# --- the other write: create_task (D2-055) ---------------------------------------
+
+def _created_page(title="comprare le lenti"):
+    """The page Notion answers with after a create (the read-back source)."""
+    return {
+        "id": "page-new",
+        "properties": {
+            "Task Name": {"title": [{"plain_text": title}]},
+            "Status": {"select": {"name": "Not Started"}},
+            "Area": {"select": {"name": "Personal"}},
+            "Due Date": {"date": {"start": "2026-11-20"}},
+            "Estimated Time": {"number": 30},
+            "Priority": {"select": None},
+            "Next Action": {"checkbox": False},
+        },
+    }
+
+
+def test_create_task_sends_the_given_fields_and_returns_the_typed_read_back():
+    from notion_client import create_task
+
+    seen = {}
+
+    def http(url, headers, body):
+        seen.update(url=url, headers=headers, body=body)
+        return _created_page()
+
+    made = create_task("tok", "db-1", "comprare le lenti", area="Personal",
+                       deadline=date(2026, 11, 20), duration_minutes=30, http=http)
+    assert seen["url"] == "https://api.notion.com/v1/pages"
+    assert seen["body"]["parent"] == {"database_id": "db-1"}
+    assert seen["body"]["properties"]["Task Name"] == {"title": [{"text": {"content": "comprare le lenti"}}]}
+    assert seen["body"]["properties"]["Status"] == {"select": {"name": "Not Started"}}
+    assert seen["body"]["properties"]["Due Date"] == {"date": {"start": "2026-11-20"}}
+    assert seen["headers"]["Authorization"] == "Bearer tok"
+    assert made.id == "page-new" and made.title == "comprare le lenti" and made.deadline == date(2026, 11, 20)
+
+
+def test_create_task_without_extras_sends_no_empty_properties():
+    from notion_client import create_task
+
+    seen = {}
+
+    def http(url, headers, body):
+        seen.update(body=body)
+        page = _created_page("solo titolo")
+        for name in ("Area", "Due Date", "Estimated Time"):
+            del page["properties"][name]
+        return page
+
+    made = create_task("tok", "db-1", "solo titolo", http=http)
+    assert set(seen["body"]["properties"]) == {"Task Name", "Status", "Type"}
+    assert made.area is None and made.deadline is None
+
+
+def test_create_task_refuses_an_empty_title_without_calling_notion():
+    from notion_client import create_task
+
+    with pytest.raises(ValueError, match="needs a title"):
+        create_task("tok", "db-1", "   ", http=lambda url, headers, body: pytest.fail("must not call Notion"))
+
+
+def test_create_task_refuses_an_answer_with_another_title():
+    from notion_client import create_task
+
+    with pytest.raises(RuntimeError, match="did not confirm the new task"):
+        create_task("tok", "db-1", "comprare le lenti",
+                    http=lambda url, headers, body: _created_page("altro titolo"))
