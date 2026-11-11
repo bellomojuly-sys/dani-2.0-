@@ -64,7 +64,8 @@ rewritten on this model after F5 and the pending quizzes.
 |---|---|
 | Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
 | **Active** | **D2-048 — Fontys timetable as a fixed calendar** (needs the link) |
-| Then | D2-049, D2-050 (planner blocks), D2-051 (Whisper), D2-032 (evaluations), D2-038 (online) |
+| Then | D2-049 (accept/reject planner blocks), D2-050 (new task from the chat), D2-051 (Whisper). These four close V1 |
+| After the demo | Walk-through of the 🟡 rows, D2-032 (evaluations), D2-038 (live online), moving a proposed block |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
 | Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
@@ -165,19 +166,23 @@ merges D2-027 and D2-033–D2-035. Decision Logs:
 ### Sprint 3 finish (10–13 November) — what is still missing for the demo
 
 Revised on 10 Nov after the dashboard v2: most ⬜ rows of M05–M09 are now
-covered (marked ↪ above). What the demo still needs, in build order. Every
-🟡 row of D2-039–D2-046 also gets a 15-minute walk-through with me each day.
+covered (marked ↪ above). What the demo still needs, in build order.
+**11 Nov, my decision:** the daily 15-minute walk-throughs of the 🟡 rows are
+suspended until after the demo — closing V1 comes first. The rows stay 🟡 and
+the review happens in Sprint 4.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
 | D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
 | D2-048 | Fontys timetable the same way, if the timetable gives a subscription link | My lessons in the week | Real lessons of one day match the timetable; no block on a lesson | ⬜ |
 | D2-049 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | ⬜ |
-| D2-050 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | ⬜ |
+| D2-050 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a task with a missing title is refused | ⬜ |
 | D2-051 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
 
-Then D2-032 (five evaluation cases, one command) and D2-038 (online with a
-PIN, replacing the static Cloudflare snapshot) close Sprint 3.
+Moved after the demo (11 Nov): D2-032 (five evaluation cases, one command),
+D2-038 (the live app online with a PIN — today the static Cloudflare snapshot
+is the online piece), and moving a proposed block before accepting it (the old
+D2-050, now part of Sprint 4).
 
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
@@ -271,3 +276,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
 | 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Six Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
 | 2026-11-10 | Revision after the dashboard v2: M05–M09 rows covered by the MVP and D2-039–D2-046 marked ↪; new rows D2-047 (Eitje shifts), D2-048 (Fontys), D2-049–D2-050 (accept, reject and move planner blocks), D2-051 (Whisper live); D2-032 and D2-038 keep their IDs and close Sprint 3 |
+| 2026-11-11 | Closing scope for V1, my decision: the daily walk-throughs of the 🟡 rows are suspended until after the demo; D2-050 becomes "new task from the chat" (the old D2-050, moving a block, goes to Sprint 4); D2-032 and D2-038 move after the demo (the Cloudflare snapshot is the online piece for now). V1 closes with D2-048, D2-049, D2-050, D2-051 |
