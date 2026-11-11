@@ -44,6 +44,23 @@ def test_calendar_name_comes_from_the_feed():
     assert events_from_ics(ICS, date(2026, 11, 9), date(2026, 11, 16))[0].calendar == "studio"
 
 
+def test_escaped_text_is_unescaped_in_calendar_name_and_title():
+    # The Fontys Canvas feed names itself "Bellomo\, Giulia G. Calendar (Canvas)";
+    # the backslash is iCal escaping (RFC 5545), not part of the name.
+    ics = ICS.replace(
+        b"X-WR-CALNAME:studio", b"X-WR-CALNAME:Bellomo\\, Giulia G. Calendar (Canvas)"
+    ).replace(b"SUMMARY:Lezione MA-AAI", b"SUMMARY:Week 11\\; check-in\\, portfolio")
+    event = events_from_ics(ics, date(2026, 11, 9), date(2026, 11, 16))[0]
+    assert event.calendar == "Bellomo, Giulia G. Calendar (Canvas)"
+    assert event.title == "Week 11; check-in, portfolio"
+
+
+def test_a_literal_backslash_survives_unescaping():
+    ics = ICS.replace(b"SUMMARY:Lezione MA-AAI", b"SUMMARY:path \\\\tmp\\, ok")
+    event = events_from_ics(ics, date(2026, 11, 9), date(2026, 11, 16))[0]
+    assert event.title == "path \\tmp, ok"
+
+
 def test_an_empty_window_has_no_events():
     assert events_from_ics(ICS, date(2026, 11, 14), date(2026, 11, 16)) == []
 

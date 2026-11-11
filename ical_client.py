@@ -41,6 +41,22 @@ def fetch_bytes(url, opener=request.urlopen, timeout=20):
         raise RuntimeError(f"a calendar address could not be reached: {failure.reason}") from None
 
 
+def _unescape(text):
+    """iCal escapes commas, semicolons and newlines in text with a backslash
+    (RFC 5545): a feed named ``Bellomo\\, Giulia`` means ``Bellomo, Giulia``.
+    ``icalendar`` keeps the backslashes, so we remove them here. A literal
+    backslash arrives as ``\\\\`` and is restored last."""
+    marker = "\0"
+    return (
+        text.replace("\\\\", marker)
+        .replace("\\,", ",")
+        .replace("\\;", ";")
+        .replace("\\n", "\n")
+        .replace("\\N", "\n")
+        .replace(marker, "\\")
+    )
+
+
 def _to_amsterdam(value):
     """iCal gives a date for all-day events and a datetime for timed ones.
 
@@ -62,7 +78,7 @@ def events_from_ics(ics_bytes, start, end, calendar_name=None):
     start time.
     """
     calendar = icalendar.Calendar.from_ical(ics_bytes)
-    name = calendar_name or str(calendar.get("X-WR-CALNAME", "calendar")).strip()
+    name = _unescape(calendar_name or str(calendar.get("X-WR-CALNAME", "calendar")).strip())
     window_start = datetime.combine(start, time.min, tzinfo=AMSTERDAM)
     window_end = datetime.combine(end, time.min, tzinfo=AMSTERDAM)
     events = []
@@ -71,7 +87,7 @@ def events_from_ics(ics_bytes, start, end, calendar_name=None):
         events.append(
             Event(
                 calendar=name,
-                title=str(occurrence.get("SUMMARY", "(no title)")),
+                title=_unescape(str(occurrence.get("SUMMARY", "(no title)"))),
                 start=_to_amsterdam(begins),
                 end=_to_amsterdam(occurrence["DTEND"].dt),
                 all_day=not isinstance(begins, datetime),
