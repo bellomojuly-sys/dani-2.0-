@@ -1,0 +1,22 @@
+Dani 2.0 — line and branch coverage of the core modules
+$ python -m pytest -q --ignore test_answer.py -p no:cacheprovider --cov=tools --cov=agent --cov=skill --cov=tracing --cov=main --cov-branch --cov-report=term-missing
+2026-11-13 18:48 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3896c9e · exit code 0
+
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 72%]
+........................................................................ [ 96%]
+...........                                                              [100%]
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.14.7-final-0 _______________
+
+Name         Stmts   Miss Branch BrPart  Cover   Missing
+--------------------------------------------------------
+agent.py        55      0     14      0   100%
+main.py         30      0     10      0   100%
+skill.py         2      0      0      0   100%
+tools.py        49      0     26      0   100%
+tracing.py      33      0      4      0   100%
+--------------------------------------------------------
+TOTAL          169      0     54      0   100%
+299 passed in 1.12s
