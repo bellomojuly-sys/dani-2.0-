@@ -1,0 +1,29 @@
+Dani 2.0 — mutation testing of the core
+$ mutmut run && mutmut results
+2026-11-13 18:52 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3cb0d5f · exit code 0
+
+464/485  killed 459 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+465/485  killed 460 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+466/485  killed 461 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+467/485  killed 462 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+468/485  killed 463 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+469/485  killed 464 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+470/485  killed 465 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+471/485  killed 466 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+472/485  killed 467 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+473/485  killed 468 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+474/485  killed 469 no tests 0  timeout 0  suspicious 0  survived 5  skipped 0  type check 0
+475/485  killed 469 no tests 0  timeout 0  suspicious 0  survived 6  skipped 0  type check 0
+476/485  killed 470 no tests 0  timeout 0  suspicious 0  survived 6  skipped 0  type check 0
+485/485  killed 477 no tests 0  timeout 0  suspicious 0  survived 8  skipped 0  type check 0
+163.29 mutations/second
+
+$ mutmut results
+    agent.x_run_tool_loop__mutmut_8: survived
+    agent.x_run_tool_loop__mutmut_27: survived
+    agent.x_run_tool_loop__mutmut_60: survived
+    agent.x_run_tool_loop__mutmut_77: survived
+    agent.x_run_tool_loop__mutmut_97: survived
+    agent.x_run_tool_loop__mutmut_106: survived
+    agent.x_run_tool_loop__mutmut_107: survived
+    main.x_run__mutmut_9: survived

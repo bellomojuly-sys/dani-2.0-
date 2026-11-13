@@ -142,6 +142,11 @@ def main() -> int:
         code_run, out_run = run(["mutmut", "run"])
         code_res, out_res = run(["mutmut", "results"])
         summary = "\n".join(out_run.splitlines()[-15:]) + "\n\n$ mutmut results\n" + (out_res or "(no surviving mutants listed)")
+        # Menlo cannot draw mutmut's emoji legend: swap each emoji for its status name.
+        for emoji, status in {"🎉": "killed", "🙁": "survived", "🫥": "no tests", "⏰": "timeout",
+                              "🤔": "suspicious", "🔇": "skipped", "🧙": "type check", "💥": "segfault"}.items():
+            summary = summary.replace(emoji, f"{status}")
+        summary = re.sub(r"[⠀-⣿] ?", "", summary)  # the spinner frames
         save("D-mutation-testing", "mutation testing of the core", "mutmut run && mutmut results",
              code_run or code_res, summary, out_dir, meta, font)
         shutil.rmtree("mutants", ignore_errors=True)  # otherwise pytest reports a collection clash

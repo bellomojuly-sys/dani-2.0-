@@ -1,10 +1,10 @@
 Dani 2.0 — full test run
 $ python -m pytest -q --ignore test_answer.py -p no:cacheprovider
-2026-11-13 18:48 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3896c9e · exit code 0
+2026-11-13 18:53 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3cb0d5f · exit code 0
 
 ........................................................................ [ 24%]
 ........................................................................ [ 48%]
 ........................................................................ [ 72%]
 ........................................................................ [ 96%]
 ...........                                                              [100%]
-299 passed in 1.17s
+299 passed in 1.01s

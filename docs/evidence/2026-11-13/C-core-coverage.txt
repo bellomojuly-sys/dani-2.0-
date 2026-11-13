@@ -1,6 +1,6 @@
 Dani 2.0 — line and branch coverage of the core modules
 $ python -m pytest -q --ignore test_answer.py -p no:cacheprovider --cov=tools --cov=agent --cov=skill --cov=tracing --cov=main --cov-branch --cov-report=term-missing
-2026-11-13 18:48 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3896c9e · exit code 0
+2026-11-13 18:53 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3cb0d5f · exit code 0
 
 ........................................................................ [ 24%]
 ........................................................................ [ 48%]

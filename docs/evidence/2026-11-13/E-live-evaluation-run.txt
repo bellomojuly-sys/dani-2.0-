@@ -1,0 +1,10 @@
+Dani 2.0 — live evaluation run (five questions)
+$ python evals.py
+2026-11-13 18:50 · branch claude/dani-test-evidence-screenshots-dbdc89 · commit 3cb0d5f · exit code 0
+
+PASS  Che impegni ho oggi in calendario?
+PASS  Quando è la call con Ruud?
+PASS  Qual è il mio task più urgente?
+PASS  Entro quando devo prenotare il dentista?
+PASS  Che giorno è la demo dello Sprint 3?
+5/5 passed
