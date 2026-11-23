@@ -211,7 +211,9 @@ def test_transcribe_returns_text_and_refuses_when_not_set_up(tmp_path, rig):
     with_voice = Rig(tmp_path, voice=voice)
     answer = with_voice.http.post("/api/transcribe", content=b"audio", headers={"content-type": "audio/mp4"})
     assert answer.json() == {"text": "sposta la call"}
-    assert voice.seen["file"] == ("voice.mp4", b"audio")
+    assert voice.seen["file"] == ("voice.m4a", b"audio")
+    with_voice.http.post("/api/transcribe", content=b"audio", headers={"content-type": "audio/webm"})
+    assert voice.seen["file"] == ("voice.webm", b"audio")
     assert with_voice.http.post("/api/transcribe", content=b"").status_code == 422
 
 

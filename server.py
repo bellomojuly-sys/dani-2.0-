@@ -357,7 +357,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=503, detail="Whisper non configurato: manca OPENAI_API_KEY")
         audio = await request.body()
         kind = request.headers.get("content-type", "")
-        filename = "voice.mp4" if "mp4" in kind else "voice.webm"
+        # Phones record audio-only MP4; Whisper rejects it named .mp4 but takes .m4a.
+        filename = "voice.m4a" if "mp4" in kind or "m4a" in kind else "voice.webm"
         try:
             return {"text": speech_to_text(voice_client, audio, filename)}
         except ValueError as problem:
