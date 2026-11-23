@@ -64,7 +64,7 @@ rewritten on this model after F5 and the pending quizzes.
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
 | **Active** | **D2-055 — her first real Confirm of a task from the chat** |
-| Then | V1 closes with D2-055. Next: steps toward an autonomous assistant (to be proposed) |
+| Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-060) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
@@ -186,6 +186,39 @@ the review happens in Sprint 4.
 D2-032 (five evaluation cases, one command) is built (🟡 10 Nov). Moved after
 the demo (11 Nov, my decision): D2-038 (the live app online with a PIN — today
 the static Cloudflare snapshot is the online piece) and D2-024a (secret guard).
+
+## M17 — Dani plans my whole life, like Claude does (23 November, my decision)
+
+When I plan with Claude, Claude looks things up itself — my life plan, my
+areas, my projects, my tasks, my calendars months ahead — and reasons from the
+long term down to today. Dani today gets one prepared sheet (this week, open
+tasks, the Settings text) and cannot ask for more: the tool loop of D2-029 /
+D2-031 was never built. M17 builds it, then plans top-down on four levels:
+**life** (years) → **months** (active projects and deadlines) → **week** (the
+focus I choose on Sunday) → **day** (programme, how I feel, cycle phase).
+
+Sources of the picture: the Notion page "piano di vita", the area pages
+(University, Carriera / ICT, MG Integration, Personal), the Projects database,
+the Tasks database, all my Google calendars. MG Integration has no roadmap or
+tasks yet (the offer is still changing); its main project now is a scouting
+agent that finds companies to interview, to validate how much demand there is
+for AI automation — it enters Dani's picture as context only.
+
+The model is measured while building, not decided up front: the tool loop
+talks to any OpenAI-compatible provider, so switching from DeepSeek to another
+model is a key and a base URL, and the evaluations (D2-032) run per model.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-056 | Read tools for the model and the tool loop in the chat: `read_calendar(start, end)` on any period, `read_tasks(filters)`, `read_projects()`, `read_page(name)` for the life plan and the area pages (an allow-list, nothing else in Notion). Dani decides what to read; read-only | Dani looks things up itself | Fake model and sources: the loop runs the requested tool, returns the result, stops after a bounded number of rounds; an unknown tool or page is refused. Real: "cosa ho a metà dicembre?" and "come va la ricerca lavoro?" answered right, the trace shows which tools ran | ⬜ |
+| D2-057 | My life context in a file I own (M14 pulled forward): goals per area and horizon, standing rules, MG context; always in the system prompt, readable and editable from Settings | The life plan in every answer | A test checks the prompt is built from the file; changing the file changes the next answer | ⬜ |
+| D2-058 | Top-down planning: "pianificami dicembre" gives first the month's goals per area, then the weeks, then blocks; every block goes through preview → yes → calendar and the existing checks (Sunday, shifts, 16:00, overlap) | A month plan from my goals | Evaluation cases: the plan names the real deadlines, no block on a Sunday or a shift; calendar unchanged before my yes | ⬜ |
+| D2-059 | Sunday check-in: Dani asks "su cosa ti vuoi concentrare questa settimana?", saves my answer as the week's focus (in Notion, because the Render free disk is wiped on every restart) and proposes next week's blocks | A week that starts from my focus | The focus survives a restart; next week's proposal names it; nothing written before my yes | ⬜ |
+| D2-060 | Morning briefing: today's programme, "Giulia, oggi come stai?", cycle phase, the week's goals, as a notification on my phone; a free scheduled job calls Dani every morning, which also wakes Render before I open the app | A message every morning | The text is built by a tested pure function; the endpoint refuses a call without the key; a real notification arrives on my phone | ⬜ |
+
+**Gate M17:** I ask Dani "pianificami le prossime settimane" and it answers
+from my life plan, my projects and my real calendars, the way Claude does; on
+Sunday it asks me for the week's focus, and every morning I get the briefing.
 
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
@@ -324,3 +357,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-10 | Gap completion on Giulia's request: the branches of the day (dashboard v2, planner rules, M14–M16 roadmap) unified on one branch; D2-052, D2-053 (accept, reject, move a planner block, preview → yes → write in the study calendar) and D2-032 (five evaluations, `python3 evals.py`) built, 🟡 pending her walk-through. Still ⬜ because they need her: D2-051 (Fontys link), D2-054 (`OPENAI_API_KEY`), D2-038 (secrets on Render) |
 | 2026-11-11 | Closing scope for V1, Giulia's decision: daily walk-throughs of the 🟡 rows suspended until after the demo; D2-038 and D2-024a move after the demo (the Cloudflare snapshot is the online piece for now); new row D2-055 (new task from the chat). D2-051 closed: the Fontys link is the Canvas feed (deadlines, not lessons — lessons stay in the Università calendar). V1 closes with D2-055 and D2-054 |
 | 2026-11-23 | D2-054 closed (Whisper live; phone audio sent as `.m4a`). Giulia: Dani is no longer a university project — Decision Logs, study cycle and portfolio updates are dropped; the goal is an autonomous assistant as soon as possible |
+| 2026-11-23 | New milestone M17 — Dani plans my whole life, like Claude does: read tools and the tool loop (D2-056), life context file (D2-057, M14 pulled forward), top-down planning (D2-058), Sunday check-in (D2-059), morning briefing on the phone (D2-060, pulls Later #3 forward). MG Integration enters as context only (scouting agent, no roadmap yet). The model is measured with the evaluations while building |

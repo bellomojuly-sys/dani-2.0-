@@ -134,6 +134,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | M14 → M16 | Roadmap additions confirmed 10 Nov: context under Giulia's control, Gmail read-only, body signals via the Fitbit Web API | In the roadmap (no code yet) |
 | D2-051 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar — course deadlines (lessons stay in the Università calendar); iCal text escaping removed from names and titles | Done 11 Nov |
 | D2-055 | New task from the chat: `propose_task` → preview card → her Conferma → `create_task` in Notion with read-back; unknown areas and empty titles refused | Built 🟡 (her first real Confirm closes it) |
+| D2-056–D2-060 | M17 — Dani plans my whole life: read tools + tool loop, life context, top-down planning, Sunday check-in, morning briefing | Proposed 23 Nov |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 
