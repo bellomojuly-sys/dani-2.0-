@@ -261,3 +261,65 @@ def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
         if not answer.get("has_more"):
             return text
         cursor = answer["next_cursor"]
+
+
+# --- D2-057: token usage, one row per day, model and kind -----------------------
+
+
+def _usage_properties(row):
+    return {
+        "Name": {"title": [{"text": {"content": f"{row.day.isoformat()} {row.kind} {row.model}"}}]},
+        "Day": {"date": {"start": row.day.isoformat()}},
+        "Model": {"rich_text": [{"text": {"content": row.model}}]},
+        "Kind": {"rich_text": [{"text": {"content": row.kind}}]},
+        "Input tokens": {"number": row.input_tokens},
+        "Output tokens": {"number": row.output_tokens},
+        "Calls": {"number": row.calls},
+    }
+
+
+def usage_from_page(page):
+    """Map one page of the usage database to (UsageRow, page_id)."""
+    from usage import UsageRow  # usage.py does not import Notion; the link goes one way
+
+    props = page.get("properties", {})
+    try:
+        row = UsageRow(
+            day=props["Day"]["date"]["start"][:10],
+            model=_plain_text(props["Model"]["rich_text"]),
+            kind=_plain_text(props["Kind"]["rich_text"]),
+            input_tokens=props["Input tokens"]["number"] or 0,
+            output_tokens=props["Output tokens"]["number"] or 0,
+            calls=props["Calls"]["number"] or 0,
+        )
+    except (KeyError, TypeError, ValidationError) as problem:
+        raise ValueError(f"Notion page {page.get('id')!r} is not a valid usage row: {problem}")
+    return row, page["id"]
+
+
+def query_usage(token, database_id, since, http=post_json):
+    """Every usage row from ``since`` (a date) on, as [(UsageRow, page_id)]."""
+    rows, cursor = [], None
+    while True:
+        body = {"filter": {"property": "Day", "date": {"on_or_after": since.isoformat()}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        rows.extend(usage_from_page(page) for page in answer.get("results", []))
+        if not answer.get("has_more"):
+            return rows
+        cursor = answer["next_cursor"]
+
+
+def save_usage(token, database_id, row, page_id=None, create=post_json, update=patch_json):
+    """Create the row (page_id None) or overwrite its totals; return the page id.
+
+    Only the usage database is touched: a new page always has it as parent.
+    """
+    properties = _usage_properties(row)
+    if page_id is None:
+        page = create(f"{API}/pages", _headers(token),
+                      {"parent": {"database_id": database_id}, "properties": properties})
+    else:
+        page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
+    return page["id"]

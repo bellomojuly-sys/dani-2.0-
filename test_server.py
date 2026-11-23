@@ -509,3 +509,22 @@ def test_chat_with_read_tools_returns_the_answer_and_what_was_read(tmp_path):
     assert answer.status_code == 200
     assert answer.json() == {"reply": "Hai tre task.", "reads": [{"tool": "read_tasks", "arguments": {"area": "University"}}]}
     assert rig.done == []  # reading never writes
+
+
+# --- D2-057: token monitoring ----------------------------------------------------
+
+
+def test_usage_endpoint_reports_totals_or_says_it_is_off(tmp_path):
+    from types import SimpleNamespace
+
+    from usage import UsageLog
+
+    rig = Rig(tmp_path)
+    assert rig.http.get("/api/usage").json() == {"enabled": False}
+    log = UsageLog(lambda: NOW.date())
+    log.record("deepseek-flash", "chat", SimpleNamespace(prompt_tokens=900, completion_tokens=80))
+    app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None, usage_log=log)
+    http = TestClient(app)
+    assert http.get("/api/usage").status_code == 401  # behind the PIN like every /api route
+    body = http.get("/api/usage", headers={"X-Dani-Pin": "1234"}).json()
+    assert body["enabled"] is True and body["today"] == {"input": 900, "output": 80, "calls": 1}

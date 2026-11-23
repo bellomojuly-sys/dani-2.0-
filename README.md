@@ -135,7 +135,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-051 | Fontys Canvas feed (`fhict.instructure.com`) as a fixed calendar — course deadlines (lessons stay in the Università calendar); iCal text escaping removed from names and titles | Done 11 Nov |
 | D2-055 | New task from the chat: `propose_task` → preview card → her Conferma → `create_task` in Notion with read-back; unknown areas and empty titles refused | Built 🟡 (her first real Confirm closes it) |
 | D2-056 | Read tools (calendar any period, all tasks, projects and goals, allow-listed pages) and a bounded tool loop in the chat; the chat shows what it read | Built 🟡 23 Nov (real check after sharing the pages)  |
-| D2-057–D2-060 | M17 — life context, top-down planning with invested free time, Sunday check-in, morning briefing | Proposed 23 Nov |
+| D2-057 | Token monitoring: input/output tokens per day, model and kind, saved in Notion, "Consumi" page | Built 🟡 23 Nov (real check after `NOTION_USAGE_DB_ID` on Render) |
+| D2-058–D2-061 | M17 — life context, top-down planning with invested free time, Sunday check-in, morning briefing | Proposed 23 Nov |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 

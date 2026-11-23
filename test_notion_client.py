@@ -313,3 +313,43 @@ def test_get_json_sends_a_get_without_a_body():
 
     assert get_json("https://x", {}, opener=opener) == {"results": []}
     assert seen == {"method": "GET", "data": None}
+
+
+# --- D2-057: token usage rows -----------------------------------------------------
+
+from notion_client import query_usage, save_usage, usage_from_page  # noqa: E402
+from usage import UsageRow  # noqa: E402
+
+ROW = UsageRow(day=date(2026, 11, 23), model="deepseek-flash", kind="chat", input_tokens=120, output_tokens=30, calls=2)
+
+
+def test_save_usage_creates_in_the_usage_database_then_updates_by_page():
+    created, updated = [], []
+    new_id = save_usage("tok", "usage-db", ROW, None,
+                        create=lambda url, h, body: created.append((url, body)) or {"id": "p1"},
+                        update=lambda url, h, body: updated.append(url) or {"id": "x"})
+    assert new_id == "p1" and updated == []
+    url, body = created[0]
+    assert url.endswith("/pages") and body["parent"] == {"database_id": "usage-db"}
+    assert body["properties"]["Input tokens"] == {"number": 120}
+    assert body["properties"]["Day"] == {"date": {"start": "2026-11-23"}}
+    save_usage("tok", "usage-db", ROW, "p1", create=None,
+               update=lambda url, h, body: updated.append((url, body)) or {"id": "p1"})
+    assert updated[0][0].endswith("/pages/p1") and "parent" not in updated[0][1]
+
+
+def test_a_saved_row_reads_back_the_same():
+    from notion_client import _usage_properties
+    page = {"id": "p1", "properties": _usage_properties(ROW)}
+    for name in ("Model", "Kind"):
+        page["properties"][name]["rich_text"][0]["plain_text"] = page["properties"][name]["rich_text"][0]["text"]["content"]
+    assert usage_from_page(page) == (ROW, "p1")
+
+
+def test_a_broken_usage_row_is_refused_and_query_filters_by_day():
+    with pytest.raises(ValueError, match="not a valid usage row"):
+        usage_from_page({"id": "p", "properties": {"Day": {"date": None}}})
+    sent = []
+    assert query_usage("tok", "db", date(2026, 10, 24),
+                       http=lambda url, h, body: sent.append(body) or {"results": []}) == []
+    assert sent[0]["filter"] == {"property": "Day", "date": {"on_or_after": "2026-10-24"}}

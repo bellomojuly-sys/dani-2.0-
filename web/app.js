@@ -412,14 +412,67 @@ function render() {
 }
 
 function route() {
-  const page = ["home", "calendario", "meal", "impostazioni"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
+  const page = ["home", "calendario", "meal", "consumi", "impostazioni"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
   for (const section of document.querySelectorAll(".page")) section.hidden = section.id !== "page-" + page;
   for (const link of document.querySelectorAll(".nav a")) {
     link.classList.toggle("on", link.dataset.page === page);
     if (link.dataset.page === page) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
+  if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
+}
+
+// --- token monitoring (D2-057) -------------------------------------------------
+
+const tokens = (n) => n.toLocaleString("it-IT");
+
+function usageTile(total) {
+  return [h("div", { class: "big" }, tokens(total.input + total.output)),
+    h("div", { class: "split" }, `entrata ${tokens(total.input)} · uscita ${tokens(total.output)} · ${total.calls} chiamate`)];
+}
+
+function usageTable(head, rows) {
+  return h("table", { class: "usage-table" },
+    h("thead", {}, h("tr", {}, head.map((cell) => h("th", {}, cell)))),
+    h("tbody", {}, rows.map((row) => h("tr", {}, row.map((cell) => h("td", {}, cell))))));
+}
+
+async function loadUsage() {
+  const usage = await api("/api/usage");
+  $("#usage-note").textContent = usage.enabled
+    ? "Ogni chiamata al modello conta i token di entrata (il prompt) e di uscita (la risposta). Salvati in Notion, database \"Dani — consumo token\"."
+    : "Il conteggio dei token non è attivo su questo server.";
+  if (!usage.enabled) return;
+  $("#usage-today").replaceChildren(...usageTile(usage.today));
+  $("#usage-week").replaceChildren(...usageTile(usage.week));
+  $("#usage-month").replaceChildren(...usageTile(usage.month));
+  // 30 bars, oldest left; a day without calls is an empty slot, not a missing one.
+  const byDay = Object.fromEntries(usage.days.map((day) => [day.day, day]));
+  const today = new Date(state ? state.now.slice(0, 10) + "T12:00:00" : Date.now());
+  const days = [...Array(30)].map((_, n) => {
+    const d = new Date(today); d.setDate(d.getDate() - 29 + n);
+    const key = d.toISOString().slice(0, 10);
+    return byDay[key] || { day: key, input: 0, output: 0, calls: 0 };
+  });
+  const top = Math.max(1, ...days.map((d) => d.input + d.output));
+  $("#usage-chart").replaceChildren(...days.map((d, n) => {
+    const total = d.input + d.output;
+    const edge = n < 8 ? " start" : n > 21 ? " end" : "";  // keep the tooltip inside the card
+    const bar = h("div", { class: "bar" + edge, tabindex: "0", style: `height:${total ? Math.max(2, (total / top) * 100) : 0}%` },
+      h("span", { class: "tip" }, `${dateIt(d.day)}: ${tokens(total)} token (entrata ${tokens(d.input)}, uscita ${tokens(d.output)})`));
+    bar.setAttribute("aria-label", `${dateIt(d.day)}: ${tokens(total)} token`);
+    return bar;
+  }));
+  $("#usage-chart").after(h("div", { class: "usage-axis" }, h("span", {}, dateIt(days[0].day)), h("span", {}, "oggi")));
+  for (const old of document.querySelectorAll(".usage-axis + .usage-axis")) old.remove();
+  $("#usage-days").replaceChildren(usage.days.length
+    ? usageTable(["Giorno", "Entrata", "Uscita", "Chiamate"], usage.days.map((d) => [dateIt(d.day), tokens(d.input), tokens(d.output), d.calls]))
+    : h("p", { class: "muted" }, "Nessuna chiamata negli ultimi 30 giorni."));
+  const kinds = Object.entries(usage.by_kind);
+  $("#usage-kinds").replaceChildren(kinds.length
+    ? usageTable(["Tipo · modello", "Entrata", "Uscita", "Chiamate"], kinds.map(([kind, t]) => [kind, tokens(t.input), tokens(t.output), t.calls]))
+    : h("p", { class: "muted" }, "—"));
 }
 
 // --- chat ----------------------------------------------------------------------

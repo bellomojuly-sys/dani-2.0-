@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
@@ -108,7 +108,7 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None, create_task=None, read_tools=None):
+               create_block=None, create_task=None, read_tools=None, usage_log=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -119,7 +119,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     duration_minutes) -> Task creates one Notion task (D2-055), or is None
     while Notion is read-only for new tasks. read_tools is
     {name: (schema, function)} from reader.build_read_tools (D2-056): with it
-    the chat looks things up by itself, read-only."""
+    the chat looks things up by itself, read-only. usage_log is the
+    usage.UsageLog the model clients write into (D2-057), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -269,6 +270,12 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         proposals[proposal.id] = proposal
         return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
 
+    @api.get("/usage")
+    def get_usage():
+        if usage_log is None:
+            return {"enabled": False}
+        return {"enabled": True, **usage_log.summary()}
+
     @api.post("/block")
     def post_block(body: BlockBody):
         """Her Accept on a planner block: only a preview, nothing is written.
@@ -379,14 +386,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     return app
 
 
-def refresh_forever(live, settings_path, sleep=time.sleep, seconds=REFRESH_SECONDS):  # pragma: no cover
-    """The background loop: re-read the sources, then the priority if needed."""
+def refresh_forever(live, settings_path, sleep=time.sleep, seconds=REFRESH_SECONDS, after=None):  # pragma: no cover
+    """The background loop: re-read the sources, then the priority if needed,
+    then ``after()`` (the token totals are saved there, D2-057)."""
     while True:
         live.refresh("all")
         try:
             live.update_priority(read_settings(settings_path).context)
         except Exception as failure:
             print(f"priority not updated: {type(failure).__name__}")
+        if after is not None:
+            after()
         sleep(seconds)
 
 
@@ -403,7 +413,9 @@ if __name__ == "__main__":  # pragma: no cover
     from notion_client import create_task as notion_create_task
     from notion_client import mark_done as notion_mark_done
     from notion_client import page_text, query_open_tasks, query_projects
+    from notion_client import query_usage, save_usage
     from reader import build_read_tools, parse_pages
+    from usage import MeteredClient, UsageLog
 
     load_dotenv(".env")
     demo = "--demo" in sys.argv
@@ -416,7 +428,11 @@ if __name__ == "__main__":  # pragma: no cover
 
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
-    chat_client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com") if deepseek_key else None
+    model_client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com") if deepseek_key else None
+    # D2-057: every model call is counted (input and output tokens) by kind.
+    usage_log = UsageLog(lambda: datetime.now(AMSTERDAM).date())
+    chat_client = MeteredClient(model_client, usage_log, "chat") if model_client else None
+    priority_client = MeteredClient(model_client, usage_log, "priority") if model_client else None
     voice_client = OpenAI(api_key=openai_key) if openai_key else None
 
     delete_event = move_event = create_block = create_task = None
@@ -465,7 +481,7 @@ if __name__ == "__main__":  # pragma: no cover
             if study_id:
                 create_block = lambda title, start, end: gcal_client.create_event(token(), study_id, title, start, end)
 
-    prioritize = lambda tasks, today, context: ask_priority(chat_client, tasks, today, context)[0]
+    prioritize = lambda tasks, today, context: ask_priority(priority_client, tasks, today, context)[0]
     live = Live(fetch_tasks, fetch_events, prioritize, clock)
     # D2-056: what the chat may read by itself. Projects & Goals and the pages
     # are optional: without their .env lines those tools are simply not offered.
@@ -479,9 +495,19 @@ if __name__ == "__main__":  # pragma: no cover
         fetch_text = lambda page_id: page_text(env["notion_token"], page_id)
     read_tools = build_read_tools(fetch_events, lambda: list(live.tasks), fetch_projects, pages, fetch_text)
     print(f"Chat read tools: {sorted(read_tools)}")
-    threading.Thread(target=refresh_forever, args=(live, settings_path), daemon=True).start()
+    save_totals = None
+    usage_db = None if demo else os.environ.get("NOTION_USAGE_DB_ID")
+    if usage_db:
+        try:
+            usage_log.load(query_usage(env["notion_token"], usage_db, clock().date() - timedelta(days=30)))
+        except (RuntimeError, ValueError) as failure:
+            print(f"usage history not loaded: {failure}")
+        save_totals = lambda: usage_log.flush(
+            lambda row, page_id: save_usage(env["notion_token"], usage_db, row, page_id))
+    print("Token usage saved in Notion" if usage_db else "Token usage kept in memory only (no NOTION_USAGE_DB_ID)")
+    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": save_totals}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
-                     create_task=create_task, read_tools=read_tools)
+                     create_task=create_task, read_tools=read_tools, usage_log=usage_log)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

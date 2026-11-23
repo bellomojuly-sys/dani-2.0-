@@ -20,6 +20,7 @@
   <a href="#home" data-page="home">Home</a>
   <a href="#calendario" data-page="calendario">Calendario</a>
   <a href="#meal" data-page="meal">Meal prep</a>
+  <a href="#consumi" data-page="consumi">Consumi</a>
   <a href="#impostazioni" data-page="impostazioni">Impostazioni</a>
   <div class="fresh" id="fresh" role="status">in attesa…</div>
 </nav>
@@ -52,6 +53,20 @@
       <article class="glass span6"><h2>Piano pasti della settimana</h2><p class="muted">Vuoto per ora.</p></article>
       <article class="glass span6"><h2>Lista della spesa</h2><p class="muted">Vuoto per ora.</p></article>
       <article class="glass span6"><h2>Bevel</h2><p class="muted"><span class="dot off"></span>Bevel non collegato.</p></article>
+    </div>
+  </section>
+
+  <section class="page" id="page-consumi" hidden>
+    <header class="head"><div class="eyebrow">Monitoring del modello</div><h1 class="greeting">Token <i>consumati</i></h1></header>
+    <p class="muted" id="usage-note"></p>
+    <div class="grid">
+      <article class="glass span4 stat"><h2>Oggi</h2><div id="usage-today"></div></article>
+      <article class="glass span4 stat"><h2>Ultimi 7 giorni</h2><div id="usage-week"></div></article>
+      <article class="glass span4 stat"><h2>Ultimi 30 giorni</h2><div id="usage-month"></div></article>
+      <article class="glass span12"><h2>Token al giorno <small>entrata + uscita, ultimi 30 giorni</small></h2>
+        <div id="usage-chart" class="usage-chart" role="img" aria-label="Token al giorno"></div></article>
+      <article class="glass span6"><h2>Dettaglio per giorno</h2><div id="usage-days"></div></article>
+      <article class="glass span6"><h2>Per tipo di chiamata</h2><div id="usage-kinds"></div></article>
     </div>
   </section>
 
