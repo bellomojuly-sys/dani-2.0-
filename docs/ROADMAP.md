@@ -63,8 +63,8 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-054 — Whisper live** (needs `OPENAI_API_KEY`) |
-| Then | D2-055 is built (🟡 11 Nov `ff6ee81`): her first real Confirm in the app closes it. These two close V1 |
+| **Active** | **D2-055 — her first real Confirm of a task from the chat** |
+| Then | V1 closes with D2-055. Next: steps toward an autonomous assistant (to be proposed) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
@@ -180,7 +180,7 @@ the review happens in Sprint 4.
 | D2-051 | Fontys as a fixed calendar: the link turned out to be the Canvas feed (`fhict.instructure.com`) — course deadlines and appointments, not lessons (lessons already live in the Università Google calendar). Feed added to `GCAL_ICS_URL`; iCal text escaping (RFC 5545) now removed from names and titles | Fontys deadlines in the week | Real: the 13 Nov Portfolio Check-in appears from the feed, calendar fixed (not tickable); all-day deadlines take no planner slot; 287 tests green | ✅ 11 Nov `a0218c7` |
 | D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | 🟡 10 Nov `fc82993` |
 | D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | 🟡 10 Nov `fc82993` |
-| D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ⬜ |
+| D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ✅ 23 Nov `bca6840` |
 | D2-055 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back. An area that is not one of mine is refused, so no new option is silently added to the database | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a missing title and an unknown area are refused; confirming twice changes nothing more. Real: the model proposed the task from the chat in the browser; my first real Confirm closes the row | 🟡 11 Nov `ff6ee81` |
 
 D2-032 (five evaluation cases, one command) is built (🟡 10 Nov). Moved after
@@ -323,3 +323,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-10 | M14–M16 confirmed by Giulia. Her device is a Fitbit, so M16 phase 2 goes through the Fitbit Web API (read-only scopes, own OAuth app, Decision Log at step start) |
 | 2026-11-10 | Gap completion on Giulia's request: the branches of the day (dashboard v2, planner rules, M14–M16 roadmap) unified on one branch; D2-052, D2-053 (accept, reject, move a planner block, preview → yes → write in the study calendar) and D2-032 (five evaluations, `python3 evals.py`) built, 🟡 pending her walk-through. Still ⬜ because they need her: D2-051 (Fontys link), D2-054 (`OPENAI_API_KEY`), D2-038 (secrets on Render) |
 | 2026-11-11 | Closing scope for V1, Giulia's decision: daily walk-throughs of the 🟡 rows suspended until after the demo; D2-038 and D2-024a move after the demo (the Cloudflare snapshot is the online piece for now); new row D2-055 (new task from the chat). D2-051 closed: the Fontys link is the Canvas feed (deadlines, not lessons — lessons stay in the Università calendar). V1 closes with D2-055 and D2-054 |
+| 2026-11-23 | D2-054 closed (Whisper live; phone audio sent as `.m4a`). Giulia: Dani is no longer a university project — Decision Logs, study cycle and portfolio updates are dropped; the goal is an autonomous assistant as soon as possible |
