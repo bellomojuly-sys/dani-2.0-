@@ -22,7 +22,7 @@ from urllib import error, request
 
 from pydantic import ValidationError
 
-from models import Task
+from models import Project, Task
 
 API = "https://api.notion.com/v1"
 # Pinned on purpose: a new Notion API version cannot silently change the shape
@@ -41,7 +41,7 @@ def send_json(method, url, headers, body, opener=request.urlopen, timeout=20):
     the body. The headers (where the token lives) are never in the message.
     ``opener`` is injectable so tests never touch the network.
     """
-    data = json.dumps(body).encode()
+    data = None if body is None else json.dumps(body).encode()
     req = request.Request(url, data=data, headers=headers, method=method)
     try:
         with opener(req, timeout=timeout) as response:
@@ -56,6 +56,11 @@ def send_json(method, url, headers, body, opener=request.urlopen, timeout=20):
 def post_json(url, headers, body, opener=request.urlopen, timeout=20):
     """POST: used to query the database (a read)."""
     return send_json("POST", url, headers, body, opener, timeout)
+
+
+def get_json(url, headers, body=None, opener=request.urlopen, timeout=20):
+    """GET: used to read the blocks of a page (a read, no body)."""
+    return send_json("GET", url, headers, None, opener, timeout)
 
 
 def patch_json(url, headers, body, opener=request.urlopen, timeout=20):
@@ -171,3 +176,88 @@ def mark_done(token, page_id, http=patch_json):
     if status != "Done":
         raise RuntimeError(f"Notion did not confirm Status = Done (it says {status!r})")
     return True
+
+
+# --- D2-056: the rest of the picture (projects and goals, life-plan pages) ----
+
+# Projects and goals that are still alive; Done and Missed ones are history.
+LIVE_PROJECTS_FILTER = {"and": [
+    {"property": "Status", "select": {"does_not_equal": "Done"}},
+    {"property": "Status", "select": {"does_not_equal": "Missed"}},
+]}
+
+
+def project_from_page(page):
+    """Map one page of the Projects & Goals database to a typed Project.
+
+    A page with a missing or wrong field raises ValueError naming the page.
+    """
+    props = page.get("properties", {})
+    due = (props.get("Due Date") or {}).get("date") or {}
+    try:
+        return Project(
+            id=page["id"],
+            name=_plain_text(props["Name"]["title"]),
+            type=_select_name(props.get("Type") or {}),
+            area=_select_name(props.get("Area") or {}),
+            status=_select_name(props.get("Status") or {}),
+            due=(due.get("start") or None) and due["start"][:10],
+            target=_plain_text((props.get("Target Metric") or {}).get("rich_text")),
+            notes=_plain_text((props.get("Notes") or {}).get("rich_text")),
+        )
+    except (KeyError, ValidationError) as problem:
+        raise ValueError(f"Notion page {page.get('id')!r} is not a valid project: {problem}")
+
+
+def query_projects(token, database_id, http=post_json):
+    """Return every live project and goal as typed Project objects (all pages)."""
+    projects, cursor = [], None
+    while True:
+        body = {"filter": LIVE_PROJECTS_FILTER, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        projects.extend(project_from_page(page) for page in answer.get("results", []))
+        if not answer.get("has_more"):
+            return projects
+        cursor = answer["next_cursor"]
+
+
+MAX_PAGE_CHARS = 12000  # a long page is cut, so one read cannot flood the prompt
+
+
+def block_text(block):
+    """The plain text of one block, with a marker for headings and list items.
+
+    Blocks without text (images, dividers, databases) give an empty string.
+    """
+    kind = block.get("type", "")
+    text = _plain_text((block.get(kind) or {}).get("rich_text"))
+    if not text:
+        return ""
+    if kind.startswith("heading_"):
+        return "#" * int(kind[-1]) + " " + text
+    if kind in ("bulleted_list_item", "numbered_list_item", "to_do"):
+        return "- " + text
+    return text
+
+
+def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
+    """Return the text of a page's top-level blocks, at most ``limit`` characters.
+
+    Read-only: only GET requests. Nested blocks (toggles, sub-pages) are not
+    opened, so one call is one page and never a walk through the workspace.
+    """
+    lines, cursor = [], None
+    while True:
+        url = f"{API}/blocks/{page_id}/children?page_size=100"
+        if cursor:
+            url += f"&start_cursor={cursor}"
+        answer = http(url, _headers(token))
+        lines.extend(line for line in map(block_text, answer.get("results", [])) if line)
+        text = "\n".join(lines)
+        if len(text) > limit:
+            return text[:limit] + "\n[... page cut here]"
+        if not answer.get("has_more"):
+            return text
+        cursor = answer["next_cursor"]

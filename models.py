@@ -34,6 +34,23 @@ class Task(BaseModel):
     next_action: bool = False
 
 
+class Project(BaseModel):
+    """One row of the Notion "Projects & Goals" database (D2-056).
+
+    ``type`` separates a project (something she finishes) from a goal on a
+    horizon (1 year, 3 years, 10 years): the levels Dani plans from.
+    """
+
+    id: str
+    name: str = Field(min_length=1)
+    type: Optional[Literal["Project", "1-Year Goal", "3-Year Goal", "10-Year Vision"]] = None
+    area: Optional[str] = None
+    status: Optional[Literal["Active", "Planning", "Paused", "Done", "Missed"]] = None
+    due: Optional[date] = None
+    target: str = ""
+    notes: str = ""
+
+
 class Event(BaseModel):
     """One occurrence of a calendar event, in Amsterdam time.
 

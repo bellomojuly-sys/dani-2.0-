@@ -119,7 +119,7 @@ class FakeToolChat:
 
 def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule():
     client = FakeToolChat("Va bene.")
-    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None, "task": None}
+    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None, "task": None, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "- e1: 2026-11-10 17:00-23:00 [lavoro] Turno ristorante" in system
     assert "call the propose_move tool" in system and "not connected yet" not in system
@@ -129,7 +129,7 @@ def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule()
 def test_a_propose_move_call_comes_back_as_unchecked_arguments():
     client = FakeToolChat("", [("propose_move", '{"event": "e1", "new_start": "2026-11-12T16:00"}')])
     turn = chat_turn(client, "", STATE, [], "sposta la call alle 16", PROPOSE_MOVE_SCHEMA)
-    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}, "task": None}
+    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}, "task": None, "reads": []}
 
 
 def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
@@ -147,7 +147,7 @@ def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
 def test_a_propose_task_call_comes_back_as_unchecked_arguments():
     client = FakeToolChat("", [("propose_task", '{"title": "comprare le lenti", "deadline": "2026-11-20"}')])
     turn = chat_turn(client, "", STATE, [], "nuovo task: comprare le lenti", PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA)
-    assert turn == {"text": "", "move": None, "task": {"title": "comprare le lenti", "deadline": "2026-11-20"}}
+    assert turn == {"text": "", "move": None, "task": {"title": "comprare le lenti", "deadline": "2026-11-20"}, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "call the propose_task tool" in system and "call the propose_move tool" in system
     assert client.seen["tools"] == [PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA]
@@ -156,7 +156,7 @@ def test_a_propose_task_call_comes_back_as_unchecked_arguments():
 def test_task_only_rule_still_says_moves_are_not_possible():
     client = FakeToolChat("Va bene.")
     turn = chat_turn(client, "", STATE, [], "ciao", None, PROPOSE_TASK_SCHEMA)
-    assert turn == {"text": "Va bene.", "move": None, "task": None}
+    assert turn == {"text": "Va bene.", "move": None, "task": None, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "call the propose_task tool" in system
     assert "cannot move calendar events" in system
@@ -166,3 +166,90 @@ def test_task_only_rule_still_says_moves_are_not_possible():
 def test_chat_turn_without_any_schema_is_refused():
     with pytest.raises(ValueError, match="at least one tool schema"):
         chat_turn(FakeToolChat("Ciao."), "", STATE, [], "ciao")
+
+
+# --- the tool loop with the read tools (D2-056) ----------------------------------
+
+from datetime import date, datetime  # noqa: E402
+
+from models import AMSTERDAM, Event, Task  # noqa: E402
+from reader import build_read_tools  # noqa: E402
+
+
+class ScriptedChat:
+    """Answers round after round from a script; remembers every request."""
+
+    def __init__(self, rounds):
+        self.rounds, self.requests = list(rounds), []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, model, messages, tools):
+        self.requests.append({"messages": [dict(m) for m in messages], "tools": tools})
+        text, calls = self.rounds.pop(0)
+        tool_calls = [
+            SimpleNamespace(id=f"id{n}", function=SimpleNamespace(name=name, arguments=arguments))
+            for n, (name, arguments) in enumerate(calls)
+        ]
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text, tool_calls=tool_calls or None))])
+
+
+DECEMBER = [Event(calendar="Università", title="Presentazione Betsy",
+                  start=datetime(2026, 12, 15, 10, 0, tzinfo=AMSTERDAM),
+                  end=datetime(2026, 12, 15, 11, 0, tzinfo=AMSTERDAM))]
+
+
+def _tools(seen):
+    def fetch_events(start, end):
+        seen.append((start, end))
+        return DECEMBER
+    tasks = [Task(id="t1", title="AMX-16 preview", area="University", status="Not Started")]
+    return build_read_tools(fetch_events, lambda: tasks)
+
+
+def test_a_read_runs_its_tool_and_the_result_goes_back_to_the_model():
+    seen = []
+    client = ScriptedChat([
+        ("", [("read_calendar", '{"start": "2026-12-14", "end": "2026-12-16"}')]),
+        ("Il 15 dicembre hai la presentazione di Betsy alle 10.", []),
+    ])
+    turn = chat_turn(client, "", STATE, [], "cosa ho a metà dicembre?", read_tools=_tools(seen))
+    assert turn["text"].startswith("Il 15 dicembre")
+    assert turn["reads"] == [{"tool": "read_calendar", "arguments": {"start": "2026-12-14", "end": "2026-12-16"}}]
+    assert seen == [(date(2026, 12, 14), date(2026, 12, 17))]  # ran once, end day included
+    second = client.requests[1]["messages"]
+    assert second[-2]["tool_calls"][0]["id"] == "id0" and second[-1]["tool_call_id"] == "id0"
+    assert "Presentazione Betsy" in second[-1]["content"]
+    assert "read_calendar" in client.requests[0]["messages"][0]["content"]  # the read rule is in the prompt
+    assert {tool["function"]["name"] for tool in client.requests[0]["tools"]} == {"read_calendar", "read_tasks"}
+
+
+def test_a_bad_read_returns_the_error_to_the_model_instead_of_crashing():
+    client = ScriptedChat([("", [("read_calendar", '{"start": "domani"}')]), ("Non riesco a leggere.", [])])
+    turn = chat_turn(client, "", STATE, [], "ciao", read_tools=_tools([]))
+    assert "YYYY-MM-DD" in client.requests[1]["messages"][-1]["content"]
+    assert turn["text"] == "Non riesco a leggere."
+
+
+def test_the_loop_stops_after_max_rounds():
+    reading_forever = ScriptedChat([("", [("read_tasks", "{}")])] * 3)
+    with pytest.raises(ValueError, match="more than 3 rounds"):
+        chat_turn(reading_forever, "", STATE, [], "ciao", read_tools=_tools([]), max_rounds=3)
+    assert len(reading_forever.requests) == 3
+
+
+def test_a_proposal_after_a_read_keeps_the_reads():
+    client = ScriptedChat([
+        ("", [("read_tasks", '{"contains": "AMX"}')]),
+        ("", [("propose_task", '{"title": "AMX-17"}')]),
+    ])
+    turn = chat_turn(client, "", STATE, [], "nuovo task", None, PROPOSE_TASK_SCHEMA, read_tools=_tools([]))
+    assert turn["task"] == {"title": "AMX-17"}
+    assert turn["reads"] == [{"tool": "read_tasks", "arguments": {"contains": "AMX"}}]
+    assert "AMX-16 preview" in client.requests[1]["messages"][-1]["content"]
+
+
+def test_a_call_to_a_tool_that_was_not_given_is_not_run():
+    client = ScriptedChat([("Ecco.", [("read_page", '{"name": "piano di vita"}')])])
+    turn = chat_turn(client, "", STATE, [], "ciao", read_tools=_tools([]))
+    assert turn == {"text": "Ecco.", "move": None, "task": None, "reads": []}
+    assert len(client.requests) == 1

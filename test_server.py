@@ -492,3 +492,20 @@ def test_a_failed_notion_create_is_reported_and_the_proposal_survives(tmp_path):
     assert rig.created_tasks == []
     rig.fail = None  # she can confirm again once it is fixed
     assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200
+
+
+# --- D2-056: the chat reads by itself and says what it read ----------------------
+
+
+def test_chat_with_read_tools_returns_the_answer_and_what_was_read(tmp_path):
+    from reader import build_read_tools
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    chat = ScriptedChat([("", [("read_tasks", '{"area": "University"}')]), ("Hai tre task.", [])])
+    tools = build_read_tools(lambda start, end: [], lambda: list(rig.live.tasks))
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, read_tools=tools)
+    answer = TestClient(app).post("/api/chat", json={"message": "cosa devo fare per l'università?", "history": []})
+    assert answer.status_code == 200
+    assert answer.json() == {"reply": "Hai tre task.", "reads": [{"tool": "read_tasks", "arguments": {"area": "University"}}]}
+    assert rig.done == []  # reading never writes

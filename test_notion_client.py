@@ -224,3 +224,92 @@ def test_create_task_refuses_an_answer_with_another_title():
     with pytest.raises(RuntimeError, match="did not confirm the new task"):
         create_task("tok", "db-1", "comprare le lenti",
                     http=lambda url, headers, body: _created_page("altro titolo"))
+
+
+# --- D2-056: projects, goals and page text ---------------------------------------
+
+from notion_client import LIVE_PROJECTS_FILTER, block_text, page_text, project_from_page, query_projects  # noqa: E402
+
+
+def _project_page(name="Betsy", **extra):
+    props = {"Name": {"title": [{"plain_text": name}]}, "Type": {"select": {"name": "Project"}},
+             "Area": {"select": {"name": "University"}}, "Status": {"select": {"name": "Active"}},
+             "Due Date": {"date": {"start": "2027-01-20"}},
+             "Target Metric": {"rich_text": [{"plain_text": "demo"}]}, "Notes": {"rich_text": []}}
+    props.update(extra)
+    return {"id": "p1", "properties": props}
+
+
+def test_project_from_page_maps_the_real_property_names():
+    project = project_from_page(_project_page())
+    assert (project.name, project.type, project.area, project.status) == ("Betsy", "Project", "University", "Active")
+    assert project.due.isoformat() == "2027-01-20" and project.target == "demo" and project.notes == ""
+
+
+def test_a_project_without_name_or_with_an_unknown_type_is_refused():
+    with pytest.raises(ValueError, match="not a valid project"):
+        project_from_page({"id": "p1", "properties": {}})
+    with pytest.raises(ValueError, match="not a valid project"):
+        project_from_page(_project_page(Type={"select": {"name": "Wish"}}))
+
+
+def test_query_projects_filters_out_done_and_missed_and_follows_pages():
+    sent = []
+
+    def http(url, headers, body):
+        sent.append((url, body))
+        if "start_cursor" not in body:
+            return {"results": [_project_page("A")], "has_more": True, "next_cursor": "c2"}
+        return {"results": [_project_page("B")], "has_more": False}
+
+    projects = query_projects("tok", "db", http=http)
+    assert [p.name for p in projects] == ["A", "B"]
+    assert sent[0][0].endswith("/databases/db/query") and sent[0][1]["filter"] == LIVE_PROJECTS_FILTER
+    assert sent[1][1]["start_cursor"] == "c2"
+
+
+def test_block_text_marks_headings_and_lists_and_skips_empty_blocks():
+    def block(kind, text):
+        return {"type": kind, kind: {"rich_text": [{"plain_text": text}]}}
+    assert block_text(block("heading_2", "Obiettivi")) == "## Obiettivi"
+    assert block_text(block("bulleted_list_item", "lavoro")) == "- lavoro"
+    assert block_text(block("paragraph", "testo")) == "testo"
+    assert block_text({"type": "divider", "divider": {}}) == ""
+
+
+def test_page_text_only_gets_and_cuts_a_long_page():
+    asked = []
+
+    def http(url, headers):
+        asked.append(url)
+        if "start_cursor" not in url:
+            return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "a" * 30}]}}],
+                    "has_more": True, "next_cursor": "n2"}
+        return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "b"}]}}],
+                "has_more": False}
+
+    assert page_text("tok", "pg", http=http) == "a" * 30 + "\nb"
+    assert asked[0].endswith("/blocks/pg/children?page_size=100") and asked[1].endswith("&start_cursor=n2")
+    assert page_text("tok", "pg", http=http, limit=10) == "a" * 10 + "\n[... page cut here]"
+
+
+def test_get_json_sends_a_get_without_a_body():
+    from notion_client import get_json
+    seen = {}
+
+    class Answer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"results": []}'
+
+    def opener(req, timeout):
+        seen["method"], seen["data"] = req.get_method(), req.data
+        return Answer()
+
+    assert get_json("https://x", {}, opener=opener) == {"results": []}
+    assert seen == {"method": "GET", "data": None}

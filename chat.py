@@ -1,8 +1,9 @@
 """The chat with Dani: build the prompt from Giulia's context and today's data,
 ask the model, return its text.
 
-The chat only reads. It has no tools, so it cannot change Notion or a calendar:
-writing stays behind an explicit yes (roadmap M08). The data Dani can talk
+The chat never writes. It can read more by itself through the read tools of
+reader.py (D2-056, a bounded tool loop in ``chat_turn``) and it can only
+*propose* a change: writing stays behind an explicit yes (roadmap M08). The data Dani can talk
 about is exactly what the dashboard shows (``Live.state``), written into the
 system prompt as short lines, so an answer can be checked against the page.
 
@@ -117,38 +118,91 @@ def chat_reply(client, context, state, history, message, model=MODEL):
     return text
 
 
-def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None, model=MODEL):
-    """One turn in which the model may ask to move an event or create a task.
+MAX_ROUNDS = 5  # read rounds per turn: the loop always ends, even if the model keeps asking
 
-    Returns {"text": str, "move": dict or None, "task": dict or None}. The
-    dicts are the arguments of the first propose_move / propose_task call,
-    still unchecked: propose.build_proposal and propose.build_task_proposal
-    validate them. Arguments that are not JSON raise ValueError; so does an
-    answer with neither text nor a call. At least one schema must be given.
+READ_RULE = (
+    "The data below is only the week shown. You can look up more yourself with the read tools: "
+    "other days, weeks and months (read_calendar), all her open tasks in every area and project "
+    "(read_tasks), her projects and 1/3/10-year goals (read_projects) and her life plan, area and "
+    "project pages (read_page). Read before you answer about anything outside this week, and "
+    "plan from her goals down to the day. Never invent what a tool did not return."
+)
+
+
+def _call_id(call, number):
+    return getattr(call, "id", None) or f"call_{number}"
+
+
+def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None,
+              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS):
+    """One turn in which the model may read (D2-056), then answer or propose.
+
+    ``read_tools`` is {name: (schema, function)} (see reader.build_read_tools).
+    The tool loop: the model answers; if it asked for read tools, each one runs
+    once with its arguments, the results go back as "tool" messages and the
+    model is asked again. At most ``max_rounds`` rounds, then ValueError.
+
+    Returns {"text", "move", "task", "reads"}. ``move`` / ``task`` are the
+    arguments of the first propose_move / propose_task call, still unchecked:
+    propose.build_proposal and propose.build_task_proposal validate them.
+    ``reads`` lists every read that ran ({"tool", "arguments"}), so the page
+    and the tests can see what Dani looked up. Arguments that are not JSON
+    raise ValueError; so does an answer with neither text nor a call. At least
+    one schema or read tool must be given.
     """
+    read_tools = read_tools or {}
     tools = [schema for schema in (move_schema, task_schema) if schema is not None]
+    tools += [schema for schema, _ in read_tools.values()]
     if not tools:
         raise ValueError("chat_turn needs at least one tool schema")
     messages = build_chat_messages(
         context, state, history, message,
         can_move=move_schema is not None, can_task=task_schema is not None,
     )
-    response = client.chat.completions.create(model=model, messages=messages, tools=tools)
-    answer = response.choices[0].message
-    text = (answer.content or "").strip()
+    if read_tools:
+        messages[0]["content"] = messages[0]["content"].replace("Use only the data below.", READ_RULE, 1)
     wanted = {"propose_move": "move", "propose_task": "task"}
-    for call in answer.tool_calls or []:
-        slot = wanted.get(call.function.name)
-        if slot is None:
-            continue
-        try:
-            arguments = json.loads(call.function.arguments)
-        except ValueError:
-            raise ValueError("the model sent arguments that are not JSON") from None
-        return {"text": text, "move": None, "task": None, slot: arguments}
-    if not text:
-        raise ValueError("the model returned an empty answer")
-    return {"text": text, "move": None, "task": None}
+    reads = []
+    for _ in range(max_rounds):
+        response = client.chat.completions.create(model=model, messages=messages, tools=tools)
+        answer = response.choices[0].message
+        text = (answer.content or "").strip()
+        calls = list(answer.tool_calls or [])
+        parsed = []
+        for call in calls:
+            try:
+                parsed.append((call, json.loads(call.function.arguments or "{}")))
+            except ValueError:
+                raise ValueError("the model sent arguments that are not JSON") from None
+        for call, arguments in parsed:
+            slot = wanted.get(call.function.name)
+            if slot is not None:
+                return {"text": text, "move": None, "task": None, slot: arguments, "reads": reads}
+        asked = [(call, arguments) for call, arguments in parsed if call.function.name in read_tools]
+        if not asked:
+            if not text:
+                raise ValueError("the model returned an empty answer")
+            return {"text": text, "move": None, "task": None, "reads": reads}
+        ids = [_call_id(call, len(reads) + n) for n, (call, _) in enumerate(asked)]
+        messages.append({
+            "role": "assistant",
+            "content": text or None,
+            "tool_calls": [
+                {"id": call_id, "type": "function",
+                 "function": {"name": call.function.name, "arguments": call.function.arguments or "{}"}}
+                for call_id, (call, _) in zip(ids, asked)
+            ],
+        })
+        for call_id, (call, arguments) in zip(ids, asked):
+            name = call.function.name
+            result = read_tools[name][1](arguments if isinstance(arguments, dict) else {})
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": json.dumps(result, ensure_ascii=False, default=str),
+            })
+            reads.append({"tool": name, "arguments": arguments})
+    raise ValueError(f"the model kept reading for more than {max_rounds} rounds")
 
 
 def speech_to_text(client, audio, filename="voice.webm"):

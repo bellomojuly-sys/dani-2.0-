@@ -108,7 +108,7 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None, create_task=None):
+               create_block=None, create_task=None, read_tools=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -117,7 +117,9 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     writes, or are None while the calendar is read-only (create_block writes
     in the study calendar); create_task(title, area, deadline,
     duration_minutes) -> Task creates one Notion task (D2-055), or is None
-    while Notion is read-only for new tasks."""
+    while Notion is read-only for new tasks. read_tools is
+    {name: (schema, function)} from reader.build_read_tools (D2-056): with it
+    the chat looks things up by itself, read-only."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -234,12 +236,13 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         current = settings()
         state = live.state(current)
         try:
-            if move_event is None and create_task is None:
+            if move_event is None and create_task is None and not read_tools:
                 return {"reply": chat_reply(chat_client, current.context, state, body.history, body.message)}
             turn = chat_turn(
                 chat_client, current.context, state, body.history, body.message,
                 PROPOSE_MOVE_SCHEMA if move_event is not None else None,
                 PROPOSE_TASK_SCHEMA if create_task is not None else None,
+                read_tools=read_tools,
             )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
@@ -251,20 +254,20 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             try:
                 proposal = build_task_proposal(turn["task"], areas, uuid.uuid4().hex[:8], today=live.clock().date())
             except ValueError as problem:
-                return {"reply": f"Non posso proporre questo task: {problem}."}
+                return {"reply": f"Non posso proporre questo task: {problem}.", "reads": turn["reads"]}
             proposals[proposal.id] = proposal
-            return {"reply": describe_task(proposal), "proposal": proposal.model_dump(mode="json")}
+            return {"reply": describe_task(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
         if turn["move"] is None:
-            return {"reply": turn["text"]}
+            return {"reply": turn["text"], "reads": turn["reads"]}
         # The model asked for a move: check it in code and show it. Nothing is written here.
         shown = [live.find_event(row["key"]) for row in state["events"]]
         refs = {ref: event for ref, event in event_refs(shown).items() if event is not None}
         try:
             proposal = build_proposal(turn["move"], refs, current.tickable_calendars, uuid.uuid4().hex[:8])
         except ValueError as problem:
-            return {"reply": f"Non posso proporre questo spostamento: {problem}."}
+            return {"reply": f"Non posso proporre questo spostamento: {problem}.", "reads": turn["reads"]}
         proposals[proposal.id] = proposal
-        return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json")}
+        return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
 
     @api.post("/block")
     def post_block(body: BlockBody):
@@ -399,7 +402,8 @@ if __name__ == "__main__":  # pragma: no cover
     from models import AMSTERDAM
     from notion_client import create_task as notion_create_task
     from notion_client import mark_done as notion_mark_done
-    from notion_client import query_open_tasks
+    from notion_client import page_text, query_open_tasks, query_projects
+    from reader import build_read_tools, parse_pages
 
     load_dotenv(".env")
     demo = "--demo" in sys.argv
@@ -463,9 +467,21 @@ if __name__ == "__main__":  # pragma: no cover
 
     prioritize = lambda tasks, today, context: ask_priority(chat_client, tasks, today, context)[0]
     live = Live(fetch_tasks, fetch_events, prioritize, clock)
+    # D2-056: what the chat may read by itself. Projects & Goals and the pages
+    # are optional: without their .env lines those tools are simply not offered.
+    fetch_projects = fetch_text = None
+    pages = {}
+    if not demo:
+        projects_db = os.environ.get("NOTION_PROJECTS_DB_ID")
+        if projects_db:
+            fetch_projects = lambda: query_projects(env["notion_token"], projects_db)
+        pages = parse_pages(os.environ.get("NOTION_PAGES"))
+        fetch_text = lambda page_id: page_text(env["notion_token"], page_id)
+    read_tools = build_read_tools(fetch_events, lambda: list(live.tasks), fetch_projects, pages, fetch_text)
+    print(f"Chat read tools: {sorted(read_tools)}")
     threading.Thread(target=refresh_forever, args=(live, settings_path), daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
-                     create_task=create_task)
+                     create_task=create_task, read_tools=read_tools)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

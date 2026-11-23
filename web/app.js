@@ -434,6 +434,17 @@ function addMessage(role, text) {
   return node;
 }
 
+// D2-056: one short line per read, so she sees where an answer comes from.
+function describeRead(read) {
+  const a = read.arguments || {};
+  const day = (value) => (/^\d{4}-\d\d-\d\d$/.test(value || "") ? dateIt(value) : String(value));
+  if (read.tool === "read_calendar") return `calendario ${day(a.start)}–${day(a.end)}`;
+  if (read.tool === "read_tasks") return "task" + (a.area ? ` ${a.area}` : "") + (a.contains ? ` “${a.contains}”` : "");
+  if (read.tool === "read_projects") return "progetti e obiettivi";
+  if (read.tool === "read_page") return `pagina “${a.name}”`;
+  return read.tool;
+}
+
 function sayAloud(text) {
   if (!speak || !("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
@@ -451,6 +462,7 @@ async function send(text) {
     const answer = await api("/api/chat", { method: "POST", json: { message: text, history } });
     history.push({ role: "user", content: text }, { role: "assistant", content: answer.reply });
     waiting.remove();
+    if (answer.reads && answer.reads.length) addMessage("note", "Ho letto: " + answer.reads.map(describeRead).join(" · "));
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
     if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
