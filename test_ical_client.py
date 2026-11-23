@@ -78,6 +78,24 @@ def test_read_calendars_merges_feeds_and_sorts_by_start():
     assert [event.start for event in events] == sorted(event.start for event in events)
 
 
+def test_a_broken_feed_is_skipped_and_the_others_still_arrive():
+    def fake_fetch(url):
+        if url == "broken":
+            raise ValueError("a calendar address answered HTTP 404")
+        return ICS
+
+    events = read_calendars(["broken", "u1"], date(2026, 11, 9), date(2026, 11, 16), fetch=fake_fetch)
+    assert len(events) == 3
+
+
+def test_when_every_feed_fails_the_error_is_raised():
+    def fake_fetch(url):
+        raise ValueError("a calendar address answered HTTP 404")
+
+    with pytest.raises(ValueError, match="404"):
+        read_calendars(["a", "b"], date(2026, 11, 9), date(2026, 11, 16), fetch=fake_fetch)
+
+
 def test_split_urls_ignores_blanks():
     assert split_urls(" a , ,b,") == ["a", "b"]
     assert split_urls(None) == []

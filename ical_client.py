@@ -98,10 +98,19 @@ def events_from_ics(ics_bytes, start, end, calendar_name=None):
 
 
 def read_calendars(urls, start, end, fetch=fetch_bytes):
-    """Download every address and return all their events in one sorted list."""
-    events = []
+    """Download every address and return all their events in one sorted list.
+
+    A feed that fails (an expired link answering 404, say) is skipped so the
+    other calendars still arrive; only when every feed fails is the error raised.
+    """
+    events, failures = [], []
     for url in urls:
-        events.extend(events_from_ics(fetch(url), start, end))
+        try:
+            events.extend(events_from_ics(fetch(url), start, end))
+        except Exception as failure:
+            failures.append(failure)
+    if urls and len(failures) == len(urls):
+        raise failures[0]
     return sorted(events, key=lambda event: event.start)
 
 
