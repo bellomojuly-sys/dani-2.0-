@@ -699,3 +699,24 @@ def test_the_morning_send_schedules_the_days_reminders_with_a_delivery_time(tmp_
     assert body["scheduled"] == len(later) and body["not_scheduled"] == 0
     assert all(at > NOW for _, at in later)  # nothing in the past
     assert later[-1][0] == "Com'è andata oggi?"
+
+
+# --- D2-064: the mood diary --------------------------------------------------------
+
+
+def test_how_she_feels_is_saved_from_the_chat_and_from_the_home(tmp_path):
+    from mood import MoodLog
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    log = MoodLog()
+    chat = ScriptedChat([("Allora oggi andiamo piano, July.", [("record_mood", '{"energy": 2, "sleep": 5, "note": "stanca"}')]),
+                         ("Va bene.", [])])
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, mood_log=log))
+    body = http.post("/api/chat", json={"message": "sono stanca, ho dormito 5 ore", "history": []}).json()
+    assert body["mood"] == {"energy": 2, "sleep": 5.0, "note": "stanca"} and body["reply"].startswith("Allora")
+    http.post("/api/chat", json={"message": "cosa faccio?", "history": []})
+    assert "bare minimum" in chat.requests[1]["messages"][0]["content"]  # the low day reaches the next answer
+    assert http.put("/api/mood", json={"energy": 9}).status_code == 422
+    assert http.put("/api/mood", json={"energy": 4}).json()["mood"]["energy"] == 4
+    assert rig.done == []  # the diary never touches her Tasks

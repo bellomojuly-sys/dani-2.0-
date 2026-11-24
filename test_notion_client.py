@@ -400,3 +400,21 @@ def test_save_focus_creates_then_updates_and_query_reads_it_back():
         {"id": "f2", "properties": {"Week": {"date": None}, "Focus": {"rich_text": []}}}]}
     assert query_focus("tok", "db", date(2026, 11, 16), http=lambda url, h, body: rows) == {
         date(2026, 11, 30): ("Betsy e CV", "f1")}  # a row without a week is ignored
+
+
+def test_mood_rows_save_and_read_back_and_a_hand_broken_row_is_skipped():
+    from mood import Mood
+    from notion_client import query_mood, save_mood
+
+    created = []
+    save_mood("tok", "diary", date(2026, 11, 24), Mood(energy=3, sleep=6.5, note="ok"), None,
+              create=lambda url, h, body: created.append(body) or {"id": "m1"}, update=None)
+    props = created[0]["properties"]
+    assert props["Energy"] == {"number": 3} and props["Sleep"] == {"number": 6.5}
+    rows = {"results": [
+        {"id": "m1", "properties": {"Day": {"date": {"start": "2026-11-24"}}, "Energy": {"number": 3},
+                                    "Sleep": {"number": 6.5}, "Note": {"rich_text": [{"plain_text": "ok"}]}}},
+        {"id": "m2", "properties": {"Day": {"date": {"start": "2026-11-23"}}, "Energy": {"number": 11},
+                                    "Sleep": {"number": None}, "Note": {"rich_text": []}}}]}
+    read = query_mood("tok", "db", date(2026, 11, 10), http=lambda url, h, body: rows)
+    assert list(read) == [date(2026, 11, 24)] and read[date(2026, 11, 24)][0].note == "ok"

@@ -56,3 +56,10 @@ def test_the_closing_line_is_dannis_and_changes_from_day_to_day():
     second = build_briefing(_state("2026-11-25"))["text"].splitlines()[-2]
     assert first in MORNING_LINES and second in MORNING_LINES and first != second
     assert build_briefing(_state("2026-11-24"))["text"] == build_briefing(_state("2026-11-24"))["text"]  # same day, same text
+
+
+def test_a_low_yesterday_is_named_in_the_morning():
+    low = build_briefing(_state("2026-11-24"), None, {"yesterday": {"energy": 2, "sleep": 5, "note": ""}})["text"]
+    assert "Ieri eri a 2/5" in low
+    fine = build_briefing(_state("2026-11-24"), None, {"yesterday": {"energy": 4, "sleep": 8, "note": ""}})["text"]
+    assert "Ieri" not in fine

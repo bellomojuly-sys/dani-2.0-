@@ -52,6 +52,7 @@ from context import combine
 from focus import focus_prompt
 from briefing import build_briefing
 from reminders import plan_day_messages
+from mood import RECORD_MOOD_SCHEMA, mood_prompt
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -120,7 +121,7 @@ class TaskBody(BaseModel):
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
-               week_focus=None, send_note=None, character=None):
+               week_focus=None, send_note=None, character=None, mood_log=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -138,7 +139,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     send_note(title, text, at=None, priority=None) sends to her phone
     (D2-061; ``at`` schedules a later delivery, D2-063),
     or is None while no notification channel is set up. character is the
-    LifeContext of the page "Dani — chi è Dani" (D2-062), or None."""
+    LifeContext of the page "Dani — chi è Dani" (D2-062), or None. mood_log
+    is the mood.MoodLog of her diary (D2-064), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
 
@@ -264,8 +266,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         if week_focus is not None:
             focus_lines = focus_prompt(week_focus.status(live.clock().date()))
             context = (context + "\n\n" + focus_lines).strip() if focus_lines else context
+        if mood_log is not None:
+            context = (context + "\n\n" + mood_prompt(mood_log.status(live.clock().date()))).strip()
         try:
-            if move_event is None and create_task is None and create_block is None and not read_tools:
+            if move_event is None and create_task is None and create_block is None and not read_tools and mood_log is None:
                 return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
             turn = chat_turn(
                 chat_client, context, state, body.history, body.message,
@@ -273,11 +277,22 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                 PROPOSE_TASK_SCHEMA if create_task is not None else None,
                 read_tools=read_tools,
                 plan_schema=PROPOSE_PLAN_SCHEMA if create_block is not None else None,
+                mood_schema=RECORD_MOOD_SCHEMA if mood_log is not None else None,
             )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
         except Exception as failure:  # the provider or the network
             raise HTTPException(status_code=502, detail=f"modello non disponibile: {type(failure).__name__}")
+        if turn.get("mood") is not None:
+            # Her own words about how she feels: saved in Dani's diary, nothing else is touched.
+            try:
+                saved = mood_log.set(live.clock().date(), turn["mood"])
+            except (ValueError, TypeError) as problem:
+                return {"reply": f"Non ho capito come stai: {problem}.", "reads": turn["reads"]}
+            except RuntimeError as failure:
+                return {"reply": f"Non riesco a salvare nel diario: {failure}.", "reads": turn["reads"]}
+            text = turn["text"] or f"Segnato: energia {saved.energy}/5."
+            return {"reply": text, "mood": saved.model_dump(), "reads": turn["reads"]}
         if turn.get("plan") is not None:
             # A plan: read the whole period, check every block, show them. Nothing is written here.
             try:
@@ -324,7 +339,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     def briefing_now():
         today = live.clock().date()
         focus = week_focus.status(today) if week_focus is not None else None
-        return build_briefing(live.state(settings()), focus)
+        mood = mood_log.status(today) if mood_log is not None else None
+        return build_briefing(live.state(settings()), focus, mood)
 
     @api.get("/briefing")
     def get_briefing():
@@ -356,6 +372,24 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             except (RuntimeError, ValueError):
                 failed += 1
         return {"sent": True, **note, "scheduled": scheduled, "not_scheduled": failed}
+
+    @api.get("/mood")
+    def get_mood():
+        if mood_log is None:
+            return {"enabled": False}
+        return {"enabled": True, **mood_log.status(live.clock().date())}
+
+    @api.put("/mood")
+    def put_mood(body: dict):
+        if mood_log is None:
+            raise HTTPException(status_code=503, detail="il diario non è collegato")
+        try:
+            mood_log.set(live.clock().date(), body)
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem).splitlines()[0])
+        except RuntimeError as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        return {"enabled": True, **mood_log.status(live.clock().date())}
 
     @api.get("/focus")
     def get_focus():
@@ -535,7 +569,8 @@ if __name__ == "__main__":  # pragma: no cover
     from context import LifeContext
     from focus import WeekFocus
     from notify import DEFAULT_SERVER, send_ntfy
-    from notion_client import query_focus, save_focus
+    from notion_client import query_focus, query_mood, save_focus, save_mood
+    from mood import MoodLog
     from usage import MeteredClient, UsageLog
 
     load_dotenv(".env")
@@ -668,7 +703,24 @@ if __name__ == "__main__":  # pragma: no cover
             at=at, priority=priority)
     print("Morning briefing: " + ("ntfy on" if send_note else "no channel (no NTFY_TOPIC)"))
 
+    # D2-064: the mood diary.
+    mood_db = None if demo else os.environ.get("NOTION_MOOD_DB_ID")
+    if mood_db:
+        mood_log = MoodLog(lambda since: query_mood(env["notion_token"], mood_db, since),
+                           lambda day, mood, page_id: save_mood(env["notion_token"], mood_db, day, mood, page_id))
+    else:
+        mood_log = MoodLog()  # in memory only
+
+    def refresh_mood():
+        try:
+            mood_log.refresh(clock().date() - timedelta(days=14))
+        except (RuntimeError, ValueError) as failure:
+            print(f"mood diary not read: {failure}")
+
+    refresh_mood()
+
     def after_refresh():
+        refresh_mood()
         if save_totals:
             save_totals()
         if life:
@@ -680,6 +732,6 @@ if __name__ == "__main__":  # pragma: no cover
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
                      create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
-                     week_focus=week_focus, send_note=send_note, character=character)
+                     week_focus=week_focus, send_note=send_note, character=character, mood_log=mood_log)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

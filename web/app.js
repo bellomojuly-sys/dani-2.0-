@@ -450,9 +450,52 @@ function route() {
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
   if (page === "impostazioni") loadBriefing().catch(() => {});
-  if (page === "home") loadFocus();
+  if (page === "home") { loadMood(); loadFocus(); }
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
+}
+
+// --- the mood diary (D2-064) ------------------------------------------------------
+
+const ENERGY = ["", "a terra", "stanca", "così così", "bene", "al massimo"];
+
+function renderMood(diary) {
+  $("#mood-card").hidden = !diary.enabled;
+  if (!diary.enabled) return;
+  const box = $("#home-mood");
+  if (diary.mood) {
+    const m = diary.mood;
+    box.replaceChildren(h("p", {}, `Oggi: energia ${m.energy}/5 (${ENERGY[m.energy]})` +
+      (m.sleep != null ? ` · ${m.sleep} ore di sonno` : "") + (m.note ? ` · \u201c${m.note}\u201d` : "")),
+      h("button", { class: "btn ghost small", onclick: () => askMood(diary) }, "Cambia"));
+    return;
+  }
+  askMood(diary);
+}
+
+function askMood(diary) {
+  let energy = diary.mood ? diary.mood.energy : 0;
+  const buttons = [1, 2, 3, 4, 5].map((n) => h("button", { class: "btn ghost small energy", "data-n": n,
+    onclick: () => { energy = n; for (const b of buttons) b.classList.toggle("on", Number(b.dataset.n) === n); } },
+    `${n} · ${ENERGY[n]}`));
+  for (const b of buttons) b.classList.toggle("on", Number(b.dataset.n) === energy);
+  const sleep = h("input", { type: "number", min: "0", max: "16", step: "0.5", placeholder: "ore di sonno" });
+  const note = h("input", { type: "text", maxlength: "500", placeholder: "in due parole (facoltativo)" });
+  if (diary.mood) { sleep.value = diary.mood.sleep ?? ""; note.value = diary.mood.note || ""; }
+  const status = h("span", { class: "meta" });
+  $("#home-mood").replaceChildren(h("div", { class: "row" }, buttons), h("div", { class: "row" }, sleep, note),
+    h("div", { class: "row" }, h("button", { class: "btn small", onclick: async () => {
+      if (!energy) { status.textContent = "Scegli un numero da 1 a 5."; return; }
+      try {
+        renderMood(await api("/api/mood", { method: "PUT", json: {
+          energy, sleep: sleep.value === "" ? null : Number(sleep.value), note: note.value } }));
+        toast("Segnato nel diario.");
+      } catch (failure) { status.textContent = `Non salvato: ${failure.message}`; }
+    } }, "Salva"), status));
+}
+
+async function loadMood() {
+  try { renderMood(await api("/api/mood")); } catch (failure) { /* the card stays hidden */ }
 }
 
 // --- the week's focus and the Sunday check-in (D2-060) --------------------------

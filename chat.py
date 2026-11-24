@@ -149,7 +149,7 @@ def _call_id(call, number):
 
 
 def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None,
-              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS, plan_schema=None):
+              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS, plan_schema=None, mood_schema=None):
     """One turn in which the model may read (D2-056), then answer or propose.
 
     ``read_tools`` is {name: (schema, function)} (see reader.build_read_tools).
@@ -167,7 +167,7 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
     one schema or read tool must be given.
     """
     read_tools = read_tools or {}
-    tools = [schema for schema in (move_schema, task_schema, plan_schema) if schema is not None]
+    tools = [schema for schema in (move_schema, task_schema, plan_schema, mood_schema) if schema is not None]
     tools += [schema for schema, _ in read_tools.values()]
     if not tools:
         raise ValueError("chat_turn needs at least one tool schema")
@@ -178,7 +178,7 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
     )
     if read_tools:
         messages[0]["content"] = messages[0]["content"].replace("Use only the data below.", READ_RULE, 1)
-    wanted = {"propose_move": "move", "propose_task": "task", "propose_plan": "plan"}
+    wanted = {"propose_move": "move", "propose_task": "task", "propose_plan": "plan", "record_mood": "mood"}
     reads = []
     for _ in range(max_rounds):
         response = client.chat.completions.create(model=model, messages=messages, tools=tools)
@@ -194,12 +194,12 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
         for call, arguments in parsed:
             slot = wanted.get(call.function.name)
             if slot is not None:
-                return {"text": text, "move": None, "task": None, "plan": None, slot: arguments, "reads": reads}
+                return {"text": text, "move": None, "task": None, "plan": None, "mood": None, slot: arguments, "reads": reads}
         asked = [(call, arguments) for call, arguments in parsed if call.function.name in read_tools]
         if not asked:
             if not text:
                 raise ValueError("the model returned an empty answer")
-            return {"text": text, "move": None, "task": None, "plan": None, "reads": reads}
+            return {"text": text, "move": None, "task": None, "plan": None, "mood": None, "reads": reads}
         ids = [_call_id(call, len(reads) + n) for n, (call, _) in enumerate(asked)]
         messages.append({
             "role": "assistant",

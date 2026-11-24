@@ -388,3 +388,50 @@ def save_focus(token, database_id, monday, text, page_id=None, create=post_json,
     else:
         page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
     return page["id"]
+
+
+# --- D2-064: the mood diary, one row per day ---------------------------------------
+
+
+def query_mood(token, database_id, since, http=post_json):
+    """{day: (Mood, page_id)} for every day from ``since`` on; bad rows are skipped."""
+    from datetime import date
+
+    from mood import Mood
+
+    days, cursor = {}, None
+    while True:
+        body = {"filter": {"property": "Day", "date": {"on_or_after": since.isoformat()}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        for page in answer.get("results", []):
+            props = page.get("properties", {})
+            start = ((props.get("Day") or {}).get("date") or {}).get("start")
+            try:
+                mood = Mood(energy=(props.get("Energy") or {}).get("number"),
+                            sleep=(props.get("Sleep") or {}).get("number"),
+                            note=_plain_text((props.get("Note") or {}).get("rich_text")))
+            except ValidationError:
+                continue  # a row she edited by hand into an invalid value is ignored, never guessed
+            if start:
+                days[date.fromisoformat(start[:10])] = (mood, page["id"])
+        if not answer.get("has_more"):
+            return days
+        cursor = answer["next_cursor"]
+
+
+def save_mood(token, database_id, day, mood, page_id=None, create=post_json, update=patch_json):
+    """Create the day's row or overwrite it; return the page id."""
+    properties = {
+        "Name": {"title": [{"text": {"content": f"{day.isoformat()} · energia {mood.energy}/5"}}]},
+        "Day": {"date": {"start": day.isoformat()}},
+        "Energy": {"number": mood.energy},
+        "Sleep": {"number": mood.sleep},
+        "Note": {"rich_text": [{"text": {"content": mood.note}}] if mood.note else []},
+    }
+    if page_id is None:
+        page = create(f"{API}/pages", _headers(token), {"parent": {"database_id": database_id}, "properties": properties})
+    else:
+        page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
+    return page["id"]

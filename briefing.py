@@ -27,10 +27,11 @@ def _today_items(rows, today):
     return [row for row in rows if row["start"][:10] == today]
 
 
-def build_briefing(state, focus=None):
+def build_briefing(state, focus=None, mood=None):
     """Return {"title", "text"} for the morning of ``state["today"]``.
 
-    ``state`` is Live.state(...); ``focus`` is WeekFocus.status(today) or None.
+    ``state`` is Live.state(...); ``focus`` is WeekFocus.status(today) or None;
+    ``mood`` is MoodLog.status(today) or None (D2-064: a low yesterday is named).
     """
     from datetime import date
 
@@ -63,6 +64,9 @@ def build_briefing(state, focus=None):
             lines.append(f"Il focus della settimana: {focus['this_focus']}")
         if day.weekday() == 6 and not focus.get("next_focus"):
             lines.append("Su cosa ti vuoi concentrare la settimana prossima? Rispondimi nell'app.")
+    before = (mood or {}).get("yesterday")
+    if before and before["energy"] <= 2:
+        lines.append(f"Ieri eri a {before['energy']}/5: oggi partiamo piano, prima la cosa che conta di più.")
     lines.append(morning_line(day))
     lines.append("E tu, July, oggi come stai?")
     return {"title": title, "text": "\n".join(lines)}
