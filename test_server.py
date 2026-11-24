@@ -588,7 +588,7 @@ def test_a_plan_from_the_chat_is_checked_on_the_whole_period_and_written_only_af
                      create_block=lambda title, start, end: created.append(title) or "new-id")
     http = TestClient(app)
     body = http.post("/api/chat", json={"message": "pianifica i primi di dicembre", "history": []}).json()
-    assert asked == [(datetime(2026, 12, 1).date(), datetime(2026, 12, 3).date())]  # the whole period, end included
+    assert (datetime(2026, 12, 1).date(), datetime(2026, 12, 3).date()) in asked  # the whole period, end included
     assert [p["title"] for p in body["proposals"]] == ["Betsy · BT-003", "Lettura"]
     assert body["proposals"][1]["warnings"] == ["finisce dopo le 16:00 (giorno di turno)"]
     assert "2 blocchi" in body["reply"] and "1 ha un avviso" in body["reply"]
@@ -720,3 +720,21 @@ def test_how_she_feels_is_saved_from_the_chat_and_from_the_home(tmp_path):
     assert http.put("/api/mood", json={"energy": 9}).status_code == 422
     assert http.put("/api/mood", json={"energy": 4}).json()["mood"]["energy"] == 4
     assert rig.done == []  # the diary never touches her Tasks
+
+
+# --- D2-065: forecasts ---------------------------------------------------------------
+
+
+def test_forecast_is_served_put_in_the_chat_prompt_and_at_risk_lines_reach_the_briefing(tmp_path):
+    from models import Task
+
+    rig = Rig(tmp_path)  # NOW: Tuesday 10 November 13:21
+    rig.live.tasks = [Task(id="big", title="Consegna enorme", status="Not Started",
+                           deadline=datetime(2026, 11, 10).date(), duration_minutes=900)]
+    chat = FakeChat("Ok.")
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None))
+    body = http.get("/api/forecast").json()
+    assert body["rows"][0]["status"] == "a rischio" and body["error"] is None
+    http.post("/api/chat", json={"message": "come sono messa?", "history": []})
+    assert "Forecast of her deadlines" in chat.seen["messages"][0]["content"]
+    assert "Attenzione: Entro il 2026-11-10" in http.get("/api/briefing").json()["text"]

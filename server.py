@@ -53,6 +53,8 @@ from focus import focus_prompt
 from briefing import build_briefing
 from reminders import plan_day_messages
 from mood import RECORD_MOOD_SCHEMA, mood_prompt
+from forecast import at_risk, forecast
+from forecast import describe as describe_forecast
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -143,6 +145,20 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     is the mood.MoodLog of her diary (D2-064), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
+    forecast_cache = {"at": None, "rows": [], "error": None}  # D2-065, recomputed every 15 minutes
+
+    def current_forecast():
+        now = live.clock()
+        if forecast_cache["at"] and now - forecast_cache["at"] < timedelta(minutes=15):
+            return forecast_cache
+        dated = [task.deadline for task in live.tasks if task.deadline is not None]
+        try:
+            horizon = min(max(dated, default=now.date()), now.date() + timedelta(days=60))
+            events = live.fetch_events(now.date(), horizon + timedelta(days=1)) if dated else []
+            forecast_cache.update(at=now, rows=forecast(live.tasks, events, now), error=None)
+        except (RuntimeError, ValueError) as failure:  # the calendar could not be read
+            forecast_cache.update(at=now, error=str(failure))
+        return forecast_cache
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
         if pin and x_dani_pin != pin:
@@ -268,6 +284,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             context = (context + "\n\n" + focus_lines).strip() if focus_lines else context
         if mood_log is not None:
             context = (context + "\n\n" + mood_prompt(mood_log.status(live.clock().date()))).strip()
+        lines = describe_forecast(current_forecast()["rows"])
+        if lines:
+            context += ("\n\nForecast of her deadlines (free hours by her rules vs estimated work; "
+                        "say what is at risk before it slips and propose what to move):\n" + "\n".join(lines))
         try:
             if move_event is None and create_task is None and create_block is None and not read_tools and mood_log is None:
                 return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
@@ -340,7 +360,13 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         today = live.clock().date()
         focus = week_focus.status(today) if week_focus is not None else None
         mood = mood_log.status(today) if mood_log is not None else None
-        return build_briefing(live.state(settings()), focus, mood)
+        note = build_briefing(live.state(settings()), focus, mood)
+        risky = describe_forecast(at_risk(current_forecast()["rows"]))
+        if risky:
+            text = note["text"].splitlines()
+            text.insert(len(text) - 2, "Attenzione: " + " ".join(risky[:2]))
+            note = {**note, "text": "\n".join(text)}
+        return note
 
     @api.get("/briefing")
     def get_briefing():
@@ -372,6 +398,11 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             except (RuntimeError, ValueError):
                 failed += 1
         return {"sent": True, **note, "scheduled": scheduled, "not_scheduled": failed}
+
+    @api.get("/forecast")
+    def get_forecast():
+        data = current_forecast()
+        return {"rows": data["rows"], "lines": describe_forecast(data["rows"]), "error": data["error"]}
 
     @api.get("/mood")
     def get_mood():

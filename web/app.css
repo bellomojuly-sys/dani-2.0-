@@ -179,3 +179,6 @@ background:#fff;color:var(--plum-ink);border:1px solid var(--rose-quartz);border
 #home-mood input{font:inherit;padding:8px 10px;border-radius:12px;border:1px solid var(--rose-quartz);background:rgba(255,255,255,.7);min-width:0;flex:1}
 #home-mood input[type=number]{flex:0 0 130px}
 #home-mood .energy.on{background:var(--berry);color:#fff}
+/* forecasts (D2-065): the status is in the words too, colour only underlines it */
+.forecast{margin:6px 0;padding-left:10px;border-left:4px solid var(--rose-quartz)}
+.forecast.ok{border-left-color:#3E7D5A}.forecast.warn{border-left-color:#B5832B}.forecast.bad{border-left-color:#A32020;font-weight:600}

@@ -450,9 +450,22 @@ function route() {
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
   if (page === "impostazioni") loadBriefing().catch(() => {});
-  if (page === "home") { loadMood(); loadFocus(); }
+  if (page === "home") { loadMood(); loadFocus(); loadForecast(); }
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
+}
+
+// --- forecasts (D2-065) --------------------------------------------------------------
+
+async function loadForecast() {
+  let data;
+  try { data = await api("/api/forecast"); } catch (failure) { return; }
+  const card = $("#forecast-card");
+  card.hidden = !data.rows.length && !data.error;
+  if (card.hidden) return;
+  const tone = { "in linea": "ok", "stretta": "warn", "a rischio": "bad", "scaduta": "bad" };
+  $("#home-forecast").replaceChildren(...(data.error ? [h("p", { class: "muted" }, `Previsioni non disponibili: ${data.error}`)] : []),
+    ...data.lines.map((line, n) => h("p", { class: "forecast " + (tone[data.rows[n].status] || "") }, line)));
 }
 
 // --- the mood diary (D2-064) ------------------------------------------------------
