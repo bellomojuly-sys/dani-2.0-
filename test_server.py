@@ -1,0 +1,530 @@
+"""Every endpoint with fake sources, a fake Notion write and fake models."""
+
+import json
+from datetime import datetime
+
+import pytest
+from fastapi.testclient import TestClient
+
+from ical_client import read_calendars
+from live import Live
+from models import AMSTERDAM
+from notion_client import task_from_page
+from server import create_app
+from store import read_settings
+from test_chat import FakeChat, FakeWhisper
+
+with open("fixtures/notion_query.json") as handle:
+    TASKS = [task_from_page(page) for page in json.load(handle)["results"]]
+with open("fixtures/calendar.ics", "rb") as handle:
+    ICS = handle.read()
+
+NOW = datetime(2026, 11, 10, 13, 21, 5, tzinfo=AMSTERDAM)
+
+
+class Rig:
+    """One app with its fakes, so a test can look at what was written."""
+
+    def __init__(self, tmp_path, chat=None, voice=None, pin=None, mark_done=None, prioritize=None):
+        self.done = []
+        self.path = str(tmp_path / "settings.json")
+        self.live = Live(
+            lambda: list(TASKS),
+            lambda start, end: read_calendars(["fixture"], start, end, fetch=lambda url: ICS),
+            prioritize or (lambda tasks, today, context: {"ok": False, "reason": "no model in tests", "priority": None}),
+            clock=lambda: NOW,
+        )
+        self.live.refresh("all")
+        app = create_app(self.live, mark_done or self.done.append, chat, voice, pin, self.path, web_dir=None)
+        self.http = TestClient(app)
+
+    def event(self, title):
+        return next(e for e in self.http.get("/api/state").json()["events"] if e["title"] == title)
+
+
+@pytest.fixture
+def rig(tmp_path):
+    return Rig(tmp_path)
+
+
+def test_state_has_tasks_events_sources_and_chat_flags(rig):
+    state = rig.http.get("/api/state").json()
+    assert len(state["tasks"]) == 3 and state["sources"]["notion"]["ok"] is True
+    assert state["hidden_events"] == []
+    assert state["chat"] == {"text": False, "whisper": False}
+
+
+def test_ticking_a_task_marks_it_done_in_notion_and_removes_it(rig):
+    answer = rig.http.post("/api/tick", json={"kind": "task", "id": TASKS[0].id})
+    assert answer.status_code == 200 and answer.json()["notion"] == "done"
+    assert rig.done == [TASKS[0].id]
+    assert TASKS[0].id not in [task["id"] for task in rig.http.get("/api/state").json()["tasks"]]
+
+
+def test_ticking_an_unknown_task_writes_nothing(rig):
+    assert rig.http.post("/api/tick", json={"kind": "task", "id": "invented"}).status_code == 404
+    assert rig.done == []
+
+
+def test_a_failed_notion_write_is_reported_and_the_task_stays(tmp_path):
+    def refuse(task_id):
+        raise RuntimeError("Notion answered HTTP 403: no update capability")
+
+    rig = Rig(tmp_path, mark_done=refuse)
+    answer = rig.http.post("/api/tick", json={"kind": "task", "id": TASKS[0].id})
+    assert answer.status_code == 502 and "403" in answer.json()["detail"]
+    assert len(rig.http.get("/api/state").json()["tasks"]) == 3
+
+
+def test_ticking_an_event_hides_it_and_remembers_it_on_disk(rig):
+    rig.http.put("/api/settings", json={"tickable_calendars": ["studio"]})
+    call = rig.event("Call con Ruud")
+    answer = rig.http.post("/api/tick", json={"kind": "event", "id": call["key"]})
+    assert answer.status_code == 200 and "pending" in answer.json()["calendar"]
+    state = rig.http.get("/api/state").json()
+    assert "Call con Ruud" not in [event["title"] for event in state["events"]]
+    assert [entry["title"] for entry in state["hidden_events"]] == ["Call con Ruud"]
+    assert read_settings(rig.path).hidden_events[0].key == call["key"]  # survives a restart
+    assert rig.done == []  # an event never touches Notion
+
+
+def test_an_event_of_a_fixed_calendar_cannot_be_ticked(rig):
+    rig.http.put("/api/settings", json={"tickable_calendars": ["personale"]})
+    call = rig.event("Call con Ruud")
+    answer = rig.http.post("/api/tick", json={"kind": "event", "id": call["key"]})
+    assert answer.status_code == 403
+    assert read_settings(rig.path).hidden_events == []
+
+
+def test_unknown_event_and_wrong_kind_are_refused(rig):
+    assert rig.http.post("/api/tick", json={"kind": "event", "id": "nope"}).status_code == 404
+    assert rig.http.post("/api/tick", json={"kind": "email", "id": "x"}).status_code == 422
+
+
+def test_unhide_brings_the_event_back(rig):
+    rig.http.put("/api/settings", json={"tickable_calendars": ["studio"]})
+    key = rig.event("Call con Ruud")["key"]
+    rig.http.post("/api/tick", json={"kind": "event", "id": key})
+    assert rig.http.post("/api/unhide", json={"key": key}).status_code == 200
+    assert rig.event("Call con Ruud")["key"] == key
+
+
+def test_settings_are_saved_and_keep_the_hidden_events(rig):
+    rig.http.put("/api/settings", json={"tickable_calendars": ["studio"]})
+    rig.http.post("/api/tick", json={"kind": "event", "id": rig.event("Call con Ruud")["key"]})
+    body = {"context": "Max 7 ore al giorno", "tickable_calendars": ["studio", " personale ", ""],
+            "cycle": {"start": "2026-11-08", "cycle_length": 30, "period_length": 4}}
+    saved = rig.http.put("/api/settings", json=body).json()
+    assert saved["context"] == "Max 7 ore al giorno"
+    assert saved["tickable_calendars"] == ["studio", "personale"]
+    assert len(saved["hidden_events"]) == 1  # the page cannot erase them by saving
+    assert saved.pop("priority_recalculated") is True
+    assert rig.http.get("/api/settings").json() == saved
+    assert rig.http.get("/api/state").json()["cycle"]["phase"] == "in arrivo"
+
+
+def test_saving_a_new_context_reasks_the_priority_at_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        rows = [{"id": task.id, "reason": "test"} for task in tasks]
+        return {"ok": True, "reason": "verified", "priority": rows}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"}).json()
+    assert answer["priority_recalculated"] is True
+    assert asked == ["Prima gli esami"]  # the model saw the new context, now
+    assert rig.http.get("/api/state").json()["priority"]["ok"] is True
+
+
+def test_saving_the_same_context_twice_asks_the_model_once(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(context)
+        return {"ok": True, "reason": "verified",
+                "priority": [{"id": task.id, "reason": "test"} for task in tasks]}
+
+    rig = Rig(tmp_path, prioritize=prioritize)
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert asked == ["Prima gli esami"]  # update_priority skipped the second call
+
+
+def test_a_priority_failure_does_not_lose_the_save(tmp_path):
+    def refuse(tasks, today, context):
+        raise RuntimeError("model down")
+
+    rig = Rig(tmp_path, prioritize=refuse)
+    answer = rig.http.put("/api/settings", json={"context": "Prima gli esami"})
+    assert answer.status_code == 200
+    assert answer.json()["priority_recalculated"] is False
+    assert read_settings(rig.path).context == "Prima gli esami"  # saved on disk anyway
+
+
+def test_invalid_settings_are_refused_and_nothing_is_saved(rig):
+    answer = rig.http.put("/api/settings", json={"cycle": {"start": "2026-11-08", "cycle_length": 3}})
+    assert answer.status_code == 422
+    assert rig.http.get("/api/settings").json()["cycle"] is None
+
+
+def test_started_today_confirms_the_cycle_and_keeps_the_lengths(rig):
+    rig.http.put("/api/settings", json={"cycle": {"start": "2026-11-08", "cycle_length": 30, "period_length": 4}})
+    cycle = rig.http.post("/api/cycle/started").json()
+    assert cycle == {"start": "2026-11-10", "cycle_length": 30, "period_length": 4, "confirmed": True}
+    state = rig.http.get("/api/state").json()["cycle"]
+    assert (state["phase"], state["day"], state["estimated"]) == ("mestruale", 1, False)
+
+
+def test_started_today_works_without_previous_cycle_settings(rig):
+    assert rig.http.post("/api/cycle/started").json()["cycle_length"] == 28
+
+
+def test_refresh_rereads_a_source_and_gmail_is_not_connected(rig):
+    assert rig.http.post("/api/refresh", json={"source": "notion"}).json()["sources"]["notion"]["ok"] is True
+    assert rig.http.post("/api/refresh", json={"source": "gmail"}).status_code == 409
+    assert rig.http.post("/api/refresh", json={"source": "bevel"}).status_code == 422
+
+
+def test_chat_answers_with_context_and_data_in_the_prompt(tmp_path):
+    chat = FakeChat("Oggi hai la lezione alle 9.")
+    rig = Rig(tmp_path, chat=chat)
+    rig.http.put("/api/settings", json={"context": "Niente studio la domenica"})
+    answer = rig.http.post("/api/chat", json={"message": "Cosa ho oggi?", "history": []})
+    assert answer.json() == {"reply": "Oggi hai la lezione alle 9."}
+    system = chat.seen["messages"][0]["content"]
+    assert "Niente studio la domenica" in system and "Lezione MA-AAI" in system
+    assert rig.done == []  # the chat never writes
+
+
+def test_chat_refusals(tmp_path, rig):
+    assert rig.http.post("/api/chat", json={"message": "ciao"}).status_code == 503  # no key
+    with_model = Rig(tmp_path, chat=FakeChat(""))
+    assert with_model.http.post("/api/chat", json={"message": "ciao"}).status_code == 502  # empty answer
+    assert with_model.http.post("/api/chat", json={"message": ""}).status_code == 422
+
+
+def test_transcribe_returns_text_and_refuses_when_not_set_up(tmp_path, rig):
+    assert rig.http.post("/api/transcribe", content=b"audio").status_code == 503
+    voice = FakeWhisper("sposta la call")
+    with_voice = Rig(tmp_path, voice=voice)
+    answer = with_voice.http.post("/api/transcribe", content=b"audio", headers={"content-type": "audio/mp4"})
+    assert answer.json() == {"text": "sposta la call"}
+    assert voice.seen["file"] == ("voice.m4a", b"audio")
+    with_voice.http.post("/api/transcribe", content=b"audio", headers={"content-type": "audio/webm"})
+    assert voice.seen["file"] == ("voice.webm", b"audio")
+    assert with_voice.http.post("/api/transcribe", content=b"").status_code == 422
+
+
+def test_with_a_pin_every_api_call_needs_it(tmp_path):
+    rig = Rig(tmp_path, pin="4821")
+    assert rig.http.get("/api/state").status_code == 401
+    assert rig.http.get("/api/state", headers={"X-Dani-Pin": "0000"}).status_code == 401
+    assert rig.http.post("/api/tick", json={"kind": "task", "id": TASKS[0].id}).status_code == 401
+    assert rig.done == []
+    assert rig.http.get("/api/state", headers={"X-Dani-Pin": "4821"}).status_code == 200
+
+
+# --- Google Calendar connected in writing ------------------------------------------
+
+from models import Event, Task  # noqa: E402
+from test_chat import FakeToolChat  # noqa: E402
+
+
+def at(day, hour, minute=0):
+    return datetime(2026, 11, day, hour, minute, tzinfo=AMSTERDAM)
+
+
+class CalendarRig:
+    """An app whose events come "from the API" (they have ids) and whose
+    calendar writes are recorded and applied to an in-memory calendar."""
+
+    def __init__(self, tmp_path, chat=None, fail=None, tasks=None):
+        self.calendar = [
+            Event(calendar="personale", title="Palestra", uid="gym", api_id="gym-1", calendar_id="c-p", start=at(11, 7, 30), end=at(11, 9)),
+            Event(calendar="studio", title="Call con Ruud", uid="call", api_id="call-1", calendar_id="c-s", start=at(12, 15), end=at(12, 15, 30)),
+            Event(calendar="lavoro", title="Turno ristorante", uid="shift", api_id="shift-1", calendar_id="c-l", start=at(12, 17), end=at(12, 23)),
+            Event(calendar="studio", title="Blocco iCal", uid="ical", start=at(13, 10), end=at(13, 11)),  # no api_id
+        ]
+        self.tasks = list(tasks or [])
+        self.deleted, self.moved, self.created, self.created_tasks, self.fail = [], [], [], [], fail
+        self.path = str(tmp_path / "settings.json")
+        self.live = Live(lambda: list(self.tasks), lambda start, end: list(self.calendar),
+                         lambda tasks, today, context: {"ok": False, "reason": "none", "priority": None}, clock=lambda: NOW)
+        self.live.refresh("all")
+        app = create_app(self.live, lambda task_id: None, chat, None, None, self.path, web_dir=None,
+                         delete_event=self._delete, move_event=self._move, create_block=self._create,
+                         create_task=self._create_task)
+        self.http = TestClient(app)
+
+    def _delete(self, event):
+        if self.fail:
+            raise self.fail
+        self.deleted.append(event.api_id)
+        self.calendar = [e for e in self.calendar if e.api_id != event.api_id]
+
+    def _move(self, event, start, end):
+        if self.fail:
+            raise self.fail
+        self.moved.append((event.api_id, start, end))
+        self.calendar = [e.model_copy(update={"start": start, "end": end}) if e.api_id == event.api_id else e for e in self.calendar]
+
+    def _create(self, title, start, end):
+        if self.fail:
+            raise self.fail
+        api_id = f"blk-{len(self.created) + 1}"
+        self.created.append((title, start, end))
+        self.calendar.append(Event(calendar="studio", title=title, uid=api_id, api_id=api_id, calendar_id="c-s", start=start, end=end))
+        return api_id
+
+    def _create_task(self, title, area, deadline, duration_minutes):
+        if self.fail:
+            raise self.fail
+        made = Task(id=f"nt-{len(self.created_tasks) + 1}", title=title, area=area,
+                    status="Not Started", deadline=deadline, duration_minutes=duration_minutes)
+        self.created_tasks.append(made)
+        self.tasks.append(made)
+        return made
+
+    def key(self, title):
+        return next(e.key for e in self.calendar if e.title == title)
+
+
+def test_ticking_an_api_event_deletes_it_from_the_calendar(tmp_path):
+    rig = CalendarRig(tmp_path)
+    answer = rig.http.post("/api/tick", json={"kind": "event", "id": rig.key("Palestra")})
+    assert answer.json()["calendar"] == "deleted" and rig.deleted == ["gym-1"]
+    state = rig.http.get("/api/state").json()
+    assert "Palestra" not in [e["title"] for e in state["events"]] and state["hidden_events"] == []
+    assert state["calendar_write"] == {"delete": True, "move": True, "create_block": True}
+
+
+def test_a_fixed_calendar_is_never_deleted_and_an_ical_event_is_only_hidden(tmp_path):
+    rig = CalendarRig(tmp_path)
+    assert rig.http.post("/api/tick", json={"kind": "event", "id": rig.key("Turno ristorante")}).status_code == 403
+    answer = rig.http.post("/api/tick", json={"kind": "event", "id": rig.key("Blocco iCal")})
+    assert "pending" in answer.json()["calendar"]
+    assert rig.deleted == []
+
+
+def test_a_refused_delete_is_reported_and_the_event_stays(tmp_path):
+    rig = CalendarRig(tmp_path, fail=RuntimeError("Google Calendar answered HTTP 403: need writer access"))
+    answer = rig.http.post("/api/tick", json={"kind": "event", "id": rig.key("Palestra")})
+    assert answer.status_code == 502 and "403" in answer.json()["detail"]
+    assert "Palestra" in [e["title"] for e in rig.http.get("/api/state").json()["events"]]
+
+
+def _move_call(event, new_start):
+    return FakeToolChat("", [("propose_move", json.dumps({"event": event, "new_start": new_start}))])
+
+
+def test_a_proposal_changes_nothing_until_confirmed_and_confirming_twice_changes_nothing_more(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e2", "2026-11-12T10:00"))  # e2 = Call con Ruud
+    answer = rig.http.post("/api/chat", json={"message": "sposta la call alle 10"}).json()
+    proposal = answer["proposal"]
+    assert "Propongo di spostare «Call con Ruud»" in answer["reply"] and answer["reply"].endswith("Confermi?")
+    assert proposal["new_start"] == "2026-11-12T10:00:00+01:00" and proposal["warnings"] == []
+    assert rig.moved == []  # the calendar is unchanged after a proposal
+
+    done = rig.http.post("/api/confirm", json={"id": proposal["id"]})
+    assert done.json() == {"ok": True, "title": "Call con Ruud", "read_back": True}
+    assert rig.moved == [("call-1", at(12, 10), at(12, 10, 30))]
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 404
+    assert len(rig.moved) == 1
+
+
+def test_a_proposal_onto_a_shift_carries_the_warning(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e2", "2026-11-12T17:00"))
+    answer = rig.http.post("/api/chat", json={"message": "sposta la call alle 17"}).json()
+    assert answer["proposal"]["warnings"] == ["si sovrappone a «Turno ristorante» (17:00–23:00, lavoro)"]
+
+
+def test_a_move_the_code_refuses_gives_a_reply_and_no_proposal(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e3", "2026-11-13T17:00"))  # e3 = the shift
+    answer = rig.http.post("/api/chat", json={"message": "sposta il turno"}).json()
+    assert "proposal" not in answer and "impegno fisso" in answer["reply"]
+
+
+def test_rejecting_removes_the_proposal(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e2", "2026-11-12T10:00"))
+    proposal = rig.http.post("/api/chat", json={"message": "sposta"}).json()["proposal"]
+    assert rig.http.post("/api/reject", json={"id": proposal["id"]}).json() == {"ok": True}
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 404
+    assert rig.moved == []
+
+
+def test_confirm_refuses_when_the_event_changed_or_the_write_fails(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e2", "2026-11-12T10:00"))
+    proposal = rig.http.post("/api/chat", json={"message": "sposta"}).json()["proposal"]
+    rig.calendar = [e.model_copy(update={"start": at(12, 14), "end": at(12, 14, 30)}) if e.uid == "call" else e for e in rig.calendar]
+    rig.live.refresh("calendar")  # she moved it by hand in the meantime
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 409
+    assert rig.moved == []
+
+    failing = CalendarRig(tmp_path, chat=_move_call("e2", "2026-11-12T10:00"))
+    proposal = failing.http.post("/api/chat", json={"message": "sposta"}).json()["proposal"]
+    failing.fail = RuntimeError("Google Calendar answered HTTP 403: need writer access")
+    assert failing.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 502
+    failing.fail = None  # the proposal is still there: she can confirm again once it is fixed
+    assert failing.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200
+
+
+def test_an_ical_event_cannot_be_moved(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_move_call("e4", "2026-11-13T12:00"))  # e4 = Blocco iCal
+    proposal = rig.http.post("/api/chat", json={"message": "sposta"}).json()["proposal"]
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 409
+    assert rig.moved == []
+
+
+def test_without_calendar_write_the_chat_only_talks_and_confirm_is_refused(tmp_path):
+    chat = FakeChat("Non posso ancora spostarlo.")
+    rig = Rig(tmp_path, chat=chat)
+    assert rig.http.post("/api/chat", json={"message": "sposta la call"}).json() == {"reply": "Non posso ancora spostarlo."}
+    assert "not connected yet" in chat.seen["messages"][0]["content"]
+    assert rig.http.post("/api/confirm", json={"id": "x"}).status_code == 404
+    assert rig.http.get("/api/state").json()["calendar_write"] == {"delete": False, "move": False, "create_block": False}
+
+
+# --- study blocks: accept, move, reject (D2-052, D2-053) ----------------------
+
+from models import Task  # noqa: E402
+
+STUDY_TASK = Task(id="t-study", title="Studio AI", status="In Progress", duration_minutes=60)
+
+
+def test_accepting_a_block_changes_nothing_until_confirmed_and_confirming_twice_adds_nothing(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    answer = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()
+    assert "Propongo di creare il blocco di studio «Studio AI»" in answer["reply"]
+    assert answer["proposal"]["warnings"] == []
+    assert rig.created == []  # the calendar is unchanged after a proposal
+
+    done = rig.http.post("/api/confirm", json={"id": answer["proposal"]["id"]})
+    assert done.json() == {"ok": True, "title": "Studio AI", "read_back": True}
+    assert rig.created == [("Studio AI", at(12, 10), at(12, 11))]
+    assert rig.http.post("/api/confirm", json={"id": answer["proposal"]["id"]}).status_code == 404
+    assert len(rig.created) == 1
+
+
+def test_a_block_moved_onto_a_shift_is_flagged_before_her_yes(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    answer = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T16:30"}).json()
+    assert answer["proposal"]["warnings"] == ["si sovrappone a «Turno ristorante» (17:00–23:00, lavoro)"]
+    assert rig.created == []
+
+
+def test_block_requests_the_code_refuses_and_without_calendar_write(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    assert rig.http.post("/api/block", json={"task_id": "ghost", "start": "2026-11-12T10:00"}).status_code == 422
+    read_only = Rig(tmp_path)  # no create_block wired
+    answer = read_only.http.post("/api/block", json={"task_id": TASKS[0].id, "start": "2026-11-12T10:00"})
+    assert answer.status_code == 503
+    assert rig.created == [] and read_only.done == []
+
+
+def test_confirm_refuses_a_block_whose_task_was_closed_in_the_meantime(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    proposal = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()["proposal"]
+    rig.tasks = []
+    rig.live.refresh("notion")  # the task was done (or removed) after the proposal
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 409
+    assert rig.created == []
+
+
+def test_a_failed_calendar_write_keeps_the_block_proposal(tmp_path):
+    rig = CalendarRig(tmp_path, tasks=[STUDY_TASK])
+    proposal = rig.http.post("/api/block", json={"task_id": "t-study", "start": "2026-11-12T10:00"}).json()["proposal"]
+    rig.fail = RuntimeError("Google Calendar answered HTTP 403: need writer access")
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 502
+    rig.fail = None  # she can confirm again once it is fixed
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200
+
+
+def test_a_rejected_block_is_not_proposed_again_and_restore_undoes_it(rig):
+    blocks = rig.http.get("/api/state").json()["blocks"]
+    rejected_id = blocks[0]["task_id"]
+    assert rig.http.post("/api/block/reject", json={"task_id": rejected_id}).json() == {"ok": True}
+    state = rig.http.get("/api/state").json()
+    assert rejected_id not in {block["task_id"] for block in state["blocks"]}
+    assert read_settings(rig.path).rejected_blocks == [rejected_id]  # survives a restart
+    rig.http.post("/api/block/restore", json={"task_id": rejected_id})
+    assert rejected_id in {block["task_id"] for block in rig.http.get("/api/state").json()["blocks"]}
+
+
+# --- a new Notion task from the chat (D2-055) ------------------------------------
+
+
+def _task_call(arguments):
+    return FakeToolChat("", [("propose_task", json.dumps(arguments))])
+
+
+def test_a_task_proposal_writes_nothing_until_confirmed_then_creates_and_reads_back(tmp_path):
+    existing = Task(id="t-1", title="Studiare F6", area="University", status="Not Started")
+    rig = CalendarRig(tmp_path, tasks=[existing],
+                      chat=_task_call({"title": "comprare le lenti", "area": "university", "deadline": "2026-11-20"}))
+    answer = rig.http.post("/api/chat", json={"message": "nuovo task: comprare le lenti"}).json()
+    proposal = answer["proposal"]
+    assert answer["reply"].startswith("Propongo di creare il task «comprare le lenti»")
+    assert answer["reply"].endswith("Confermi?")
+    assert proposal["kind"] == "task" and proposal["area"] == "University"
+    assert rig.created_tasks == []  # Notion is unchanged after a proposal
+
+    done = rig.http.post("/api/confirm", json={"id": proposal["id"]})
+    assert done.json() == {"ok": True, "title": "comprare le lenti", "read_back": True}
+    assert [made.title for made in rig.created_tasks] == ["comprare le lenti"]
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 404
+    assert len(rig.created_tasks) == 1  # confirming twice changes nothing more
+
+
+def test_an_unknown_area_is_refused_in_the_chat_and_nothing_is_proposed(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_task_call({"title": "x", "area": "Zumba"}))
+    answer = rig.http.post("/api/chat", json={"message": "nuovo task: x"}).json()
+    assert "Non posso proporre questo task" in answer["reply"] and "proposal" not in answer
+    assert rig.created_tasks == []
+
+
+def test_a_failed_notion_create_is_reported_and_the_proposal_survives(tmp_path):
+    rig = CalendarRig(tmp_path, chat=_task_call({"title": "pagare DUO"}))
+    proposal = rig.http.post("/api/chat", json={"message": "nuovo task: pagare DUO"}).json()["proposal"]
+    rig.fail = RuntimeError("Notion answered HTTP 502: boom")
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 502
+    assert rig.created_tasks == []
+    rig.fail = None  # she can confirm again once it is fixed
+    assert rig.http.post("/api/confirm", json={"id": proposal["id"]}).status_code == 200
+
+
+# --- D2-056: the chat reads by itself and says what it read ----------------------
+
+
+def test_chat_with_read_tools_returns_the_answer_and_what_was_read(tmp_path):
+    from reader import build_read_tools
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    chat = ScriptedChat([("", [("read_tasks", '{"area": "University"}')]), ("Hai tre task.", [])])
+    tools = build_read_tools(lambda start, end: [], lambda: list(rig.live.tasks))
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, read_tools=tools)
+    answer = TestClient(app).post("/api/chat", json={"message": "cosa devo fare per l'università?", "history": []})
+    assert answer.status_code == 200
+    assert answer.json() == {"reply": "Hai tre task.", "reads": [{"tool": "read_tasks", "arguments": {"area": "University"}}]}
+    assert rig.done == []  # reading never writes
+
+
+# --- D2-057: token monitoring ----------------------------------------------------
+
+
+def test_usage_endpoint_reports_totals_or_says_it_is_off(tmp_path):
+    from types import SimpleNamespace
+
+    from usage import UsageLog
+
+    rig = Rig(tmp_path)
+    assert rig.http.get("/api/usage").json() == {"enabled": False}
+    log = UsageLog(lambda: NOW.date())
+    log.record("deepseek-flash", "chat", SimpleNamespace(prompt_tokens=900, completion_tokens=80))
+    app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None, usage_log=log)
+    http = TestClient(app)
+    assert http.get("/api/usage").status_code == 401  # behind the PIN like every /api route
+    body = http.get("/api/usage", headers={"X-Dani-Pin": "1234"}).json()
+    assert body["enabled"] is True and body["today"] == {"input": 900, "output": 80, "calls": 1}

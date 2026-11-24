@@ -62,11 +62,13 @@ rewritten on this model after F5 and the pending quizzes.
 
 | Field | Value |
 |---|---|
-| Done | D2-001 to D2-023 (7 Oct–3 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-024 — Task model for my Notion tasks (M05)** |
-| Then | D2-025, D2-026 (M05), then M06 — my calendars |
+| Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
+| **Active** | **D2-055 — her first real Confirm of a task from the chat** |
+| Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
+| After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
 | Study objectives to review | F1 Testing (oral check pending), D-A on M01–M03, F2, F3 |
+| Built outside the order | 5 Nov: MVP `dashboard.html` on real Notion and iCal data. 10 Nov: live dashboard v2, D2-039 to D2-045 (built and tested, review with me pending) |
 
 ## Done (7 October – 3 November)
 
@@ -88,9 +90,9 @@ Each milestone is usable on its own from the terminal before the next starts.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-024 | Task model with the fields planning needs: title, area, status, deadline, duration | Typed Task objects | A task with a missing or wrong field fails with a clear error | ⬜ |
-| D2-025 | Notion integration shared only with my Tasks database, token in `.env`; `notion_client.py` reads my open tasks; one real answer saved, with private data removed, as a test fixture | Real tasks + offline fixture | Tests run without internet; the secret scan passes | ⬜ |
-| D2-026 | `read_tasks` reads Notion instead of the three fake tasks; its description stays the same | Answers on my real tasks | "What do I have to do this week?" is answered on my real tasks; the trace shows the model picked the tool from its description | ⬜ |
+| D2-024 | Task model with the fields planning needs: title, area, status, deadline, duration | Typed Task objects | A task with a missing or wrong field fails with a clear error | ↪ MVP 5 Nov (`models.py`) |
+| D2-025 | Notion integration shared only with my Tasks database, token in `.env`; `notion_client.py` reads my open tasks; one real answer saved, with private data removed, as a test fixture | Real tasks + offline fixture | Tests run without internet; the secret scan passes | ↪ MVP 5 Nov (`notion_client.py`) |
+| D2-026 | `read_tasks` reads Notion instead of the three fake tasks; its description stays the same | Answers on my real tasks | "What do I have to do this week?" is answered on my real tasks; the trace shows the model picked the tool from its description | ↪ MVP 5 Nov + D2-042 |
 
 **Gate M05:** Dani answers on my real Notion tasks.
 
@@ -98,9 +100,9 @@ Each milestone is usable on its own from the terminal before the next starts.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-027 | Google service account, key in `.env`; my calendars shared with it; `gcal_client.py` lists the events of all my calendars in a time range | My real events | The events of one real day match Google Calendar | ⬜ |
-| D2-028 | Amsterdam time and repeating events expanded one by one over 14 days; one real answer saved as a fixture | Event list | A weekly event appears every week in the window; times are right across the winter-time change | ⬜ |
-| D2-029 | `read_calendar(start, end)` tool for the model | Answers on my calendar | "What do I have on Tuesday?" lists lessons, shifts and blocks correctly | ⬜ |
+| D2-027 | Google service account, key in `.env`; my calendars shared with it; `gcal_client.py` lists the events of all my calendars in a time range | My real events | The events of one real day match Google Calendar | ↪ D2-046 |
+| D2-028 | Amsterdam time and repeating events expanded one by one over 14 days; one real answer saved as a fixture | Event list | A weekly event appears every week in the window; times are right across the winter-time change | ↪ MVP 5 Nov (`ical_client.py`) |
+| D2-029 | `read_calendar(start, end)` tool for the model | Answers on my calendar | "What do I have on Tuesday?" lists lessons, shifts and blocks correctly | ↪ D2-045 (week in the prompt, no tool yet) |
 
 **Gate M06:** Dani knows my real week.
 
@@ -108,9 +110,9 @@ Each milestone is usable on its own from the terminal before the next starts.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-030 | `rules.md` — my planning rules (days, fixed commitments, load, cycle phase, how to move things) — loaded into the system prompt | Rules in the prompt | A test checks the prompt is built from the file; changing the file changes the prompt | ⬜ |
-| D2-031 | FastAPI server: `POST /api/chat` keeps the conversation and runs the tool loop | Chat over HTTP | A request returns Dani's answer; tests use a fake client, never the real API | ⬜ |
-| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | ⬜ |
+| D2-030 | `rules.md` — my planning rules (days, fixed commitments, load, cycle phase, how to move things) — loaded into the system prompt | Rules in the prompt | A test checks the prompt is built from the file; changing the file changes the prompt | ↪ D2-040, D2-045 (context from Settings) |
+| D2-031 | FastAPI server: `POST /api/chat` keeps the conversation and runs the tool loop | Chat over HTTP | A request returns Dani's answer; tests use a fake client, never the real API | ↪ D2-043, D2-045 (no tool loop yet) |
+| D2-032 | Five test questions with the facts Dani must give, and one command that runs them | Pass/fail summary | A deliberate break makes it fail | 🟡 10 Nov `fdb87e5` |
 
 **Gate M07:** I can chat with Dani about my real week from the terminal, and
 one command tells me whether it still works.
@@ -119,9 +121,9 @@ one command tells me whether it still works.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-033 | `propose_change` tool: create, move or delete a calendar event, or create a Notion task. It only saves a pending proposal and shows it to me | Proposal preview | Calendar and Notion are unchanged after a proposal | ⬜ |
-| D2-034 | Overlap check in code: a proposal that falls on a fixed commitment (lesson, shift, appointment, Sunday) is flagged, never silently accepted | Flagged conflicts | A move onto a shift is flagged in a test | ⬜ |
-| D2-035 | `POST /api/confirm` applies the proposal — no notifications, only the single occurrence of a repeating event — then reads it back | Real change after my yes | The read-back matches the preview; confirming twice changes nothing more | ⬜ |
+| D2-033 | `propose_change` tool: create, move or delete a calendar event, or create a Notion task. It only saves a pending proposal and shows it to me | Proposal preview | Calendar and Notion are unchanged after a proposal | ↪ D2-046 |
+| D2-034 | Overlap check in code: a proposal that falls on a fixed commitment (lesson, shift, appointment, Sunday) is flagged, never silently accepted | Flagged conflicts | A move onto a shift is flagged in a test | ↪ D2-046 |
+| D2-035 | `POST /api/confirm` applies the proposal — no notifications, only the single occurrence of a repeating event — then reads it back | Real change after my yes | The read-back matches the preview; confirming twice changes nothing more | ↪ D2-046 |
 
 **Gate M08:** "move the call to 4 pm" moves it, only after I said yes.
 
@@ -129,13 +131,99 @@ one command tells me whether it still works.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-036 | The PWA front-end of the first Dani (`planner` repo, `web/`) copied into `web/`: lock screen, day view and styles kept; the capture bar replaced by a chat that calls `/api/chat` and shows Confirm / Reject | App running locally | Build is green; a full conversation with a confirmed move works in the browser | ⬜ |
-| D2-037 | Voice: `POST /api/transcribe` sends the recording to Whisper; a microphone button in the chat | Voice request | A test recording gives the right text; the text goes into the chat | ⬜ |
+| D2-036 | The PWA front-end of the first Dani (`planner` repo, `web/`) copied into `web/`: lock screen, day view and styles kept; the capture bar replaced by a chat that calls `/api/chat` and shows Confirm / Reject | App running locally | Build is green; a full conversation with a confirmed move works in the browser | ↪ D2-044 (new front-end) |
+| D2-037 | Voice: `POST /api/transcribe` sends the recording to Whisper; a microphone button in the chat | Voice request | A test recording gives the right text; the text goes into the chat | ↪ D2-045, D2-051 |
 | D2-038 | Online on Render: one service serves the API and the built front-end, protected by a PIN/key | Online Dani | Without the key there is no answer; the five M07 cases pass online | ⬜ |
 
 **Gate M09 — the demo (13 November):** from the app on my phone I say "move
 Thursday's call to 4 pm" or "plan my free time on Wednesday"; Dani reads Notion
 and my calendars, proposes, and after my yes the change is in my calendar.
+
+### Dashboard v2 — live, multi-page, with chat (10 November, my decision)
+
+Built on the Notion and iCal links of the 5 Nov MVP, before closing D2-024.
+🟡 = built, tests green, checked in the browser; closed only after I have
+walked through the code and can explain it.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-039 | `cycle.py`: phase estimate from start date, mean cycle and period length; "in arrivo" when the expected start has passed unconfirmed | Phase on the Home page | One test per phase, per refusal, and for cycles after a confirmed one | 🟡 |
+| D2-040 | `store.py`: my private settings (context, cycle, tickable calendars, hidden events) in `data/settings.json`, outside git | Settings that survive a restart | A broken file is refused; write then read gives the same settings | 🟡 |
+| D2-041 | `notion_client.mark_done`: PATCH Status = Done on one page, with read-back | A ticked task is Done in Notion | Fake HTTP: only Status is sent; an answer that is not Done raises | 🟡 |
+| D2-042 | `live.py`: cache of tasks and events, refresh with time and ok/error per source, LLM priority only when tasks or context change | "aggiornato alle HH:MM:SS" | A failing source keeps the last data; the priority is asked once | 🟡 |
+| D2-043 | `server.py` (FastAPI): state, refresh, tick, settings, cycle, PIN | The API behind the page | Every endpoint tested with fake sources, accepted case and each refusal | 🟡 |
+| D2-044 | `web/`: Home, Calendar (week grid), Meal prep (placeholder), Settings; tick with 5 s of undo | The dashboard on Mac and phone | Browser check on real data at desktop and 375 px width | 🟡 |
+| D2-045 | Chat bubble: `POST /api/chat` with my context and the week's data, read-only; voice in (Whisper if a key is set, else browser dictation) and spoken answers | I talk with Dani | Fake model: context and data are in the prompt; the chat never writes | 🟡 |
+| D2-046 | Google Calendar through the API with a service account (`gcal_client.py`): events read live; a ticked event is deleted; the chat proposes a move (`propose.py`) and `POST /api/confirm` applies it after my yes | Real calendar changes | Fake HTTP: only the single occurrence, no notifications, read-back; a shift cannot be moved; the calendar is unchanged after a proposal. Real read checked; the first real write is mine | 🟡 |
+
+Overlap with the Sprint 3 rows: D2-030 (my context in the prompt, edited from
+Settings instead of `rules.md`), D2-031 (chat over HTTP, without the tool loop
+yet), D2-036 (a new front-end instead of the old PWA) and D2-037 (Whisper
+endpoint, inactive until `OPENAI_API_KEY` exists) are partly covered. D2-046
+merges D2-027 and D2-033–D2-035. Decision Logs:
+`docs/DECISION-LOG-dashboard-v2.md`.
+
+### Sprint 3 finish (10–13 November) — what is still missing for the demo
+
+Revised on 10 Nov after the dashboard v2: most ⬜ rows of M05–M09 are now
+covered (marked ↪ above). What the demo still needs, in build order.
+**11 Nov, my decision:** the daily 15-minute walk-throughs of the 🟡 rows are
+suspended until after the demo — closing V1 comes first. The rows stay 🟡 and
+the review happens in Sprint 4.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-047 | Work shifts from Eitje: its `webcal://` subscription link in `GCAL_ICS_URL` (`.env`), `ical_client.to_https` swaps the scheme; the calendar is fixed (not tickable) | My shifts in the week | Tests: a webcal link is downloaded over https, https unchanged. Real: 4 shifts this week read, 0 planner blocks on a shift | 🟡 |
+| D2-048 | Day rules in the planner: blocks start at 09:30 (morning routine, gym and commute end then, in calendar or not); on a day with a shift (an event in a work calendar, `lavoro`/Eitje) blocks end at 16:00 — from 16:00 she gets ready for the 17:00 shift — otherwise at 20:00 | Blocks that respect my real day | Tests: a shift day has no block after 16:00; a day without a shift keeps 20:00; no block before 09:30; a lesson does not cut the day to 16:00 | 🟡 10 Nov `09a1562` |
+| D2-049 | Saving the Settings acts at once: `PUT /api/settings` re-asks the priority with the new context, so the dashboard shows the new priorities and blocks without waiting for the periodic refresh | New context, new plan, immediately | Tests: the save re-asks the priority with the new context; a priority failure does not lose the save | 🟡 10 Nov `a1e125a` |
+| D2-050 | Click an event in the dashboard to act on it: the click opens the chat with the event reference and time prefilled, so I can say "riprogrammalo" or "questo blocco mi serve libero"; a move stays proposal → my yes → write; fixed calendars (shifts, lessons) stay fixed | Event actions from the calendar | Browser check: a click fills the chat with the right event; a move of a shift is still refused (existing propose tests) | 🟡 10 Nov `1c740f7` |
+| D2-051 | Fontys as a fixed calendar: the link turned out to be the Canvas feed (`fhict.instructure.com`) — course deadlines and appointments, not lessons (lessons already live in the Università Google calendar). Feed added to `GCAL_ICS_URL`; iCal text escaping (RFC 5545) now removed from names and titles | Fontys deadlines in the week | Real: the 13 Nov Portfolio Check-in appears from the feed, calendar fixed (not tickable); all-day deadlines take no planner slot; 287 tests green | ✅ 11 Nov `a0218c7` |
+| D2-052 | A planner block can be accepted or rejected: Accept shows a preview, after my yes the event is created in the study calendar and read back; Reject hides the block | Blocks in my calendar | Calendar unchanged after a preview; read-back matches; a rejected block is not proposed again | 🟡 10 Nov `fc82993` |
+| D2-053 | A proposed block can be moved before I accept it; the new time goes through the same checks as `propose.py` (Sunday, overlap, fixed calendars) | Blocks where I want them | A move onto a shift is flagged in a test | 🟡 10 Nov `fc82993` |
+| D2-054 | Whisper live: `OPENAI_API_KEY` in `.env`, the existing `/api/transcribe` used with a real recording | I talk to Dani | A real recording gives the right text in the chat | ✅ 23 Nov `bca6840` |
+| D2-055 | New task from the chat: "new task: …" makes Dani propose a Notion task (title, area, deadline, duration) as a preview; after my yes `/api/confirm` creates it in my Tasks database and reads it back. An area that is not one of mine is refused, so no new option is silently added to the database | Tasks born in the chat | Notion unchanged after a preview; the read-back matches; a missing title and an unknown area are refused; confirming twice changes nothing more. Real: the model proposed the task from the chat in the browser; my first real Confirm closes the row | 🟡 11 Nov `ff6ee81` |
+
+D2-032 (five evaluation cases, one command) is built (🟡 10 Nov). Moved after
+the demo (11 Nov, my decision): D2-038 (the live app online with a PIN — today
+the static Cloudflare snapshot is the online piece) and D2-024a (secret guard).
+
+## M17 — Dani plans my whole life, like Claude does (23 November, my decision)
+
+When I plan with Claude, Claude looks things up itself — my life plan, my
+areas, my projects, my tasks, my calendars months ahead — and reasons from the
+long term down to today. Dani today gets one prepared sheet (this week, open
+tasks, the Settings text) and cannot ask for more: the tool loop of D2-029 /
+D2-031 was never built. M17 builds it, then plans top-down on four levels:
+**life** (years) → **months** (active projects and deadlines) → **week** (the
+focus I choose on Sunday) → **day** (programme, how I feel, cycle phase).
+
+Sources of the picture: the Notion page "piano di vita", the area pages
+(University, Carriera / ICT, MG Integration, Personal), the Projects & Goals
+database, the Tasks database, all my Google calendars, and the roadmaps of my
+running projects: the two Fontys projects **AMEXIO** (team module, tasks
+`AMX-…` in Tasks) and **Betsy** (page "Betsy — Plan, study method and
+roadmap"), and **Dani** itself (this file; tasks `D2-…` in Tasks) — Dani plans
+its own build steps like any other project. MG Integration has no roadmap or
+tasks yet (the offer is still changing); its main project now is a scouting
+agent that finds companies to interview, to validate how much demand there is
+for AI automation — it enters Dani's picture as context only.
+
+The model is measured while building, not decided up front: the tool loop
+talks to any OpenAI-compatible provider, so switching from DeepSeek to another
+model is a key and a base URL, and the evaluations (D2-032) run per model.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-056 | Read tools for the model and the tool loop in the chat: `read_calendar(start, end)` on any period, `read_tasks(filters)` (all areas and projects: AMEXIO, Betsy, Dani, job search…), `read_projects()`, `read_page(name)` for the life plan, the area pages and the project roadmaps (an allow-list, nothing else in Notion). Dani decides what to read; read-only | Dani looks things up itself | Fake model and sources: the loop runs the requested tool, returns the result, stops after a bounded number of rounds; an unknown tool or page is refused. Real: "cosa ho a metà dicembre?" and "come va la ricerca lavoro?" answered right, the trace shows which tools ran | 🟡 23 Nov — built, 337 tests green; the real check needs the Projects database and the pages shared with the Notion integration |
+| D2-057 | Token monitoring: every model call counts its input and output tokens (`usage.py`, a wrapper around the model client, by kind: chat or priority); totals per day, model and kind saved in the Notion database "Dani — consumo token" (the Render disk is wiped on restart) and reloaded at start; a "Consumi" page with today, 7 and 30 days, tokens per day and the detail tables | I see what Dani costs | Fake client: tokens are added per day, model and kind; a row is created once then updated; a failed save is retried; `/api/usage` is behind the PIN. Browser: the page at desktop and 375 px. Real: after a chat, the row appears in Notion | 🟡 23 Nov — built; real check after `NOTION_USAGE_DB_ID` is set on Render |
+| D2-058 | My life context in a file I own (M14 pulled forward): goals per area and horizon, standing rules, MG context; always in the system prompt, readable and editable from Settings | The life plan in every answer | A test checks the prompt is built from the file; changing the file changes the next answer | ⬜ |
+| D2-059 | Top-down planning: "pianificami dicembre" gives first the month's goals per area and project (AMEXIO, Betsy, Dani, job search), then the weeks, then blocks. Free time is planned too, and invested: reading (the "To Read" / "Reading" items of the grande piano), courses and the other growth goals of the life plan, never left as an empty gap; every block goes through preview → yes → calendar and the existing checks (Sunday, shifts, 16:00, overlap) | A month plan from my goals | Evaluation cases: the plan names the real deadlines, no block on a Sunday or a shift; calendar unchanged before my yes | ⬜ |
+| D2-060 | Sunday check-in: Dani asks "su cosa ti vuoi concentrare questa settimana?", saves my answer as the week's focus (in Notion, because the Render free disk is wiped on every restart) and proposes next week's blocks | A week that starts from my focus | The focus survives a restart; next week's proposal names it; nothing written before my yes | ⬜ |
+| D2-061 | Morning briefing: today's programme, "Giulia, oggi come stai?", cycle phase, the week's goals, as a notification on my phone; a free scheduled job calls Dani every morning, which also wakes Render before I open the app | A message every morning | The text is built by a tested pure function; the endpoint refuses a call without the key; a real notification arrives on my phone | ⬜ |
+
+**Gate M17:** I ask Dani "pianificami le prossime settimane" and it answers
+from my life plan, my projects and my real calendars, the way Claude does; on
+Sunday it asks me for the week's focus, and every morning I get the briefing.
 
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
@@ -241,7 +329,7 @@ git history (commit `f687d37`).
 | D2-032 | D2-024, D2-025 | evaluation set and one command |
 | D2-033–D2-035 | D2-031–D2-033, D2-044–D2-046 | one preview → yes → read-back path for calendar and Notion |
 | D2-036 | — | new: the first Dani's front-end, reused |
-| D2-037 | D2-048 | Whisper |
+| D2-037 | D2-054 | Whisper |
 | D2-038 | D2-047 | Render, behind a key |
 | M10–M11 | D2-040–D2-043 | free time and planning are done by the model and checked by code and evaluations |
 | M12 | D2-034, D2-035 | skill vs descriptions, after the demo |
@@ -266,5 +354,13 @@ Stop and ask me (and propose a Decision Log) if a change:
 |---|---|
 | 2026-11-03 | V4 after Ruud's feedback: Notion first, skill after; December scope cut to the planning product; steps renumbered in build order; no letter suffixes |
 | 2026-11-04 | V5: a working chat app by 13 Nov (Notion, all Google calendars, rules in the prompt, preview → yes → write, the first Dani's PWA, Whisper, Render); theory inside the steps; planning by the model, checked by code and evaluations; Sprint 4–5 as milestones |
+| 2026-11-10 | Dashboard v2 built outside the order, by my decision: new rows D2-039 to D2-046 appended (no renumbering of D2-024–D2-038); they partly cover D2-030, D2-031, D2-036, D2-037; D2-046 merges D2-027 and D2-033–D2-035. Six Decision Logs in `docs/DECISION-LOG-dashboard-v2.md` |
+| 2026-11-10 | Revision after the dashboard v2: M05–M09 rows covered by the MVP and D2-039–D2-046 marked ↪; new rows D2-047 (Eitje shifts), D2-048 (Fontys), D2-049–D2-050 (accept, reject and move planner blocks), D2-051 (Whisper live); D2-032 and D2-038 keep their IDs and close Sprint 3 |
+| 2026-11-10 | Giulia's feedback on the live dashboard: the pasted context alone did not change the plan. New rows D2-048 (day rules in the planner: 09:30 start, 16:00 on shift days), D2-049 (settings act at once) and D2-050 (event actions from the dashboard) inserted after D2-047; the ⬜ rows after them renumbered: Fontys → D2-051, planner blocks → D2-052/D2-053, Whisper live → D2-054 |
 | 2026-11-10 | Proposed M14–M16 (to confirm): context under my control (memory file next to `rules.md`, pulls Later #2 forward), Gmail read-only (new OAuth credential, Decision Log), body signals (manual first; automatic source needs a Decision Log — Google Fit API is shut down). Mail writing stays in Later #5 |
 | 2026-11-10 | M14–M16 confirmed by Giulia. Her device is a Fitbit, so M16 phase 2 goes through the Fitbit Web API (read-only scopes, own OAuth app, Decision Log at step start) |
+| 2026-11-10 | Gap completion on Giulia's request: the branches of the day (dashboard v2, planner rules, M14–M16 roadmap) unified on one branch; D2-052, D2-053 (accept, reject, move a planner block, preview → yes → write in the study calendar) and D2-032 (five evaluations, `python3 evals.py`) built, 🟡 pending her walk-through. Still ⬜ because they need her: D2-051 (Fontys link), D2-054 (`OPENAI_API_KEY`), D2-038 (secrets on Render) |
+| 2026-11-11 | Closing scope for V1, Giulia's decision: daily walk-throughs of the 🟡 rows suspended until after the demo; D2-038 and D2-024a move after the demo (the Cloudflare snapshot is the online piece for now); new row D2-055 (new task from the chat). D2-051 closed: the Fontys link is the Canvas feed (deadlines, not lessons — lessons stay in the Università calendar). V1 closes with D2-055 and D2-054 |
+| 2026-11-23 | D2-054 closed (Whisper live; phone audio sent as `.m4a`). Giulia: Dani is no longer a university project — Decision Logs, study cycle and portfolio updates are dropped; the goal is an autonomous assistant as soon as possible |
+| 2026-11-23 | New milestone M17 — Dani plans my whole life, like Claude does: read tools and the tool loop (D2-056), life context file (D2-057, M14 pulled forward), top-down planning with invested free time — reading, courses (D2-058), Sunday check-in (D2-059), morning briefing on the phone (D2-060, pulls Later #3 forward). MG Integration enters as context only (scouting agent, no roadmap yet). The model is measured with the evaluations while building |
+| 2026-11-23 | New row D2-057 on Giulia's request: token monitoring (input and output tokens per day, saved in Notion, a "Consumi" page). The ⬜ M17 rows after it renumbered: life context → D2-058, top-down planning → D2-059, Sunday check-in → D2-060, morning briefing → D2-061 |
