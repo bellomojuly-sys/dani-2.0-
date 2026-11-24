@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **M17 real checks (mine)**: D2-056 and D2-058–D2-061 are built and wait for the Render variables, the ntfy app and my review; then M10 (rules evaluation), M15 Gmail, M16 Fitbit |
+| **Active** | **D2-062 — Dani's personality** (M18). M17 real checks wait for me: Render variables, ntfy app, my review of the life page |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -225,6 +225,32 @@ model is a key and a base URL, and the evaluations (D2-032) run per model.
 from my life plan, my projects and my real calendars, the way Claude does; on
 Sunday it asks me for the week's focus, and every morning I get the briefing.
 
+## M18 — Dani is with me during the day (24 November, my decision)
+
+The goal: an autonomous assistant with a personality that talks to me first.
+It calls me in the morning with "oggi questa è la tua giornata", asks how I am,
+reminds me of appointments, wakes me when I skip the alarm, makes forecasts and
+keeps me motivated. Render free sleeps, so Dani cannot keep a timer running all
+day: every morning it schedules the day's messages on ntfy (delivery at a set
+time, up to three days ahead), which delivers them while Render sleeps.
+
+| ID | Build | Output | Verify | Status |
+|---|---|---|---|---|
+| D2-062 | Dani's personality: one persona (warm, direct, motivating, Italian, short spoken sentences; never invents, never guilt-trips) used by the chat and the briefing; a "come voglio che mi parli" section of the life page can change it | Dani sounds like one person | A test checks the persona is in every prompt and the briefing; changing the page changes the prompt | ⬜ |
+| D2-063 | Appointment reminders and the evening check-in: the morning send also schedules on ntfy a reminder 15 minutes before each timed event of the day and a "com'è andata oggi?" at 21:00 | Reminders without the server awake | Fake sender: one scheduled message per timed event, none for past or all-day events, none on Sunday for work; the 21:00 one is scheduled once | ⬜ |
+| D2-064 | Mood diary: "come stai?" answered with an energy level (1–5) and a sentence from the Home or the chat; saved in a Notion database; today's energy goes into the prompt (a low day is planned lighter) and yesterday's into the briefing | Dani knows how I feel | Save then read back; a low energy adds the lighter-day rule to the prompt; a missing value is never guessed | ⬜ |
+| D2-065 | Forecasts: for every project deadline, the free hours left until it against the open tasks' estimated time → on track / tight / at risk, and the date it would end at the current pace; in the briefing, the chat and the Home | Dani says what will slip before it slips | Fixed tasks and events give a known forecast; a task without an estimate counts 60 minutes and is said so | ⬜ |
+| D2-066 | The morning call in the app: a tap on the briefing opens Dani, which speaks the day aloud with its voice and waits for "come stai?" in the chat | "Oggi questa è la tua giornata", spoken | Browser check: the #buongiorno address speaks the briefing and opens the chat | ⬜ |
+| D2-067 | Wake-up guard: an iPhone Shortcut automation (alarm snoozed / stopped) calls `POST /api/wake`; a snooze sends a max-priority "alzati" push with the first appointment, and schedules two more at +5 and +10 minutes unless the alarm is stopped | Dani gets me up | Fake sender: snooze schedules the pushes, stop after a snooze says "brava"; the endpoint needs the PIN | ⬜ |
+| D2-068 | Fewer tokens for the priority: ask the priority only when tasks or context really change, with a shorter prompt | A cheaper Dani | The Consumi page shows fewer priority calls per day; tests pin when the priority is asked | ⬜ |
+
+**A real phone call** (not a notification) needs a paid service (ntfy Pro
+calls or Twilio) and a new credential: ask-first, not built until I say yes.
+
+**Gate M18:** on a normal weekday Dani wakes me, speaks my day, reminds me of
+each appointment, asks how I am in the morning and in the evening, and tells
+me what is at risk before it slips.
+
 ## Sprint 4–5 (16 November – 18 December) — Dani on a real week
 
 Milestones only; steps get IDs when the sprint starts.
@@ -364,3 +390,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-23 | D2-054 closed (Whisper live; phone audio sent as `.m4a`). Giulia: Dani is no longer a university project — Decision Logs, study cycle and portfolio updates are dropped; the goal is an autonomous assistant as soon as possible |
 | 2026-11-23 | New milestone M17 — Dani plans my whole life, like Claude does: read tools and the tool loop (D2-056), life context file (D2-057, M14 pulled forward), top-down planning with invested free time — reading, courses (D2-058), Sunday check-in (D2-059), morning briefing on the phone (D2-060, pulls Later #3 forward). MG Integration enters as context only (scouting agent, no roadmap yet). The model is measured with the evaluations while building |
 | 2026-11-23 | New row D2-057 on Giulia's request: token monitoring (input and output tokens per day, saved in Notion, a "Consumi" page). The ⬜ M17 rows after it renumbered: life context → D2-058, top-down planning → D2-059, Sunday check-in → D2-060, morning briefing → D2-061 |
+| 2026-11-24 | New milestone M18 on Giulia's request — Dani is with me during the day: personality (D2-062), appointment reminders and evening check-in scheduled on ntfy (D2-063), mood diary (D2-064), forecasts (D2-065), the spoken morning call (D2-066), wake-up guard with an iPhone Shortcut (D2-067), fewer priority tokens (D2-068). A real phone call is paid: ask-first |
