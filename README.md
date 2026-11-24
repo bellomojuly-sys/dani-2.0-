@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **M17 real checks** (D2-056, D2-058–D2-061 built, waiting for the Render variables and the ntfy app).
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **M17–M18 real checks** (D2-056, D2-058–D2-068 built, waiting for the Render variables, the ntfy app and the iPhone Shortcut).
 
 | Step | What | State |
 |---|---|---|
@@ -140,6 +140,13 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-059 | Top-down planning: `propose_plan` from the chat, day rules as warnings, each block confirmed alone; `evals.py --plan`, `--model` | Built 🟡 24 Nov |
 | D2-060 | Sunday check-in: week focus saved in Notion, Home card, in the chat prompt, "Proponimi la settimana" | Built 🟡 24 Nov |
 | D2-061 | Morning briefing: pure text, `/api/briefing`, ntfy sender, GitHub Actions schedule, preview in Settings | Built 🟡 24 Nov (needs `NTFY_TOPIC` and the repository secrets) |
+| D2-062 | Dani's personality from the questionnaire: Chief / July, the page "Dani — chi è Dani" in every prompt | Built 🟡 24 Nov |
+| D2-063 | The day's reminders and the evening check-in, scheduled on ntfy; silence during shifts, lessons, meetings; max 4 per hour | Built 🟡 24 Nov |
+| D2-064 | Mood diary in Notion: "Come stai, July?" card and chat tool; a low day planned at the bare minimum | Built 🟡 24 Nov |
+| D2-065 | Forecasts: work due vs free hours per deadline, in the chat, the briefing and the Home | Built 🟡 24 Nov |
+| D2-066 | The morning call: the briefing notification opens Dani speaking the day | Built 🟡 24 Nov |
+| D2-067 | Wake-up guard: iPhone Shortcut → `/api/wake`, escalating pushes | Built 🟡 24 Nov |
+| D2-068 | Priority asked only on her action (the restart cost 15k tokens each time) | Built 🟡 24 Nov |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 

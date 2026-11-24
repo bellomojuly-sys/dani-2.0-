@@ -227,7 +227,15 @@ function renderHome() {
   rows.sort((a, b) => a.sort - b.sort);
   $("#home-events").replaceChildren(...(rows.length ? rows.map((r) => r.node) : [h("div", { class: "empty" }, "Niente in calendario oggi.")]));
 
-  $("#priority-note").textContent = state.priority.ok ? "ordine verificato dall'AI" : `ordine per scadenza (${state.priority.reason})`;
+  $("#priority-note").textContent = state.priority.ok ? "ordine verificato dall'AI" : `ordine per ${state.priority.reason}`;
+  const reorder = $("#reorder");
+  reorder.hidden = !state.chat.text;
+  reorder.onclick = async () => {
+    reorder.disabled = true;
+    try { const r = await api("/api/priority", { method: "POST" }); toast(r.ok ? "Riordinato da Dani." : `Non riordinato: ${r.reason}`); poll(); }
+    catch (failure) { toast(failure.message, { bad: true }); }
+    reorder.disabled = false;
+  };
   const tasks = state.tasks.filter((t) => !gone(t.id));
   const shown = showAllTasks ? tasks : tasks.slice(0, 8);
   const taskNodes = shown.map((task) => h("div", { class: "item" },

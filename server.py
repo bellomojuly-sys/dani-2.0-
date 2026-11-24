@@ -427,6 +427,14 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                 pass
         return {"event": body.event, "snoozes": snoozes.get(today, 0), "sent": sent}
 
+    @api.post("/priority")
+    def post_priority():
+        """Her "Riordina con Dani": ask the model for the priority now (D2-068)."""
+        if chat_client is None:
+            raise HTTPException(status_code=503, detail="chat non configurata: manca DEEPSEEK_API_KEY")
+        live.update_priority(settings().context, force=True)
+        return {"ok": live.outcome["ok"], "reason": live.outcome["reason"]}
+
     @api.get("/forecast")
     def get_forecast():
         data = current_forecast()
@@ -597,14 +605,16 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
 
 
 def refresh_forever(live, settings_path, sleep=time.sleep, seconds=REFRESH_SECONDS, after=None):  # pragma: no cover
-    """The background loop: re-read the sources, then the priority if needed,
-    then ``after()`` (the token totals are saved there, D2-057)."""
+    """The background loop: re-read the sources, then ``after()`` (token
+    totals, life page, focus, diary).
+
+    D2-068: the model priority is no longer asked here. Render free restarts
+    after every sleep, and each restart re-asked it (about 15,000 tokens a
+    time, 9 times on 24 November). The base order is the same rule in code
+    (deadline, label, next action); the model is asked only on her action:
+    saving Settings or "Riordina con Dani" (POST /api/priority)."""
     while True:
         live.refresh("all")
-        try:
-            live.update_priority(read_settings(settings_path).context)
-        except Exception as failure:
-            print(f"priority not updated: {type(failure).__name__}")
         if after is not None:
             after()
         sleep(seconds)

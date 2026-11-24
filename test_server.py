@@ -767,3 +767,25 @@ def test_wake_counts_snoozes_escalates_and_needs_the_pin(tmp_path):
     assert http.post("/api/wake", json={"event": "stopped"}, headers=pin).json()["sent"] == 1
     assert sent[-1][0] == "Brava, July"
     assert http.post("/api/wake", json={"event": "dormo"}, headers=pin).status_code == 422
+
+
+# --- D2-068: the model priority only on her action ------------------------------------
+
+
+def test_priority_is_asked_only_when_she_presses_reorder(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(today)
+        return {"ok": False, "reason": "test", "priority": None}
+
+    rig = Rig(tmp_path, chat=FakeChat("x"), prioritize=prioritize)
+    assert asked == []  # a start (or a wake-up of Render) asks nothing
+    assert rig.http.get("/api/state").json()["priority"]["reason"].startswith("regola")
+    assert rig.http.post("/api/priority").json() == {"ok": False, "reason": "test"}
+    rig.http.post("/api/priority")
+    assert len(asked) == 2  # forced every time she presses it
+
+
+def test_reorder_needs_the_model(rig):
+    assert rig.http.post("/api/priority").status_code == 503
