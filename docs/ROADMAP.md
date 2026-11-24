@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **M18 real checks (mine)**: D2-062–D2-068 built; waiting for the Render variables, the ntfy app, the iPhone Shortcut and my review of the Notion pages. Next: M19 | Waiting for me: Render variables, ntfy app, my review of the two Notion pages |
+| **Active** | **D2-069 Telegram: waiting for the bot token** · **M18 real checks (mine)**: D2-062–D2-068 built; waiting for the Render variables, the ntfy app, the iPhone Shortcut and my review of the Notion pages. Next: M19 | Waiting for me: Render variables, ntfy app, my review of the two Notion pages |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -268,6 +268,8 @@ answers in "Dani — chi è Dani".
 - **A real phone call** for the alarm and the important things: paid service
   and new credential, ask-first.
 
+**D2-069 (added 24 Nov, her decision): Telegram.** Dani becomes a Telegram contact: she writes first (briefing, reminders, wake-up, evening check-in) and Giulia answers there, by text or voice (Whisper), with Conferma / Rifiuta buttons under proposals. Only her chat id is answered; the webhook has a secret derived from the bot token; a minute clock in the refresh loop sends the day's reminders from the calendar (a restart neither loses nor repeats them); `/healthz` for a free uptime pinger keeps Render awake. Status: 🟡 built 24 Nov, 428 tests green; waiting for the bot token (`docs/TELEGRAM.md`).
+
 **A real phone call** (not a notification) needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
@@ -415,3 +417,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-23 | New milestone M17 — Dani plans my whole life, like Claude does: read tools and the tool loop (D2-056), life context file (D2-057, M14 pulled forward), top-down planning with invested free time — reading, courses (D2-058), Sunday check-in (D2-059), morning briefing on the phone (D2-060, pulls Later #3 forward). MG Integration enters as context only (scouting agent, no roadmap yet). The model is measured with the evaluations while building |
 | 2026-11-23 | New row D2-057 on Giulia's request: token monitoring (input and output tokens per day, saved in Notion, a "Consumi" page). The ⬜ M17 rows after it renumbered: life context → D2-058, top-down planning → D2-059, Sunday check-in → D2-060, morning briefing → D2-061 |
 | 2026-11-24 | New milestone M18 on Giulia's request — Dani is with me during the day: personality (D2-062), appointment reminders and evening check-in scheduled on ntfy (D2-063), mood diary (D2-064), forecasts (D2-065), the spoken morning call (D2-066), wake-up guard with an iPhone Shortcut (D2-067), fewer priority tokens (D2-068). A real phone call is paid: ask-first |
+| 2026-11-24 | D2-069 Telegram added on Giulia's request: ntfy notifications could not be answered without opening the app; on Telegram Dani writes first and she answers there, by text or voice |

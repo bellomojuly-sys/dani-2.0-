@@ -789,3 +789,88 @@ def test_priority_is_asked_only_when_she_presses_reorder(tmp_path):
 
 def test_reorder_needs_the_model(rig):
     assert rig.http.post("/api/priority").status_code == 503
+
+
+# --- D2-069: Telegram -------------------------------------------------------------------
+
+
+class FakeTelegram(dict):
+    def __init__(self, chat_id="42"):
+        self.sent, self.to_others, self.answers = [], [], []
+        super().__init__(send=lambda text, buttons=None: self.sent.append((text, buttons)),
+                         send_to=lambda chat_id, text: self.to_others.append((chat_id, text)),
+                         answer=lambda callback_id, text: self.answers.append(text),
+                         voice=lambda file_id: b"ogg-bytes", chat_id=chat_id, secret="s3cret")
+
+
+def _post(http, update, secret="s3cret", header="s3cret"):
+    return http.post(f"/telegram/{secret}", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": header})
+
+
+def test_telegram_needs_the_secret_and_talks_only_to_giulia(tmp_path):
+    rig, tg = Rig(tmp_path), FakeTelegram()
+    http = TestClient(create_app(rig.live, rig.done.append, FakeChat("Ciao July."), None, None, rig.path, web_dir=None, telegram=tg))
+    assert _post(http, {}, secret="wrong").status_code == 404
+    assert _post(http, {}, header="wrong").status_code == 404
+    _post(http, {"message": {"chat": {"id": 7}, "text": "chi sei?"}})
+    assert tg.sent == [] and tg.to_others == []  # a stranger gets nothing
+    _post(http, {"message": {"chat": {"id": 42}, "text": "come sto messa oggi?"}})
+    assert tg.sent == [("Ciao July.", None)]
+
+
+def test_before_the_chat_id_is_set_dani_only_says_it(tmp_path):
+    rig, tg = Rig(tmp_path), FakeTelegram(chat_id=None)
+    http = TestClient(create_app(rig.live, rig.done.append, FakeChat("x"), None, None, rig.path, web_dir=None, telegram=tg))
+    _post(http, {"message": {"chat": {"id": 42}, "text": "ciao"}})
+    assert tg.to_others == [("42", "Ciao! Il tuo chat id è 42: mettilo su Render come TELEGRAM_CHAT_ID.")]
+    assert tg.sent == []
+
+
+def test_a_voice_message_goes_through_whisper_and_a_proposal_comes_with_buttons(tmp_path):
+    from test_chat import FakeWhisper, ScriptedChat
+
+    rig, tg = Rig(tmp_path), FakeTelegram()
+    task = '{"title": "Comprare le lenti", "area": "Personal"}'
+    rig.live.tasks[0] = rig.live.tasks[0].model_copy(update={"area": "Personal"})
+    chat = ScriptedChat([("", [("propose_task", task)])])
+    created = []
+    app = create_app(rig.live, rig.done.append, chat, FakeWhisper("nuovo task comprare le lenti"), None, rig.path,
+                     web_dir=None, telegram=tg, create_task=lambda *a: created.append(a) or rig.live.tasks[0])
+    http = TestClient(app)
+    _post(http, {"message": {"chat": {"id": 42}, "voice": {"file_id": "v1"}}})
+    assert chat.requests[0]["messages"][-1]["content"] == "nuovo task comprare le lenti"
+    card_text, buttons = tg.sent[-1]
+    assert "Comprare le lenti" in card_text and buttons[0][0] == "Conferma" and buttons[1][0] == "Rifiuta"
+    proposal_id = buttons[0][1][2:]
+    assert created == []  # nothing written before the button
+    _post(http, {"callback_query": {"id": "q1", "data": f"c:{proposal_id}", "message": {"chat": {"id": 42}}}})
+    assert len(created) == 1 and tg.answers[-1].startswith(("Fatto", "Scritto"))
+
+
+def test_the_minute_clock_sends_due_reminders_once_even_after_a_restart(tmp_path):
+    from datetime import timedelta
+
+    rig, tg = Rig(tmp_path), FakeTelegram()  # NOW is 13:21; the fixture week has timed events
+    app = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, telegram=tg)
+    day_end = NOW.replace(hour=23, minute=59)
+    sent = 0
+    moment = NOW
+    while moment < day_end:
+        moment += timedelta(minutes=1)
+        sent += app.state.tick(moment)
+    assert sent == len(tg.sent) and sent >= 1
+    assert any("com'è andata" in text for text, _ in tg.sent)
+    rig.live.clock = lambda: day_end  # Render restarts at 23:59
+    again = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, telegram=FakeTelegram())
+    assert again.state.tick(day_end + timedelta(seconds=30)) == 0  # nothing earlier is sent twice
+
+
+def test_with_telegram_the_briefing_and_the_wake_up_go_there(tmp_path):
+    rig, tg = Rig(tmp_path), FakeTelegram()
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, telegram=tg))
+    body = http.post("/api/briefing/send").json()
+    assert body["sent"] is True and body["scheduled"] == 0  # the clock sends the reminders, not ntfy
+    assert tg.sent[0][0].startswith("Buongiorno July")
+    http.post("/api/wake", json={"event": "snoozed"})
+    assert "sveglia" in tg.sent[-1][0]
+    assert http.get("/healthz").json() == {"ok": True}

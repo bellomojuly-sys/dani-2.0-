@@ -37,6 +37,10 @@ services:
         sync: false
       - key: NOTION_MOOD_DB_ID
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
       - key: NTFY_TOPIC
         sync: false
       - key: NTFY_TOKEN

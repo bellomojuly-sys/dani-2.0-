@@ -55,6 +55,7 @@ from reminders import plan_day_messages
 from mood import RECORD_MOOD_SCHEMA, mood_prompt
 from forecast import at_risk, forecast
 from wake import snooze_messages, stopped_message
+from telegram_client import read_update
 from forecast import describe as describe_forecast
 from cycle import CycleSettings
 from store import (
@@ -128,7 +129,7 @@ class TaskBody(BaseModel):
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
-               week_focus=None, send_note=None, character=None, mood_log=None):
+               week_focus=None, send_note=None, character=None, mood_log=None, telegram=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -147,9 +148,15 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     (D2-061; ``at`` schedules a later delivery, D2-063),
     or is None while no notification channel is set up. character is the
     LifeContext of the page "Dani — chi è Dani" (D2-062), or None. mood_log
-    is the mood.MoodLog of her diary (D2-064), or None."""
+    is the mood.MoodLog of her diary (D2-064), or None. telegram (D2-069) is
+    {"send": f(text, buttons=None), "answer": f(callback_id, text),
+    "voice": f(file_id) -> bytes, "chat_id": str or None, "secret": str}: Dani
+    talks with her there, and every message to her phone goes there."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
+
+    def telegram_active():
+        return telegram is not None and bool(telegram.get("chat_id"))
     forecast_cache = {"at": None, "rows": [], "error": None}  # D2-065, recomputed every 15 minutes
     snoozes = {}  # day -> snoozes so far (D2-067); in memory: a morning, not a history
 
@@ -397,7 +404,9 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         hidden = {entry.key for entry in settings().hidden_events}
         day = [event for event in live.events if event.key not in hidden]
         scheduled, failed = 0, 0
-        for message in plan_day_messages(live.clock(), day):
+        # With Telegram the minute clock (tick) sends the day's messages itself.
+        planned = [] if telegram_active() else plan_day_messages(live.clock(), day)
+        for message in planned:
             try:
                 send_note(message["title"], message["text"], at=message["at"])
                 scheduled += 1
@@ -584,6 +593,123 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=502, detail=f"Whisper non disponibile: {type(failure).__name__}")
 
     app.include_router(api)
+
+    # --- D2-069: Telegram, Dani as a contact she talks to ---------------------------
+    telegram_history = []  # recent turns of the Telegram chat, like the page's history
+    queued = []            # (at, text) messages waiting for their time (wake follow-ups)
+    clock_state = {"last": live.clock()}  # the last minute the clock already handled
+
+    def tell(text, buttons=None):
+        telegram["send"](text, buttons)
+
+    def show_answer(answer):
+        """Send a chat answer to Telegram: the text, then one card per proposal with buttons."""
+        tell(answer.get("reply") or "…")
+        cards = answer.get("proposals") or ([answer["proposal"]] if answer.get("proposal") else [])
+        for card in cards:
+            what = card.get("title", "")
+            if card.get("start"):
+                what += f" · {card['start'][8:10]}/{card['start'][5:7]} {card['start'][11:16]}–{card['end'][11:16]}"
+            elif card.get("new_start"):
+                what += f" → {card['new_start'][8:10]}/{card['new_start'][5:7]} {card['new_start'][11:16]}"
+            warnings = "".join(f"\n⚠ {w}" for w in card.get("warnings", []))
+            tell(what + warnings, [("Conferma", f"c:{card['id']}"), ("Rifiuta", f"r:{card['id']}")])
+
+    def talk(text):
+        try:
+            answer = post_chat(ChatBody(message=text[:4000], history=telegram_history[-12:]))
+        except HTTPException as failure:
+            tell(f"Non riesco a risponderti adesso: {failure.detail}")
+            return
+        telegram_history.extend([{"role": "user", "content": text}, {"role": "assistant", "content": answer["reply"]}])
+        del telegram_history[:-24]
+        show_answer(answer)
+
+    @app.post("/telegram/{secret}", include_in_schema=False)
+    async def telegram_update(secret: str, request: Request):
+        if telegram is None or secret != telegram["secret"] or \
+                request.headers.get("x-telegram-bot-api-secret-token") != telegram["secret"]:
+            raise HTTPException(status_code=404)
+        update = read_update(await request.json())
+        if update is None:
+            return {"ok": True}
+        if not telegram["chat_id"]:
+            # Not set up yet: say the id to whoever writes, do nothing else.
+            telegram["send_to"](update["chat_id"], f"Ciao! Il tuo chat id è {update['chat_id']}: "
+                                                   "mettilo su Render come TELEGRAM_CHAT_ID.")
+            return {"ok": True}
+        if update["chat_id"] != telegram["chat_id"]:
+            return {"ok": True}  # Dani talks only to Giulia
+        if update["kind"] == "button":
+            action, _, proposal_id = update["data"].partition(":")
+            try:
+                if action == "c":
+                    done = post_confirm(ProposalBody(id=proposal_id))
+                    text = "Fatto, riletto dal calendario." if done.get("read_back") else "Scritto; la rilettura non lo trova ancora."
+                else:
+                    post_reject(ProposalBody(id=proposal_id))
+                    text = "Rifiutata: non ho scritto nulla."
+            except HTTPException as failure:
+                text = f"Non fatto: {failure.detail}"
+            telegram["answer"](update["callback_id"], text)
+            tell(text)
+            return {"ok": True}
+        if update["kind"] == "voice":
+            if voice_client is None:
+                tell("Per i vocali serve OPENAI_API_KEY su Render: per ora scrivimi.")
+                return {"ok": True}
+            try:
+                text = speech_to_text(voice_client, telegram["voice"](update["file_id"]), "voice.ogg")
+            except Exception as failure:
+                tell(f"Non ho capito il vocale ({type(failure).__name__}): me lo scrivi?")
+                return {"ok": True}
+        else:
+            text = update["text"]
+            if text.strip() == "/start":
+                tell("Eccomi, July. Scrivimi o mandami un vocale: la giornata, un piano, come stai.")
+                return {"ok": True}
+        talk(text)
+        return {"ok": True}
+
+    def tick(now=None):
+        """Every minute (the refresh loop): send what is due since the last minute.
+
+        The day's reminders are recomputed from the calendar each time and only
+        those in (last minute, now] go out, so a restart neither loses nor
+        repeats them. The morning briefing still comes from its schedule."""
+        if not telegram_active():
+            return 0
+        now = now or live.clock()
+        last = clock_state["last"]
+        clock_state["last"] = now
+        hidden = {entry.key for entry in settings().hidden_events}
+        day = [event for event in live.events if event.key not in hidden]
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        due = [m["text"] for m in plan_day_messages(midnight, day) if last < m["at"] <= now]
+        due += [text for at, text in queued if at <= now]
+        queued[:] = [(at, text) for at, text in queued if at > now]
+        for text in due:
+            try:
+                tell(text)
+            except RuntimeError:
+                pass
+        return len(due)
+
+    app.state.tick = tick
+
+    def telegram_note(title, text, at=None, priority=None, link=None):
+        if at is not None:
+            queued.append((at, text))
+            return
+        tell(f"{title}\n\n{text}")
+
+    if telegram_active():
+        send_note = telegram_note
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz():
+        """For a free uptime pinger: keeps Render awake; says nothing about her."""
+        return {"ok": True}
 
     @app.middleware("http")
     async def always_fresh_page(request, call_next):
@@ -789,8 +915,38 @@ if __name__ == "__main__":  # pragma: no cover
 
     refresh_mood()
 
+    # D2-069: Telegram. The webhook secret is derived from the bot token, so it is
+    # stable across restarts and never typed by hand.
+    telegram = None
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if bot_token:
+        import hashlib
+
+        import telegram_client as tg
+
+        her_chat = os.environ.get("TELEGRAM_CHAT_ID") or None
+        telegram = {
+            "send": lambda text, buttons=None: tg.send_message(bot_token, her_chat, text, buttons),
+            "send_to": lambda chat_id, text: tg.send_message(bot_token, chat_id, text),
+            "answer": lambda callback_id, text: tg.answer_button(bot_token, callback_id, text),
+            "voice": lambda file_id: tg.download_voice(bot_token, file_id),
+            "chat_id": her_chat,
+            "secret": hashlib.sha256(("dani-webhook:" + bot_token).encode()).hexdigest()[:32],
+        }
+        app_url = (os.environ.get("DANI_URL") or "").rstrip("/")
+        if app_url:
+            try:
+                tg.set_webhook(bot_token, f"{app_url}/telegram/{telegram['secret']}", telegram["secret"])
+                print("Telegram: webhook set" + ("" if her_chat else " (write to the bot to get TELEGRAM_CHAT_ID)"))
+            except RuntimeError as failure:
+                print(f"Telegram: webhook not set: {failure}")
+        else:
+            print("Telegram: DANI_URL is missing, the webhook cannot be set")
+
     def after_refresh():
         refresh_mood()
+        if telegram is not None:
+            app.state.tick()
         if save_totals:
             save_totals()
         if life:
@@ -798,10 +954,12 @@ if __name__ == "__main__":  # pragma: no cover
         if character:
             character.refresh()
         refresh_focus()
-    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
                      create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
-                     week_focus=week_focus, send_note=send_note, character=character, mood_log=mood_log)
+                     week_focus=week_focus, send_note=send_note, character=character, mood_log=mood_log,
+                     telegram=telegram)
+    # Started after the app exists: after_refresh uses app.state.tick.
+    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")
