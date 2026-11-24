@@ -8,7 +8,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt
-    branch: claude/magical-einstein-3n7oep
+    branch: main
     buildCommand: pip install -r requirements.txt
     # server.py refuses to listen outside localhost without DANI_PIN.
     startCommand: python server.py --host 0.0.0.0 --port $PORT
