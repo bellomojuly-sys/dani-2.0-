@@ -49,6 +49,7 @@ from propose import (
 
 from chat import chat_reply, chat_turn, speech_to_text
 from context import combine
+from focus import focus_prompt
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -90,6 +91,11 @@ class SettingsBody(BaseModel):
     tickable_calendars: list[str] = []
 
 
+class FocusBody(BaseModel):
+    week: date  # the Monday of the week
+    text: str = Field(min_length=1, max_length=2000)
+
+
 class ChatBody(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[dict] = []
@@ -111,7 +117,8 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None, create_task=None, read_tools=None, usage_log=None, life=None):
+               create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
+               week_focus=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -124,7 +131,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     {name: (schema, function)} from reader.build_read_tools (D2-056): with it
     the chat looks things up by itself, read-only. usage_log is the
     usage.UsageLog the model clients write into (D2-057), or None. life is
-    the context.LifeContext of her Notion page (D2-058), or None."""
+    the context.LifeContext of her Notion page (D2-058), or None. week_focus
+    is the focus.WeekFocus of the Sunday check-in (D2-060), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -245,6 +253,9 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         current = settings()
         state = live.state(current)
         context = combine(life.current() if life else "", current.context)
+        if week_focus is not None:
+            focus_lines = focus_prompt(week_focus.status(live.clock().date()))
+            context = (context + "\n\n" + focus_lines).strip() if focus_lines else context
         try:
             if move_event is None and create_task is None and create_block is None and not read_tools:
                 return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
@@ -301,6 +312,25 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             return {"reply": f"Non posso proporre questo spostamento: {problem}.", "reads": turn["reads"]}
         proposals[proposal.id] = proposal
         return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
+
+    @api.get("/focus")
+    def get_focus():
+        if week_focus is None:
+            return {"enabled": False}
+        return {"enabled": True, **week_focus.status(live.clock().date())}
+
+    @api.put("/focus")
+    def put_focus(body: FocusBody):
+        """Her answer to the check-in: saved in Dani's own focus database."""
+        if week_focus is None:
+            raise HTTPException(status_code=503, detail="il focus della settimana non è collegato")
+        try:
+            week_focus.set(body.week, body.text)
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem))
+        except RuntimeError as failure:  # Notion refused or is down
+            raise HTTPException(status_code=502, detail=str(failure))
+        return {"enabled": True, **week_focus.status(live.clock().date())}
 
     @api.get("/usage")
     def get_usage():
@@ -459,6 +489,8 @@ if __name__ == "__main__":  # pragma: no cover
     from notion_client import query_usage, save_usage
     from reader import build_read_tools, parse_pages
     from context import LifeContext
+    from focus import WeekFocus
+    from notion_client import query_focus, save_focus
     from usage import MeteredClient, UsageLog
 
     load_dotenv(".env")
@@ -559,14 +591,33 @@ if __name__ == "__main__":  # pragma: no cover
         life = LifeContext(lambda: page_text(env["notion_token"], context_page))
         print("Life context: " + ("read" if life.refresh() else f"not read ({life.error})"))
 
+    # D2-060: the week's focus from the Sunday check-in.
+    focus_db = None if demo else os.environ.get("NOTION_FOCUS_DB_ID")
+    if focus_db:
+        week_focus = WeekFocus(lambda since: query_focus(env["notion_token"], focus_db, since),
+                               lambda monday, text, page_id: save_focus(env["notion_token"], focus_db, monday, text, page_id))
+    else:
+        week_focus = WeekFocus()  # in memory only
+    since = lambda: clock().date() - timedelta(days=clock().weekday() + 7)
+
+    def refresh_focus():
+        try:
+            week_focus.refresh(since())
+        except (RuntimeError, ValueError) as failure:
+            print(f"week focus not read: {failure}")
+
+    refresh_focus()
+
     def after_refresh():
         if save_totals:
             save_totals()
         if life:
             life.refresh()
+        refresh_focus()
     threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
-                     create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life)
+                     create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
+                     week_focus=week_focus)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

@@ -377,3 +377,26 @@ def test_page_text_opens_toggles_and_nested_lists_but_not_sub_pages():
     text = page_text("tok", "page", http=http)
     assert text.splitlines() == ["FASE 1", "  ### 21 anni", "  - risparmio 600", "    - fondo 1000"]
     assert "sub" not in asked and "deep" not in asked  # sub-pages and a 4th level are never opened
+
+
+# --- D2-060: week focus rows ------------------------------------------------------
+
+from notion_client import query_focus, save_focus  # noqa: E402
+
+
+def test_save_focus_creates_then_updates_and_query_reads_it_back():
+    created = []
+    page_id = save_focus("tok", "focus-db", date(2026, 11, 30), "Betsy", None,
+                         create=lambda url, h, body: created.append(body) or {"id": "f1"}, update=None)
+    assert page_id == "f1" and created[0]["parent"] == {"database_id": "focus-db"}
+    assert created[0]["properties"]["Week"] == {"date": {"start": "2026-11-30"}}
+    updated = []
+    save_focus("tok", "focus-db", date(2026, 11, 30), "Betsy e CV", "f1", create=None,
+               update=lambda url, h, body: updated.append(url) or {"id": "f1"})
+    assert updated[0].endswith("/pages/f1")
+    rows = {"results": [
+        {"id": "f1", "properties": {"Week": {"date": {"start": "2026-11-30"}},
+                                    "Focus": {"rich_text": [{"plain_text": "Betsy e CV"}]}}},
+        {"id": "f2", "properties": {"Week": {"date": None}, "Focus": {"rich_text": []}}}]}
+    assert query_focus("tok", "db", date(2026, 11, 16), http=lambda url, h, body: rows) == {
+        date(2026, 11, 30): ("Betsy e CV", "f1")}  # a row without a week is ignored

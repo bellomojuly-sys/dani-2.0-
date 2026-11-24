@@ -350,3 +350,41 @@ def save_usage(token, database_id, row, page_id=None, create=post_json, update=p
     else:
         page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
     return page["id"]
+
+
+# --- D2-060: the week's focus, one row per week (its Monday) ---------------------
+
+
+def query_focus(token, database_id, since, http=post_json):
+    """{monday: (focus text, page_id)} for every week from ``since`` on."""
+    from datetime import date
+
+    weeks, cursor = {}, None
+    while True:
+        body = {"filter": {"property": "Week", "date": {"on_or_after": since.isoformat()}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        for page in answer.get("results", []):
+            props = page.get("properties", {})
+            start = ((props.get("Week") or {}).get("date") or {}).get("start")
+            if not start:
+                continue  # a row without a week is ignored, never guessed
+            weeks[date.fromisoformat(start[:10])] = (_plain_text((props.get("Focus") or {}).get("rich_text")), page["id"])
+        if not answer.get("has_more"):
+            return weeks
+        cursor = answer["next_cursor"]
+
+
+def save_focus(token, database_id, monday, text, page_id=None, create=post_json, update=patch_json):
+    """Create the week's row or overwrite its focus; return the page id."""
+    properties = {
+        "Name": {"title": [{"text": {"content": f"Settimana del {monday.isoformat()}"}}]},
+        "Week": {"date": {"start": monday.isoformat()}},
+        "Focus": {"rich_text": [{"text": {"content": text}}]},
+    }
+    if page_id is None:
+        page = create(f"{API}/pages", _headers(token), {"parent": {"database_id": database_id}, "properties": properties})
+    else:
+        page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
+    return page["id"]

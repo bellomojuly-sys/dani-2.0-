@@ -168,3 +168,8 @@ background:#fff;color:var(--plum-ink);border:1px solid var(--rose-quartz);border
 .usage-table th,.usage-table td{text-align:right;padding:6px 4px;border-bottom:1px solid rgba(43,26,36,0.08)}
 .usage-table th:first-child,.usage-table td:first-child{text-align:left}
 .usage-table th{font-size:12px;color:var(--ink-3);font-weight:700}
+
+/* week focus (D2-060) */
+#home-focus textarea{width:100%;margin:6px 0 4px;font:inherit;padding:10px;border-radius:14px;border:1px solid var(--rose-quartz);background:rgba(255,255,255,.7)}
+#home-focus .question{font-family:var(--font-serif);font-size:24px;margin:4px 0}
+#home-focus .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

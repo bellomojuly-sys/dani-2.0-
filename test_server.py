@@ -611,3 +611,24 @@ def test_a_broken_plan_from_the_model_writes_nothing(tmp_path):
     body = TestClient(app).post("/api/chat", json={"message": "pianifica", "history": []}).json()
     assert body["reply"].startswith("Non posso proporre questo piano") and "proposals" not in body
     assert created == []
+
+
+# --- D2-060: the week's focus -----------------------------------------------------
+
+
+def test_focus_endpoints_save_the_answer_and_put_it_in_the_chat_prompt(tmp_path):
+    from focus import WeekFocus
+
+    rig = Rig(tmp_path)  # NOW is Tuesday 10 November: the question is about this week
+    chat = FakeChat("Va bene.")
+    focus = WeekFocus()
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, week_focus=focus))
+    first = http.get("/api/focus").json()
+    assert first["ask"] is True and first["ask_week"] == "2026-11-09" and "questa settimana" in first["question"]
+    saved = http.put("/api/focus", json={"week": "2026-11-09", "text": "demo dello Sprint 3"}).json()
+    assert saved["ask"] is False and saved["this_focus"] == "demo dello Sprint 3"
+    http.post("/api/chat", json={"message": "cosa faccio oggi?", "history": []})
+    assert "demo dello Sprint 3" in chat.seen["messages"][0]["content"]
+    assert http.put("/api/focus", json={"week": "2026-11-10", "text": "x"}).status_code == 422  # not a Monday
+    assert TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None)).get(
+        "/api/focus").json() == {"enabled": False}

@@ -415,7 +415,7 @@ function render() {
   const at = (s) => (s.at ? clock(s.at) + ":" + s.at.slice(17, 19) : "mai");
   fresh.replaceChildren(`aggiornato alle ${state.now.slice(11, 19)}`, h("br"),
     bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`,
-    h("br"), `versione ${state.version || "?"}`);
+    ` · versione ${state.version || "?"}`);
   renderHome();
   renderWeek();
   renderSources();
@@ -429,8 +429,60 @@ function route() {
     if (link.dataset.page === page) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
+  if (page === "home") loadFocus();
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
+}
+
+// --- the week's focus and the Sunday check-in (D2-060) --------------------------
+
+function weekLabel(monday) {
+  return `settimana del ${dateIt(monday)}`;
+}
+
+function planFromFocus(focus) {
+  openChat();
+  send(`Proponimi la ${focus.ask_week === focus.next_week ? "prossima settimana" : "settimana"} partendo dal mio focus: ` +
+    `${focus.ask_week === focus.next_week ? focus.next_focus : focus.this_focus}`);
+}
+
+function renderFocus(focus) {
+  const card = $("#focus-card");
+  card.hidden = !focus.enabled;
+  if (!focus.enabled) return;
+  const box = $("#home-focus");
+  const shown = [];
+  if (focus.this_focus) shown.push(h("p", {}, h("b", {}, "Questa settimana: "), focus.this_focus));
+  if (focus.next_focus) shown.push(h("p", {}, h("b", {}, "Prossima settimana: "), focus.next_focus));
+  if (!focus.ask) {
+    box.replaceChildren(...shown, h("div", { class: "row" },
+      h("button", { class: "btn small", onclick: () => planFromFocus(focus) }, "Proponimi la settimana"),
+      h("button", { class: "btn ghost small", onclick: () => askFocus(focus, true) }, "Cambia il focus")));
+    return;
+  }
+  askFocus(focus, false, shown);
+}
+
+function askFocus(focus, editing, shown = []) {
+  const week = editing ? (new Date().getDay() === 0 ? focus.next_week : focus.this_week) : focus.ask_week;
+  const current = week === focus.next_week ? focus.next_focus : focus.this_focus;
+  const question = editing ? `Il focus della ${weekLabel(week)}` : focus.question;
+  const field = h("textarea", { rows: "3", placeholder: "Es. chiudere AMX-08, due candidature, 3 ore di Python" });
+  field.value = current || "";
+  const note = h("span", { class: "meta" });
+  $("#home-focus").replaceChildren(...shown, h("p", { class: "question" }, question), field,
+    h("div", { class: "row" }, h("button", { class: "btn small", onclick: async () => {
+      note.textContent = "Salvo…";
+      try {
+        const saved = await api("/api/focus", { method: "PUT", json: { week, text: field.value } });
+        renderFocus(saved);
+        toast("Focus salvato.");
+      } catch (failure) { note.textContent = `Non salvato: ${failure.message}`; }
+    } }, "Salva"), note));
+}
+
+async function loadFocus() {
+  try { renderFocus(await api("/api/focus")); } catch (failure) { /* the card stays hidden */ }
 }
 
 // --- token monitoring (D2-057) -------------------------------------------------
