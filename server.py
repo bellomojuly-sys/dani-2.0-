@@ -379,6 +379,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=502, detail=f"Whisper non disponibile: {type(failure).__name__}")
 
     app.include_router(api)
+
+    @app.middleware("http")
+    async def always_fresh_page(request, call_next):
+        # The page and its code are checked again on every open, so an app saved
+        # in the Dock never keeps an old version after a deploy (ETag: a 304
+        # when nothing changed, so it costs almost nothing).
+        response = await call_next(request)
+        if not request.url.path.startswith("/api"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     if web_dir and os.path.isdir(web_dir):
         @app.get("/", include_in_schema=False)
         def index():

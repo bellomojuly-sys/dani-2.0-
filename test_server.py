@@ -534,3 +534,16 @@ def test_state_says_which_commit_is_live(rig, monkeypatch):
     assert rig.http.get("/api/state").json()["version"] == "locale"
     monkeypatch.setenv("RENDER_GIT_COMMIT", "0fba9fa1234567")
     assert rig.http.get("/api/state").json()["version"] == "0fba9fa"
+
+
+def test_the_page_and_its_code_are_never_served_from_an_old_cache(tmp_path):
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("<html></html>")
+    (web / "app.js").write_text("// code")
+    rig = Rig(tmp_path)
+    app = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=str(web))
+    http = TestClient(app)
+    assert http.get("/").headers["cache-control"] == "no-cache"
+    assert http.get("/app.js").headers["cache-control"] == "no-cache"
+    assert "cache-control" not in http.get("/api/state").headers
