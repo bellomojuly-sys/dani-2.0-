@@ -528,3 +528,9 @@ def test_usage_endpoint_reports_totals_or_says_it_is_off(tmp_path):
     assert http.get("/api/usage").status_code == 401  # behind the PIN like every /api route
     body = http.get("/api/usage", headers={"X-Dani-Pin": "1234"}).json()
     assert body["enabled"] is True and body["today"] == {"input": 900, "output": 80, "calls": 1}
+
+
+def test_state_says_which_commit_is_live(rig, monkeypatch):
+    assert rig.http.get("/api/state").json()["version"] == "locale"
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "0fba9fa1234567")
+    assert rig.http.get("/api/state").json()["version"] == "0fba9fa"

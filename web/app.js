@@ -405,7 +405,8 @@ function render() {
   fresh.className = "fresh" + (bad.length ? " bad" : "");
   const at = (s) => (s.at ? clock(s.at) + ":" + s.at.slice(17, 19) : "mai");
   fresh.replaceChildren(`aggiornato alle ${state.now.slice(11, 19)}`, h("br"),
-    bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`);
+    bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`,
+    h("br"), `versione ${state.version || "?"}`);
   renderHome();
   renderWeek();
   renderSources();

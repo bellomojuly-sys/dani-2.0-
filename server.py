@@ -142,6 +142,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         state = live.state(current)
         state["hidden_events"] = [entry.model_dump(mode="json") for entry in current.hidden_events]
         state["chat"] = {"text": chat_client is not None, "whisper": voice_client is not None}
+        # Which code is live: Render sets RENDER_GIT_COMMIT; locally it is empty.
+        state["version"] = os.environ.get("RENDER_GIT_COMMIT", "")[:7] or "locale"
         state["calendar_write"] = {
             "delete": delete_event is not None,
             "move": move_event is not None,
@@ -491,7 +493,10 @@ if __name__ == "__main__":  # pragma: no cover
         projects_db = os.environ.get("NOTION_PROJECTS_DB_ID")
         if projects_db:
             fetch_projects = lambda: query_projects(env["notion_token"], projects_db)
-        pages = parse_pages(os.environ.get("NOTION_PAGES"))
+        try:
+            pages = parse_pages(os.environ.get("NOTION_PAGES"))
+        except ValueError as problem:  # a typo in one variable must not stop the whole app
+            print(f"read_page disabled: {problem}")
         fetch_text = lambda page_id: page_text(env["notion_token"], page_id)
     read_tools = build_read_tools(fetch_events, lambda: list(live.tasks), fetch_projects, pages, fetch_text)
     print(f"Chat read tools: {sorted(read_tools)}")
