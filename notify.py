@@ -25,8 +25,13 @@ def header_text(text):
 
 
 def send_ntfy(topic, title, text, server=DEFAULT_SERVER, click=None, token=None,
-              opener=request.urlopen, timeout=20):
+              opener=request.urlopen, timeout=20, at=None, priority=None):
     """Publish one message; raise RuntimeError when it is not accepted.
+
+    ``at`` (a datetime with its zone) asks ntfy to deliver it later, up to
+    three days ahead (D2-063): the message waits on the ntfy server, so Dani's
+    server can sleep. ``priority`` 1–5 (5 = max, it rings through) is for the
+    alarm guard (D2-067).
 
     The topic is in the URL, so an error never repeats the URL: only the code.
     """
@@ -37,6 +42,14 @@ def send_ntfy(topic, title, text, server=DEFAULT_SERVER, click=None, token=None,
         headers["Click"] = click
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if at is not None:
+        if at.tzinfo is None:
+            raise ValueError("a delivery time needs its time zone")
+        headers["At"] = str(int(at.timestamp()))
+    if priority is not None:
+        if priority not in (1, 2, 3, 4, 5):
+            raise ValueError("priority is 1 to 5")
+        headers["Priority"] = str(priority)
     req = request.Request(f"{server.rstrip('/')}/{topic}", data=text.encode("utf-8"), headers=headers, method="POST")
     try:
         with opener(req, timeout=timeout) as response:

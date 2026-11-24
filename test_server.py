@@ -641,7 +641,7 @@ def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
     rig = Rig(tmp_path)
     sent = []
     app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
-                     send_note=lambda title, text: sent.append((title, text)))
+                     send_note=lambda title, text, at=None, priority=None: sent.append((title, text, at)))
     http = TestClient(app)
     pin = {"X-Dani-Pin": "1234"}
     assert http.post("/api/briefing/send").status_code == 401  # the schedule needs the PIN too
@@ -651,7 +651,8 @@ def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
     assert http.post("/api/briefing/send", headers=pin).json()["sent"] is True
     assert http.post("/api/briefing/send", headers=pin).json() == {"sent": False, "reason": "già inviato oggi"}
     assert http.post("/api/briefing/send?force=true", headers=pin).json()["sent"] is True
-    assert len(sent) == 2
+    briefings = [entry for entry in sent if entry[2] is None]
+    assert len(briefings) == 2  # the briefing itself, twice (once forced)
 
 
 def test_without_a_channel_the_briefing_is_shown_but_not_sent(rig):
@@ -663,7 +664,7 @@ def test_a_failed_send_is_reported_and_can_be_retried(tmp_path):
     rig = Rig(tmp_path)
     calls = []
 
-    def flaky(title, text):
+    def flaky(title, text, at=None, priority=None):
         calls.append(title)
         if len(calls) == 1:
             raise RuntimeError("ntfy answered HTTP 502")
@@ -683,3 +684,18 @@ def test_the_character_page_goes_into_every_chat_prompt(tmp_path):
     http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, character=character))
     http.post("/api/chat", json={"message": "ciao", "history": []})
     assert "Dani chiama Giulia Chief" in chat.seen["messages"][0]["content"]
+
+
+# --- D2-063: the day's messages are scheduled with the briefing -------------------
+
+
+def test_the_morning_send_schedules_the_days_reminders_with_a_delivery_time(tmp_path):
+    rig = Rig(tmp_path)  # NOW is 13:21 on Tuesday 10 November
+    sent = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None: sent.append((title, at))))
+    body = http.post("/api/briefing/send").json()
+    later = [(title, at) for title, at in sent if at is not None]
+    assert body["scheduled"] == len(later) and body["not_scheduled"] == 0
+    assert all(at > NOW for _, at in later)  # nothing in the past
+    assert later[-1][0] == "Com'è andata oggi?"

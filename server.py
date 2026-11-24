@@ -51,6 +51,7 @@ from chat import chat_reply, chat_turn, speech_to_text
 from context import combine
 from focus import focus_prompt
 from briefing import build_briefing
+from reminders import plan_day_messages
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -134,7 +135,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     usage.UsageLog the model clients write into (D2-057), or None. life is
     the context.LifeContext of her Notion page (D2-058), or None. week_focus
     is the focus.WeekFocus of the Sunday check-in (D2-060), or None.
-    send_note(title, text) sends the morning briefing to her phone (D2-061),
+    send_note(title, text, at=None, priority=None) sends to her phone
+    (D2-061; ``at`` schedules a later delivery, D2-063),
     or is None while no notification channel is set up. character is the
     LifeContext of the page "Dani — chi è Dani" (D2-062), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
@@ -343,7 +345,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         except (RuntimeError, ValueError) as failure:
             raise HTTPException(status_code=502, detail=str(failure))
         sent_briefings.add(today)
-        return {"sent": True, **note}
+        # D2-063: the rest of the day's messages, delivered later by ntfy while Render sleeps.
+        hidden = {entry.key for entry in settings().hidden_events}
+        day = [event for event in live.events if event.key not in hidden]
+        scheduled, failed = 0, 0
+        for message in plan_day_messages(live.clock(), day):
+            try:
+                send_note(message["title"], message["text"], at=message["at"])
+                scheduled += 1
+            except (RuntimeError, ValueError):
+                failed += 1
+        return {"sent": True, **note, "scheduled": scheduled, "not_scheduled": failed}
 
     @api.get("/focus")
     def get_focus():
@@ -650,9 +662,10 @@ if __name__ == "__main__":  # pragma: no cover
     # D2-061: the morning briefing goes to her phone through ntfy, when a topic is set.
     send_note = None
     if os.environ.get("NTFY_TOPIC"):
-        send_note = lambda title, text: send_ntfy(
+        send_note = lambda title, text, at=None, priority=None: send_ntfy(
             os.environ["NTFY_TOPIC"], title, text, server=os.environ.get("NTFY_SERVER", DEFAULT_SERVER),
-            click=os.environ.get("DANI_URL") or None, token=os.environ.get("NTFY_TOKEN") or None)
+            click=os.environ.get("DANI_URL") or None, token=os.environ.get("NTFY_TOKEN") or None,
+            at=at, priority=priority)
     print("Morning briefing: " + ("ntfy on" if send_note else "no channel (no NTFY_TOPIC)"))
 
     def after_refresh():

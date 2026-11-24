@@ -54,3 +54,23 @@ def test_errors_never_show_the_topic_and_a_bad_topic_is_refused():
     for bad in ("", "a/b"):
         with pytest.raises(ValueError):
             send_ntfy(bad, "t", "x", opener=lambda req, timeout: Answer())
+
+
+def test_a_later_delivery_and_a_priority_are_sent_as_ntfy_headers():
+    from datetime import datetime
+
+    from models import AMSTERDAM
+
+    seen = {}
+
+    def opener(req, timeout):
+        seen.update(dict(req.header_items()))
+        return Answer()
+
+    when = datetime(2026, 11, 24, 14, 45, tzinfo=AMSTERDAM)
+    send_ntfy("t", "Tra 15 minuti", "x", at=when, priority=5, opener=opener)
+    assert seen["At"] == str(int(when.timestamp())) and seen["Priority"] == "5"
+    with pytest.raises(ValueError, match="time zone"):
+        send_ntfy("t", "t", "x", at=datetime(2026, 11, 24, 14, 45), opener=opener)
+    with pytest.raises(ValueError, match="1 to 5"):
+        send_ntfy("t", "t", "x", priority=9, opener=opener)
