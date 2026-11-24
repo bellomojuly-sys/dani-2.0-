@@ -1,4 +1,4 @@
-# Render Blueprint for Dani (D2-038). One web service serves the API and the
+# Render Blueprint for Dani (D2-038). The live service deploys this branch (auto-deploy); moving it to main is done in the Blueprint settings on Render. One web service serves the API and the
 # front-end in web/. Secrets are never in this file: "sync: false" makes Render
 # ask for each value once, in its dashboard. The Google service-account key is
 # uploaded as a Render Secret File named google-service-account.json.
@@ -8,7 +8,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt
-    branch: main
+    branch: claude/planner-calendars-whisper-8acbac
     buildCommand: pip install -r requirements.txt
     # server.py refuses to listen outside localhost without DANI_PIN.
     startCommand: python server.py --host 0.0.0.0 --port $PORT
