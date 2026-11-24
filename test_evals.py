@@ -50,3 +50,36 @@ def test_each_question_is_asked_exactly_once_in_order():
 
     run_evals(ask)
     assert asked == [case["question"] for case in CASES]
+
+
+# --- D2-059: planning cases --------------------------------------------------------
+
+from datetime import datetime as _dt  # noqa: E402
+
+from evals import PLAN_CASES, run_plan_evals  # noqa: E402
+from models import AMSTERDAM as _AMS, Event as _Event  # noqa: E402
+
+_SHIFT = _Event(calendar="lavoro", title="Turno", start=_dt(2026, 11, 11, 17, 0, tzinfo=_AMS),
+                end=_dt(2026, 11, 11, 23, 0, tzinfo=_AMS))
+
+
+def _turn(*blocks):
+    return {"text": "ok", "plan": {"blocks": [
+        {"title": t, "start": s, "end": e} for t, s, e in blocks]}}
+
+
+def test_a_plan_with_invested_time_and_no_broken_rule_passes():
+    good = _turn(("AMX-08", "2026-11-11T09:30", "2026-11-11T12:00"), ("Lettura", "2026-11-11T13:00", "2026-11-11T14:00"))
+    assert all(row["passed"] for row in run_plan_evals(lambda q: good, [_SHIFT]))
+
+
+def test_each_broken_planning_rule_makes_a_case_fail():
+    no_plan = run_plan_evals(lambda q: {"text": "ciao"}, [])
+    assert no_plan[0]["missing"] == ["no plan was proposed"]
+    on_shift = run_plan_evals(lambda q: _turn(("Lettura", "2026-11-11T16:00", "2026-11-11T18:00")), [_SHIFT])
+    assert any("Turno" in problem for problem in on_shift[0]["missing"])
+    no_free_time = run_plan_evals(lambda q: _turn(("AMX-08", "2026-11-12T10:00", "2026-11-12T11:00")), [])
+    assert no_free_time[0]["missing"] == ["no block of invested free time"]
+    refused = run_plan_evals(lambda q: {"plan": {"blocks": []}}, [])
+    assert refused[0]["missing"][0].startswith("the plan was refused")
+    assert len(no_plan) == len(PLAN_CASES)

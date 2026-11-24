@@ -168,3 +168,17 @@ background:#fff;color:var(--plum-ink);border:1px solid var(--rose-quartz);border
 .usage-table th,.usage-table td{text-align:right;padding:6px 4px;border-bottom:1px solid rgba(43,26,36,0.08)}
 .usage-table th:first-child,.usage-table td:first-child{text-align:left}
 .usage-table th{font-size:12px;color:var(--ink-3);font-weight:700}
+
+/* week focus (D2-060) */
+#home-focus textarea{width:100%;margin:6px 0 4px;font:inherit;padding:10px;border-radius:14px;border:1px solid var(--rose-quartz);background:rgba(255,255,255,.7)}
+#home-focus .question{font-family:var(--font-serif);font-size:24px;margin:4px 0}
+#home-focus .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.briefing{white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.5;background:rgba(255,255,255,.55);border-radius:14px;padding:12px 14px;margin:8px 0}
+/* mood diary (D2-064) */
+#home-mood .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+#home-mood input{font:inherit;padding:8px 10px;border-radius:12px;border:1px solid var(--rose-quartz);background:rgba(255,255,255,.7);min-width:0;flex:1}
+#home-mood input[type=number]{flex:0 0 130px}
+#home-mood .energy.on{background:var(--berry);color:#fff}
+/* forecasts (D2-065): the status is in the words too, colour only underlines it */
+.forecast{margin:6px 0;padding-left:10px;border-left:4px solid var(--rose-quartz)}
+.forecast.ok{border-left-color:#3E7D5A}.forecast.warn{border-left-color:#B5832B}.forecast.bad{border-left-color:#A32020;font-weight:600}

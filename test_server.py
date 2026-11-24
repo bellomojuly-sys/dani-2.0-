@@ -528,3 +528,264 @@ def test_usage_endpoint_reports_totals_or_says_it_is_off(tmp_path):
     assert http.get("/api/usage").status_code == 401  # behind the PIN like every /api route
     body = http.get("/api/usage", headers={"X-Dani-Pin": "1234"}).json()
     assert body["enabled"] is True and body["today"] == {"input": 900, "output": 80, "calls": 1}
+
+
+def test_state_says_which_commit_is_live(rig, monkeypatch):
+    assert rig.http.get("/api/state").json()["version"] == "locale"
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "0fba9fa1234567")
+    assert rig.http.get("/api/state").json()["version"] == "0fba9fa"
+
+
+def test_the_page_and_its_code_are_never_served_from_an_old_cache(tmp_path):
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("<html></html>")
+    (web / "app.js").write_text("// code")
+    rig = Rig(tmp_path)
+    app = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=str(web))
+    http = TestClient(app)
+    assert http.get("/").headers["cache-control"] == "no-cache"
+    assert http.get("/app.js").headers["cache-control"] == "no-cache"
+    assert "cache-control" not in http.get("/api/state").headers
+
+
+def test_the_life_page_goes_into_the_chat_prompt_and_its_status_into_the_state(tmp_path):
+    from context import LifeContext
+
+    rig = Rig(tmp_path)
+    life = LifeContext(lambda: "Domenica niente studio. Obiettivo: lavoro entro dicembre.")
+    life.refresh()
+    chat = FakeChat("Va bene.")
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, life=life)
+    http = TestClient(app)
+    assert http.post("/api/chat", json={"message": "pianifica", "history": []}).status_code == 200
+    assert "lavoro entro dicembre" in chat.seen["messages"][0]["content"]
+    assert http.get("/api/state").json()["life_context"] == {"on": True, "chars": 57, "error": None}
+
+
+# --- D2-059: a plan from the chat, confirmed block by block ----------------------
+
+
+def test_a_plan_from_the_chat_is_checked_on_the_whole_period_and_written_only_after_yes(tmp_path):
+    from models import Event
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    asked, created = [], []
+    december_shift = Event(calendar="lavoro", title="Turno", start=datetime(2026, 12, 2, 17, 0, tzinfo=AMSTERDAM),
+                           end=datetime(2026, 12, 2, 23, 0, tzinfo=AMSTERDAM))
+
+    def fetch(start, end):
+        asked.append((start, end))
+        return [december_shift] if start.month == 12 else []
+
+    rig.live.fetch_events = fetch
+    plan = json.dumps({"blocks": [
+        {"title": "Betsy · BT-003", "start": "2026-12-01T10:00", "end": "2026-12-01T12:00", "why": "consegna 1 feb"},
+        {"title": "Lettura", "start": "2026-12-02T15:30", "end": "2026-12-02T16:30"}]})
+    chat = ScriptedChat([("Ecco dicembre.", [("propose_plan", plan)])])
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                     create_block=lambda title, start, end: created.append(title) or "new-id")
+    http = TestClient(app)
+    body = http.post("/api/chat", json={"message": "pianifica i primi di dicembre", "history": []}).json()
+    assert (datetime(2026, 12, 1).date(), datetime(2026, 12, 3).date()) in asked  # the whole period, end included
+    assert [p["title"] for p in body["proposals"]] == ["Betsy · BT-003", "Lettura"]
+    assert body["proposals"][1]["warnings"] == ["finisce dopo le 16:00 (giorno di turno)"]
+    assert "2 blocchi" in body["reply"] and "1 ha un avviso" in body["reply"]
+    assert created == []  # a proposal writes nothing
+    first = body["proposals"][0]["id"]
+    assert http.post("/api/confirm", json={"id": first}).json()["ok"] is True
+    assert created == ["Betsy · BT-003"]
+    assert http.post("/api/confirm", json={"id": first}).status_code == 404  # twice changes nothing more
+    assert created == ["Betsy · BT-003"]
+
+
+def test_a_broken_plan_from_the_model_writes_nothing(tmp_path):
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    created = []
+    chat = ScriptedChat([("", [("propose_plan", '{"blocks": []}')])])
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                     create_block=lambda title, start, end: created.append(title) or "x")
+    body = TestClient(app).post("/api/chat", json={"message": "pianifica", "history": []}).json()
+    assert body["reply"].startswith("Non posso proporre questo piano") and "proposals" not in body
+    assert created == []
+
+
+# --- D2-060: the week's focus -----------------------------------------------------
+
+
+def test_focus_endpoints_save_the_answer_and_put_it_in_the_chat_prompt(tmp_path):
+    from focus import WeekFocus
+
+    rig = Rig(tmp_path)  # NOW is Tuesday 10 November: the question is about this week
+    chat = FakeChat("Va bene.")
+    focus = WeekFocus()
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, week_focus=focus))
+    first = http.get("/api/focus").json()
+    assert first["ask"] is True and first["ask_week"] == "2026-11-09" and "questa settimana" in first["question"]
+    saved = http.put("/api/focus", json={"week": "2026-11-09", "text": "demo dello Sprint 3"}).json()
+    assert saved["ask"] is False and saved["this_focus"] == "demo dello Sprint 3"
+    http.post("/api/chat", json={"message": "cosa faccio oggi?", "history": []})
+    assert "demo dello Sprint 3" in chat.seen["messages"][0]["content"]
+    assert http.put("/api/focus", json={"week": "2026-11-10", "text": "x"}).status_code == 422  # not a Monday
+    assert TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None)).get(
+        "/api/focus").json() == {"enabled": False}
+
+
+# --- D2-061: the morning briefing -------------------------------------------------
+
+
+def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
+    rig = Rig(tmp_path)
+    sent = []
+    app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
+                     send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, text, at)))
+    http = TestClient(app)
+    pin = {"X-Dani-Pin": "1234"}
+    assert http.post("/api/briefing/send").status_code == 401  # the schedule needs the PIN too
+    shown = http.get("/api/briefing", headers=pin).json()
+    assert shown["title"] == "Buongiorno July · martedì 10 novembre" and shown["channel"] is True
+    assert "Lezione MA-AAI" in shown["text"] and shown["text"].endswith("July, oggi come stai?")
+    assert http.post("/api/briefing/send", headers=pin).json()["sent"] is True
+    assert http.post("/api/briefing/send", headers=pin).json() == {"sent": False, "reason": "già inviato oggi"}
+    assert http.post("/api/briefing/send?force=true", headers=pin).json()["sent"] is True
+    briefings = [entry for entry in sent if entry[2] is None]
+    assert len(briefings) == 2  # the briefing itself, twice (once forced)
+
+
+def test_without_a_channel_the_briefing_is_shown_but_not_sent(rig):
+    assert rig.http.get("/api/briefing").json()["channel"] is False
+    assert rig.http.post("/api/briefing/send").status_code == 503
+
+
+def test_a_failed_send_is_reported_and_can_be_retried(tmp_path):
+    rig = Rig(tmp_path)
+    calls = []
+
+    def flaky(title, text, at=None, priority=None, link=None):
+        calls.append(title)
+        if len(calls) == 1:
+            raise RuntimeError("ntfy answered HTTP 502")
+
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, send_note=flaky))
+    assert http.post("/api/briefing/send").status_code == 502
+    assert http.post("/api/briefing/send").json()["sent"] is True  # not marked as sent after a failure
+
+
+def test_the_character_page_goes_into_every_chat_prompt(tmp_path):
+    from context import LifeContext
+
+    rig = Rig(tmp_path)
+    character = LifeContext(lambda: "Dani chiama Giulia Chief per il lavoro.")
+    character.refresh()
+    chat = FakeChat("Ok, Chief.")
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, character=character))
+    http.post("/api/chat", json={"message": "ciao", "history": []})
+    assert "Dani chiama Giulia Chief" in chat.seen["messages"][0]["content"]
+
+
+# --- D2-063: the day's messages are scheduled with the briefing -------------------
+
+
+def test_the_morning_send_schedules_the_days_reminders_with_a_delivery_time(tmp_path):
+    rig = Rig(tmp_path)  # NOW is 13:21 on Tuesday 10 November
+    sent = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, at))))
+    body = http.post("/api/briefing/send").json()
+    later = [(title, at) for title, at in sent if at is not None]
+    assert body["scheduled"] == len(later) and body["not_scheduled"] == 0
+    assert all(at > NOW for _, at in later)  # nothing in the past
+    assert later[-1][0] == "Com'è andata oggi?"
+
+
+# --- D2-064: the mood diary --------------------------------------------------------
+
+
+def test_how_she_feels_is_saved_from_the_chat_and_from_the_home(tmp_path):
+    from mood import MoodLog
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    log = MoodLog()
+    chat = ScriptedChat([("Allora oggi andiamo piano, July.", [("record_mood", '{"energy": 2, "sleep": 5, "note": "stanca"}')]),
+                         ("Va bene.", [])])
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, mood_log=log))
+    body = http.post("/api/chat", json={"message": "sono stanca, ho dormito 5 ore", "history": []}).json()
+    assert body["mood"] == {"energy": 2, "sleep": 5.0, "note": "stanca"} and body["reply"].startswith("Allora")
+    http.post("/api/chat", json={"message": "cosa faccio?", "history": []})
+    assert "bare minimum" in chat.requests[1]["messages"][0]["content"]  # the low day reaches the next answer
+    assert http.put("/api/mood", json={"energy": 9}).status_code == 422
+    assert http.put("/api/mood", json={"energy": 4}).json()["mood"]["energy"] == 4
+    assert rig.done == []  # the diary never touches her Tasks
+
+
+# --- D2-065: forecasts ---------------------------------------------------------------
+
+
+def test_forecast_is_served_put_in_the_chat_prompt_and_at_risk_lines_reach_the_briefing(tmp_path):
+    from models import Task
+
+    rig = Rig(tmp_path)  # NOW: Tuesday 10 November 13:21
+    rig.live.tasks = [Task(id="big", title="Consegna enorme", status="Not Started",
+                           deadline=datetime(2026, 11, 10).date(), duration_minutes=900)]
+    chat = FakeChat("Ok.")
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None))
+    body = http.get("/api/forecast").json()
+    assert body["rows"][0]["status"] == "a rischio" and body["error"] is None
+    http.post("/api/chat", json={"message": "come sono messa?", "history": []})
+    assert "Forecast of her deadlines" in chat.seen["messages"][0]["content"]
+    assert "Attenzione: Entro il 2026-11-10" in http.get("/api/briefing").json()["text"]
+
+
+def test_a_tap_on_the_briefing_opens_the_morning_call(tmp_path):
+    rig = Rig(tmp_path)
+    links = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None, link=None: links.append((at, link))))
+    http.post("/api/briefing/send")
+    assert links[0] == (None, "buongiorno")  # the briefing itself opens #buongiorno
+    assert all(link is None for at, link in links[1:])  # reminders open the app normally
+
+
+# --- D2-067: the wake-up guard ---------------------------------------------------------
+
+
+def test_wake_counts_snoozes_escalates_and_needs_the_pin(tmp_path):
+    rig = Rig(tmp_path)
+    sent = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, priority))))
+    pin = {"X-Dani-Pin": "1234"}
+    assert http.post("/api/wake", json={"event": "snoozed"}).status_code == 401
+    for _ in range(3):
+        body = http.post("/api/wake", json={"event": "snoozed"}, headers=pin).json()
+    assert body == {"event": "snoozed", "snoozes": 3, "sent": 3}
+    assert sent[-3][0] == "Chief. Alzati." and sent[-3][1] == 5
+    assert http.post("/api/wake", json={"event": "stopped"}, headers=pin).json()["sent"] == 1
+    assert sent[-1][0] == "Brava, July"
+    assert http.post("/api/wake", json={"event": "dormo"}, headers=pin).status_code == 422
+
+
+# --- D2-068: the model priority only on her action ------------------------------------
+
+
+def test_priority_is_asked_only_when_she_presses_reorder(tmp_path):
+    asked = []
+
+    def prioritize(tasks, today, context):
+        asked.append(today)
+        return {"ok": False, "reason": "test", "priority": None}
+
+    rig = Rig(tmp_path, chat=FakeChat("x"), prioritize=prioritize)
+    assert asked == []  # a start (or a wake-up of Render) asks nothing
+    assert rig.http.get("/api/state").json()["priority"]["reason"].startswith("regola")
+    assert rig.http.post("/api/priority").json() == {"ok": False, "reason": "test"}
+    rig.http.post("/api/priority")
+    assert len(asked) == 2  # forced every time she presses it
+
+
+def test_reorder_needs_the_model(rig):
+    assert rig.http.post("/api/priority").status_code == 503

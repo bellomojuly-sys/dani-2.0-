@@ -28,7 +28,7 @@ Flagged (the proposal is made, with a warning she sees before confirming):
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from models import AMSTERDAM
 
@@ -156,10 +156,11 @@ class BlockProposal(BaseModel):
 
     kind: str = "block"
     id: str
-    task_id: str
+    task_id: Optional[str] = None  # None for a block proposed by the chat's plan (D2-059)
     title: str
     start: datetime
     end: datetime
+    why: str = ""
     warnings: list[str] = []
 
 
@@ -312,3 +313,107 @@ def describe(proposal):
     if proposal.warnings:
         text += " Attenzione: " + "; ".join(proposal.warnings) + "."
     return text + " Confermi?"
+
+
+# --- D2-059: a plan from the chat (several blocks at once) -----------------------
+
+from planner import DAY_START, END_HOUR, MAX_MINUTES_PER_DAY, SHIFT_END_HOUR, is_work_event  # noqa: E402
+
+MAX_PLAN_BLOCKS = 20
+
+PROPOSE_PLAN_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "propose_plan",
+        "description": (
+            "Propose new blocks for Giulia's calendar: study, project work, job search, and her invested "
+            "free time (reading, courses, gym, personal projects). It only creates proposals she confirms "
+            f"one by one; nothing is written. At most {MAX_PLAN_BLOCKS} blocks per call. Read the calendar "
+            "of the period first: a block must not overlap a lesson, a shift or an appointment."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "maxItems": MAX_PLAN_BLOCKS,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "what she does, e.g. 'AMEXIO · AMX-08' or 'Lettura: Atomic Habits'"},
+                            "start": {"type": "string", "description": "Amsterdam time, YYYY-MM-DDTHH:MM"},
+                            "end": {"type": "string", "description": "Amsterdam time, YYYY-MM-DDTHH:MM"},
+                            "why": {"type": "string", "description": "one short reason: which goal or deadline it serves"},
+                        },
+                        "required": ["title", "start", "end"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["blocks"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+class PlanBlockRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    start: datetime
+    end: datetime
+    why: str = ""
+
+
+def day_rule_warnings(start, end, day_events):
+    """Her day rules (the same constants as planner.py) as warnings, not refusals:
+    before 09:30, after 16:00 on a shift day, after 20:00."""
+    warnings = []
+    if start.time() < DAY_START:
+        warnings.append(f"inizia prima delle {DAY_START:%H:%M}")
+    shift_day = any(is_work_event(event) for event in day_events if not event.all_day)
+    last = SHIFT_END_HOUR if shift_day else END_HOUR
+    if end.date() != start.date() or end.hour * 60 + end.minute > last * 60:
+        warnings.append(f"finisce dopo le {last}:00" + (" (giorno di turno)" if shift_day else ""))
+    return warnings
+
+
+def build_plan_proposals(arguments, events, new_id):
+    """Check a propose_plan call and return BlockProposals, or raise ValueError.
+
+    ``events`` are the timed and all-day events of the plan's whole period
+    (read for these dates, not only this week). Every block gets the same
+    checks as a move (Sunday, overlaps with events and with the other blocks
+    of the plan) plus her day rules; a day over 7 hours is flagged on each of
+    its blocks. ``new_id()`` gives a fresh proposal id.
+    """
+    raw = arguments.get("blocks") if isinstance(arguments, dict) else None
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("il piano non contiene blocchi")
+    if len(raw) > MAX_PLAN_BLOCKS:
+        raise ValueError(f"al massimo {MAX_PLAN_BLOCKS} blocchi per volta")
+    blocks = []
+    for item in raw:
+        try:
+            wanted = PlanBlockRequest.model_validate(item)
+        except ValidationError as problem:
+            raise ValueError(f"blocco non valido: {problem.errors()[0]['msg']}") from None
+        start, end = _amsterdam(wanted.start), _amsterdam(wanted.end)
+        if end <= start:
+            raise ValueError(f"«{wanted.title}»: la fine deve essere dopo l'inizio")
+        blocks.append((wanted, start, end))
+    minutes_per_day = {}
+    for _, start, end in blocks:
+        minutes_per_day[start.date()] = minutes_per_day.get(start.date(), 0) + int((end - start).total_seconds() // 60)
+    proposals = []
+    for index, (wanted, start, end) in enumerate(blocks):
+        day_events = [event for event in events if event.start.date() == start.date()]
+        warnings = _clashes(start, end, events)
+        for other_index, (other, other_start, other_end) in enumerate(blocks):
+            if other_index != index and other_start < end and other_end > start:
+                warnings.append(f"si sovrappone al blocco «{other.title}» del piano")
+        warnings += day_rule_warnings(start, end, day_events)
+        if minutes_per_day[start.date()] > MAX_MINUTES_PER_DAY:
+            warnings.append(f"quel giorno il piano supera le {MAX_MINUTES_PER_DAY // 60} ore")
+        proposals.append(BlockProposal(id=new_id(), task_id=None, title=wanted.title, start=start, end=end,
+                                       why=wanted.why, warnings=warnings))
+    return proposals

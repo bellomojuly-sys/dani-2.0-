@@ -1,0 +1,28 @@
+# D2-061: every morning, ask Dani on Render to send the briefing to Giulia's phone.
+# It also wakes the free Render instance before she opens the app.
+# GitHub's schedule is in UTC: 05:30 UTC is 06:30 in Amsterdam in winter, 07:30 in summer.
+# Inactive until the repository has the secrets DANI_URL (e.g. https://dani-2-0.onrender.com)
+# and DANI_PIN. The server sends at most once per day, so a retry never sends twice.
+name: Morning briefing
+
+on:
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send the briefing
+        env:
+          DANI_URL: ${{ secrets.DANI_URL }}
+          DANI_PIN: ${{ secrets.DANI_PIN }}
+        run: |
+          if [ -z "$DANI_URL" ] || [ -z "$DANI_PIN" ]; then
+            echo "DANI_URL or DANI_PIN is not set: nothing to do."
+            exit 0
+          fi
+          # A sleeping free instance takes about a minute to wake: wait for it, retry on errors.
+          curl --fail-with-body --silent --show-error --max-time 150 --retry 3 --retry-delay 20 --retry-all-errors \
+            -X POST -H "X-Dani-Pin: $DANI_PIN" "$DANI_URL/api/briefing/send"

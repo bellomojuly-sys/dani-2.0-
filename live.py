@@ -23,7 +23,7 @@ from dashboard import order_tasks, week_from
 from models import Event
 from planner import plan_study_blocks
 
-NOT_ASKED = {"ok": False, "reason": "priority not calculated yet", "priority": None}
+NOT_ASKED = {"ok": False, "reason": "regola: scadenza, etichetta, next action", "priority": None}
 
 
 def _message(failure):
@@ -117,11 +117,11 @@ class Live:
         )
         return (tuple(rows), context.strip())
 
-    def update_priority(self, context):
-        """Ask the LLM only if tasks or context changed. Returns True if it asked."""
+    def update_priority(self, context, force=False):
+        """Ask the LLM only if tasks or context changed (or ``force``). Returns True if it asked."""
         with self.lock:
             signature = self._signature(context)
-            if signature == self.priority_signature:
+            if signature == self.priority_signature and not force:
                 return False
             tasks = list(self.tasks)
         outcome = self.prioritize(tasks, self.clock().date(), context)

@@ -29,11 +29,14 @@
   <section class="page" id="page-home">
     <header class="head">
       <div class="eyebrow" id="home-date"></div>
-      <h1 class="greeting">Ciao <i>Giulia</i></h1>
+      <h1 class="greeting">Ciao <i>July</i></h1>
     </header>
     <div class="grid">
+      <article class="glass span12" id="mood-card" hidden><h2>Come stai, July?</h2><div id="home-mood"></div></article>
+      <article class="glass span12" id="focus-card" hidden><h2>Focus della settimana</h2><div id="home-focus"></div></article>
+      <article class="glass span12" id="forecast-card" hidden><h2>Previsioni <small>lavoro stimato contro ore libere</small></h2><div id="home-forecast" class="list"></div></article>
       <article class="glass span5"><h2>Oggi</h2><div id="home-events" class="list"></div></article>
-      <article class="glass span7"><h2>Priorità <small id="priority-note"></small></h2><div id="home-tasks" class="list"></div></article>
+      <article class="glass span7"><h2>Priorità <small id="priority-note"></small> <button class="btn ghost small" id="reorder" hidden>Riordina con Dani</button></h2><div id="home-tasks" class="list"></div></article>
       <article class="glass span5"><h2>Mail da leggere</h2>
         <p class="muted"><span class="dot off"></span>Gmail non collegato. L'integrazione arriva in un prossimo step.</p></article>
       <article class="glass span7"><h2>Salute</h2><div id="home-cycle"></div></article>
@@ -84,8 +87,13 @@
         <label class="check"><input type="checkbox" id="cycle-confirmed"> Questa data è confermata (è davvero iniziato quel giorno)</label>
         <button class="btn ghost" id="cycle-started">È iniziato oggi</button></article>
       <article class="glass span12"><h2>Contesto per Dani</h2>
-        <p class="muted">Le tue abitudini e le tue regole. Questo testo entra nel prompt della priorità e della chat.</p>
+        <p class="muted" id="life-status"></p>
+        <p class="muted">Qui sotto le aggiunte veloci. Questo testo entra nel prompt della priorità e della chat.</p>
         <textarea id="context" rows="9" placeholder="Es. Niente studio la domenica. Lavoro al ristorante il…"></textarea></article>
+      <article class="glass span12"><h2>Briefing del mattino</h2>
+        <p class="muted" id="briefing-status"></p>
+        <pre class="briefing" id="briefing-text"></pre>
+        <button class="btn small" id="briefing-send" hidden>Invia adesso al telefono</button></article>
       <article class="glass span6"><h2>Calendari spuntabili</h2>
         <p class="muted">Gli eventi di questi calendari si possono spuntare. Turni e lezioni restano fuori.</p>
         <div id="tickable" class="list"></div></article>

@@ -37,6 +37,8 @@ from propose import (
     BlockProposal,
     TaskProposal,
     build_block_proposal,
+    PROPOSE_PLAN_SCHEMA,
+    build_plan_proposals,
     build_proposal,
     build_task_proposal,
     describe,
@@ -46,6 +48,14 @@ from propose import (
 )
 
 from chat import chat_reply, chat_turn, speech_to_text
+from context import combine
+from focus import focus_prompt
+from briefing import build_briefing
+from reminders import plan_day_messages
+from mood import RECORD_MOOD_SCHEMA, mood_prompt
+from forecast import at_risk, forecast
+from wake import snooze_messages, stopped_message
+from forecast import describe as describe_forecast
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -87,6 +97,15 @@ class SettingsBody(BaseModel):
     tickable_calendars: list[str] = []
 
 
+class FocusBody(BaseModel):
+    week: date  # the Monday of the week
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class WakeBody(BaseModel):
+    event: Literal["snoozed", "stopped"]
+
+
 class ChatBody(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[dict] = []
@@ -108,7 +127,8 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None, create_task=None, read_tools=None, usage_log=None):
+               create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
+               week_focus=None, send_note=None, character=None, mood_log=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -120,8 +140,31 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     while Notion is read-only for new tasks. read_tools is
     {name: (schema, function)} from reader.build_read_tools (D2-056): with it
     the chat looks things up by itself, read-only. usage_log is the
-    usage.UsageLog the model clients write into (D2-057), or None."""
+    usage.UsageLog the model clients write into (D2-057), or None. life is
+    the context.LifeContext of her Notion page (D2-058), or None. week_focus
+    is the focus.WeekFocus of the Sunday check-in (D2-060), or None.
+    send_note(title, text, at=None, priority=None) sends to her phone
+    (D2-061; ``at`` schedules a later delivery, D2-063),
+    or is None while no notification channel is set up. character is the
+    LifeContext of the page "Dani — chi è Dani" (D2-062), or None. mood_log
+    is the mood.MoodLog of her diary (D2-064), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
+    sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
+    forecast_cache = {"at": None, "rows": [], "error": None}  # D2-065, recomputed every 15 minutes
+    snoozes = {}  # day -> snoozes so far (D2-067); in memory: a morning, not a history
+
+    def current_forecast():
+        now = live.clock()
+        if forecast_cache["at"] and now - forecast_cache["at"] < timedelta(minutes=15):
+            return forecast_cache
+        dated = [task.deadline for task in live.tasks if task.deadline is not None]
+        try:
+            horizon = min(max(dated, default=now.date()), now.date() + timedelta(days=60))
+            events = live.fetch_events(now.date(), horizon + timedelta(days=1)) if dated else []
+            forecast_cache.update(at=now, rows=forecast(live.tasks, events, now), error=None)
+        except (RuntimeError, ValueError) as failure:  # the calendar could not be read
+            forecast_cache.update(at=now, error=str(failure))
+        return forecast_cache
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
         if pin and x_dani_pin != pin:
@@ -142,6 +185,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         state = live.state(current)
         state["hidden_events"] = [entry.model_dump(mode="json") for entry in current.hidden_events]
         state["chat"] = {"text": chat_client is not None, "whisper": voice_client is not None}
+        # Which code is live: Render sets RENDER_GIT_COMMIT; locally it is empty.
+        state["version"] = os.environ.get("RENDER_GIT_COMMIT", "")[:7] or "locale"
+        state["life_context"] = {"on": life is not None, "chars": len(life.current()) if life else 0,
+                                 "error": life.error if life else None}
         state["calendar_write"] = {
             "delete": delete_event is not None,
             "move": move_event is not None,
@@ -236,19 +283,64 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=503, detail="chat non configurata: manca DEEPSEEK_API_KEY")
         current = settings()
         state = live.state(current)
+        context = combine(life.current() if life else "", current.context,
+                          character.current() if character else "")
+        if week_focus is not None:
+            focus_lines = focus_prompt(week_focus.status(live.clock().date()))
+            context = (context + "\n\n" + focus_lines).strip() if focus_lines else context
+        if mood_log is not None:
+            context = (context + "\n\n" + mood_prompt(mood_log.status(live.clock().date()))).strip()
+        lines = describe_forecast(current_forecast()["rows"])
+        if lines:
+            context += ("\n\nForecast of her deadlines (free hours by her rules vs estimated work; "
+                        "say what is at risk before it slips and propose what to move):\n" + "\n".join(lines))
         try:
-            if move_event is None and create_task is None and not read_tools:
-                return {"reply": chat_reply(chat_client, current.context, state, body.history, body.message)}
+            if move_event is None and create_task is None and create_block is None and not read_tools and mood_log is None:
+                return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
             turn = chat_turn(
-                chat_client, current.context, state, body.history, body.message,
+                chat_client, context, state, body.history, body.message,
                 PROPOSE_MOVE_SCHEMA if move_event is not None else None,
                 PROPOSE_TASK_SCHEMA if create_task is not None else None,
                 read_tools=read_tools,
+                plan_schema=PROPOSE_PLAN_SCHEMA if create_block is not None else None,
+                mood_schema=RECORD_MOOD_SCHEMA if mood_log is not None else None,
             )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
         except Exception as failure:  # the provider or the network
             raise HTTPException(status_code=502, detail=f"modello non disponibile: {type(failure).__name__}")
+        if turn.get("mood") is not None:
+            # Her own words about how she feels: saved in Dani's diary, nothing else is touched.
+            try:
+                saved = mood_log.set(live.clock().date(), turn["mood"])
+            except (ValueError, TypeError) as problem:
+                return {"reply": f"Non ho capito come stai: {problem}.", "reads": turn["reads"]}
+            except RuntimeError as failure:
+                return {"reply": f"Non riesco a salvare nel diario: {failure}.", "reads": turn["reads"]}
+            text = turn["text"] or f"Segnato: energia {saved.energy}/5."
+            return {"reply": text, "mood": saved.model_dump(), "reads": turn["reads"]}
+        if turn.get("plan") is not None:
+            # A plan: read the whole period, check every block, show them. Nothing is written here.
+            try:
+                days = sorted(datetime.fromisoformat(str(block["start"])[:16]).date()
+                              for block in turn["plan"].get("blocks", []))
+                period = live.fetch_events(days[0], days[-1] + timedelta(days=1)) if days else []
+                hidden = {entry.key for entry in current.hidden_events}
+                period = [event for event in period if event.key not in hidden]
+                made = build_plan_proposals(turn["plan"], period, lambda: uuid.uuid4().hex[:8])
+            except (ValueError, TypeError, KeyError, AttributeError) as problem:
+                return {"reply": f"Non posso proporre questo piano: {problem}.", "reads": turn["reads"]}
+            except RuntimeError as failure:  # the calendar could not be read for those days
+                return {"reply": f"Non riesco a leggere il calendario per controllare il piano: {failure}.",
+                        "reads": turn["reads"]}
+            for proposal in made:
+                proposals[proposal.id] = proposal
+            flagged = sum(1 for proposal in made if proposal.warnings)
+            summary = f"Ti propongo {len(made)} blocchi: confermali uno per uno."
+            if flagged:
+                summary += f" {flagged} {'ha' if flagged == 1 else 'hanno'} un avviso da guardare."
+            text = (turn["text"] + "\n\n" if turn["text"] else "") + summary
+            return {"reply": text, "proposals": [p.model_dump(mode="json") for p in made], "reads": turn["reads"]}
         if turn["task"] is not None:
             # The model asked for a new task: check it in code and show it. Nothing is written here.
             areas = {task.area for task in live.tasks if task.area}
@@ -269,6 +361,121 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             return {"reply": f"Non posso proporre questo spostamento: {problem}.", "reads": turn["reads"]}
         proposals[proposal.id] = proposal
         return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
+
+    def briefing_now():
+        today = live.clock().date()
+        focus = week_focus.status(today) if week_focus is not None else None
+        mood = mood_log.status(today) if mood_log is not None else None
+        note = build_briefing(live.state(settings()), focus, mood)
+        risky = describe_forecast(at_risk(current_forecast()["rows"]))
+        if risky:
+            text = note["text"].splitlines()
+            text.insert(len(text) - 2, "Attenzione: " + " ".join(risky[:2]))
+            note = {**note, "text": "\n".join(text)}
+        return note
+
+    @api.get("/briefing")
+    def get_briefing():
+        return {**briefing_now(), "channel": send_note is not None}
+
+    @api.post("/briefing/send")
+    def post_briefing_send(force: bool = False):
+        """Called by the morning schedule (or by her). Once per day unless force."""
+        if send_note is None:
+            raise HTTPException(status_code=503, detail="nessun canale di notifica: manca NTFY_TOPIC")
+        today = live.clock().date()
+        if today in sent_briefings and not force:
+            return {"sent": False, "reason": "già inviato oggi"}
+        live.refresh("all")  # the morning data, not the last cached minute
+        note = briefing_now()
+        try:
+            send_note(note["title"], note["text"], link="buongiorno")  # a tap opens the spoken morning call
+        except (RuntimeError, ValueError) as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        sent_briefings.add(today)
+        # D2-063: the rest of the day's messages, delivered later by ntfy while Render sleeps.
+        hidden = {entry.key for entry in settings().hidden_events}
+        day = [event for event in live.events if event.key not in hidden]
+        scheduled, failed = 0, 0
+        for message in plan_day_messages(live.clock(), day):
+            try:
+                send_note(message["title"], message["text"], at=message["at"])
+                scheduled += 1
+            except (RuntimeError, ValueError):
+                failed += 1
+        return {"sent": True, **note, "scheduled": scheduled, "not_scheduled": failed}
+
+    @api.post("/wake")
+    def post_wake(body: WakeBody):
+        """Called by her iPhone Shortcut when the alarm is snoozed or stopped."""
+        if send_note is None:
+            raise HTTPException(status_code=503, detail="nessun canale di notifica: manca NTFY_TOPIC")
+        now = live.clock()
+        today = now.date()
+        if body.event == "snoozed":
+            snoozes[today] = snoozes.get(today, 0) + 1
+            messages = snooze_messages(snoozes[today], now, live.events)
+        else:
+            done = stopped_message(snoozes.get(today, 0))
+            messages = [done] if done else []
+        sent = 0
+        for message in messages:
+            try:
+                send_note(message["title"], message["text"], at=message["at"], priority=message["priority"])
+                sent += 1
+            except (RuntimeError, ValueError):
+                pass
+        return {"event": body.event, "snoozes": snoozes.get(today, 0), "sent": sent}
+
+    @api.post("/priority")
+    def post_priority():
+        """Her "Riordina con Dani": ask the model for the priority now (D2-068)."""
+        if chat_client is None:
+            raise HTTPException(status_code=503, detail="chat non configurata: manca DEEPSEEK_API_KEY")
+        live.update_priority(settings().context, force=True)
+        return {"ok": live.outcome["ok"], "reason": live.outcome["reason"]}
+
+    @api.get("/forecast")
+    def get_forecast():
+        data = current_forecast()
+        return {"rows": data["rows"], "lines": describe_forecast(data["rows"]), "error": data["error"]}
+
+    @api.get("/mood")
+    def get_mood():
+        if mood_log is None:
+            return {"enabled": False}
+        return {"enabled": True, **mood_log.status(live.clock().date())}
+
+    @api.put("/mood")
+    def put_mood(body: dict):
+        if mood_log is None:
+            raise HTTPException(status_code=503, detail="il diario non è collegato")
+        try:
+            mood_log.set(live.clock().date(), body)
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem).splitlines()[0])
+        except RuntimeError as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        return {"enabled": True, **mood_log.status(live.clock().date())}
+
+    @api.get("/focus")
+    def get_focus():
+        if week_focus is None:
+            return {"enabled": False}
+        return {"enabled": True, **week_focus.status(live.clock().date())}
+
+    @api.put("/focus")
+    def put_focus(body: FocusBody):
+        """Her answer to the check-in: saved in Dani's own focus database."""
+        if week_focus is None:
+            raise HTTPException(status_code=503, detail="il focus della settimana non è collegato")
+        try:
+            week_focus.set(body.week, body.text)
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem))
+        except RuntimeError as failure:  # Notion refused or is down
+            raise HTTPException(status_code=502, detail=str(failure))
+        return {"enabled": True, **week_focus.status(live.clock().date())}
 
     @api.get("/usage")
     def get_usage():
@@ -327,7 +534,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         if isinstance(proposal, BlockProposal):
             if create_block is None:
                 raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
-            if live.find_task(proposal.task_id) is None:
+            if proposal.task_id and live.find_task(proposal.task_id) is None:
                 del proposals[body.id]
                 raise HTTPException(status_code=409, detail="il task non è più fra quelli aperti: richiedi il blocco di nuovo")
             try:
@@ -377,6 +584,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=502, detail=f"Whisper non disponibile: {type(failure).__name__}")
 
     app.include_router(api)
+
+    @app.middleware("http")
+    async def always_fresh_page(request, call_next):
+        # The page and its code are checked again on every open, so an app saved
+        # in the Dock never keeps an old version after a deploy (ETag: a 304
+        # when nothing changed, so it costs almost nothing).
+        response = await call_next(request)
+        if not request.url.path.startswith("/api"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     if web_dir and os.path.isdir(web_dir):
         @app.get("/", include_in_schema=False)
         def index():
@@ -387,14 +605,16 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
 
 
 def refresh_forever(live, settings_path, sleep=time.sleep, seconds=REFRESH_SECONDS, after=None):  # pragma: no cover
-    """The background loop: re-read the sources, then the priority if needed,
-    then ``after()`` (the token totals are saved there, D2-057)."""
+    """The background loop: re-read the sources, then ``after()`` (token
+    totals, life page, focus, diary).
+
+    D2-068: the model priority is no longer asked here. Render free restarts
+    after every sleep, and each restart re-asked it (about 15,000 tokens a
+    time, 9 times on 24 November). The base order is the same rule in code
+    (deadline, label, next action); the model is asked only on her action:
+    saving Settings or "Riordina con Dani" (POST /api/priority)."""
     while True:
         live.refresh("all")
-        try:
-            live.update_priority(read_settings(settings_path).context)
-        except Exception as failure:
-            print(f"priority not updated: {type(failure).__name__}")
         if after is not None:
             after()
         sleep(seconds)
@@ -415,6 +635,11 @@ if __name__ == "__main__":  # pragma: no cover
     from notion_client import page_text, query_open_tasks, query_projects
     from notion_client import query_usage, save_usage
     from reader import build_read_tools, parse_pages
+    from context import LifeContext
+    from focus import WeekFocus
+    from notify import DEFAULT_SERVER, send_ntfy
+    from notion_client import query_focus, query_mood, save_focus, save_mood
+    from mood import MoodLog
     from usage import MeteredClient, UsageLog
 
     load_dotenv(".env")
@@ -491,7 +716,10 @@ if __name__ == "__main__":  # pragma: no cover
         projects_db = os.environ.get("NOTION_PROJECTS_DB_ID")
         if projects_db:
             fetch_projects = lambda: query_projects(env["notion_token"], projects_db)
-        pages = parse_pages(os.environ.get("NOTION_PAGES"))
+        try:
+            pages = parse_pages(os.environ.get("NOTION_PAGES"))
+        except ValueError as problem:  # a typo in one variable must not stop the whole app
+            print(f"read_page disabled: {problem}")
         fetch_text = lambda page_id: page_text(env["notion_token"], page_id)
     read_tools = build_read_tools(fetch_events, lambda: list(live.tasks), fetch_projects, pages, fetch_text)
     print(f"Chat read tools: {sorted(read_tools)}")
@@ -505,9 +733,75 @@ if __name__ == "__main__":  # pragma: no cover
         save_totals = lambda: usage_log.flush(
             lambda row, page_id: save_usage(env["notion_token"], usage_db, row, page_id))
     print("Token usage saved in Notion" if usage_db else "Token usage kept in memory only (no NOTION_USAGE_DB_ID)")
-    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": save_totals}, daemon=True).start()
+    # D2-058: her life context page, re-read in the background loop.
+    life = None
+    context_page = None if demo else os.environ.get("NOTION_CONTEXT_PAGE_ID")
+    if context_page:
+        life = LifeContext(lambda: page_text(env["notion_token"], context_page))
+        print("Life context: " + ("read" if life.refresh() else f"not read ({life.error})"))
+
+    # D2-062: Dani's character page, re-read like the life page.
+    character = None
+    character_page = None if demo else os.environ.get("NOTION_PERSONA_PAGE_ID")
+    if character_page:
+        character = LifeContext(lambda: page_text(env["notion_token"], character_page))
+        print("Dani's character: " + ("read" if character.refresh() else f"not read ({character.error})"))
+
+    # D2-060: the week's focus from the Sunday check-in.
+    focus_db = None if demo else os.environ.get("NOTION_FOCUS_DB_ID")
+    if focus_db:
+        week_focus = WeekFocus(lambda since: query_focus(env["notion_token"], focus_db, since),
+                               lambda monday, text, page_id: save_focus(env["notion_token"], focus_db, monday, text, page_id))
+    else:
+        week_focus = WeekFocus()  # in memory only
+    since = lambda: clock().date() - timedelta(days=clock().weekday() + 7)
+
+    def refresh_focus():
+        try:
+            week_focus.refresh(since())
+        except (RuntimeError, ValueError) as failure:
+            print(f"week focus not read: {failure}")
+
+    refresh_focus()
+    # D2-061: the morning briefing goes to her phone through ntfy, when a topic is set.
+    send_note = None
+    if os.environ.get("NTFY_TOPIC"):
+        app_url = (os.environ.get("DANI_URL") or "").rstrip("/")
+        send_note = lambda title, text, at=None, priority=None, link=None: send_ntfy(
+            os.environ["NTFY_TOPIC"], title, text, server=os.environ.get("NTFY_SERVER", DEFAULT_SERVER),
+            click=(f"{app_url}/#{link}" if link else app_url) or None, token=os.environ.get("NTFY_TOKEN") or None,
+            at=at, priority=priority)
+    print("Morning briefing: " + ("ntfy on" if send_note else "no channel (no NTFY_TOPIC)"))
+
+    # D2-064: the mood diary.
+    mood_db = None if demo else os.environ.get("NOTION_MOOD_DB_ID")
+    if mood_db:
+        mood_log = MoodLog(lambda since: query_mood(env["notion_token"], mood_db, since),
+                           lambda day, mood, page_id: save_mood(env["notion_token"], mood_db, day, mood, page_id))
+    else:
+        mood_log = MoodLog()  # in memory only
+
+    def refresh_mood():
+        try:
+            mood_log.refresh(clock().date() - timedelta(days=14))
+        except (RuntimeError, ValueError) as failure:
+            print(f"mood diary not read: {failure}")
+
+    refresh_mood()
+
+    def after_refresh():
+        refresh_mood()
+        if save_totals:
+            save_totals()
+        if life:
+            life.refresh()
+        if character:
+            character.refresh()
+        refresh_focus()
+    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
-                     create_task=create_task, read_tools=read_tools, usage_log=usage_log)
+                     create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
+                     week_focus=week_focus, send_note=send_note, character=character, mood_log=mood_log)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

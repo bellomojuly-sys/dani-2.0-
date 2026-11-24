@@ -353,3 +353,68 @@ def test_a_broken_usage_row_is_refused_and_query_filters_by_day():
     assert query_usage("tok", "db", date(2026, 10, 24),
                        http=lambda url, h, body: sent.append(body) or {"results": []}) == []
     assert sent[0]["filter"] == {"property": "Day", "date": {"on_or_after": "2026-10-24"}}
+
+
+def test_page_text_opens_toggles_and_nested_lists_but_not_sub_pages():
+    def para(text, kind="paragraph", **extra):
+        return {"type": kind, kind: {"rich_text": [{"plain_text": text}]}, **extra}
+
+    tree = {
+        "page": [para("FASE 1", "toggle", id="t1", has_children=True),
+                 {"type": "child_page", "child_page": {"title": "secret"}, "id": "sub", "has_children": True}],
+        "t1": [para("21 anni", "heading_3", id="h"), para("risparmio 600", "bulleted_list_item", id="b", has_children=True)],
+        "b": [para("fondo 1000", "bulleted_list_item", id="deep", has_children=True)],
+        "deep": [para("too deep")],
+        "sub": [para("never read")],
+    }
+    asked = []
+
+    def http(url, headers):
+        block_id = url.split("/blocks/")[1].split("/")[0]
+        asked.append(block_id)
+        return {"results": tree[block_id], "has_more": False}
+
+    text = page_text("tok", "page", http=http)
+    assert text.splitlines() == ["FASE 1", "  ### 21 anni", "  - risparmio 600", "    - fondo 1000"]
+    assert "sub" not in asked and "deep" not in asked  # sub-pages and a 4th level are never opened
+
+
+# --- D2-060: week focus rows ------------------------------------------------------
+
+from notion_client import query_focus, save_focus  # noqa: E402
+
+
+def test_save_focus_creates_then_updates_and_query_reads_it_back():
+    created = []
+    page_id = save_focus("tok", "focus-db", date(2026, 11, 30), "Betsy", None,
+                         create=lambda url, h, body: created.append(body) or {"id": "f1"}, update=None)
+    assert page_id == "f1" and created[0]["parent"] == {"database_id": "focus-db"}
+    assert created[0]["properties"]["Week"] == {"date": {"start": "2026-11-30"}}
+    updated = []
+    save_focus("tok", "focus-db", date(2026, 11, 30), "Betsy e CV", "f1", create=None,
+               update=lambda url, h, body: updated.append(url) or {"id": "f1"})
+    assert updated[0].endswith("/pages/f1")
+    rows = {"results": [
+        {"id": "f1", "properties": {"Week": {"date": {"start": "2026-11-30"}},
+                                    "Focus": {"rich_text": [{"plain_text": "Betsy e CV"}]}}},
+        {"id": "f2", "properties": {"Week": {"date": None}, "Focus": {"rich_text": []}}}]}
+    assert query_focus("tok", "db", date(2026, 11, 16), http=lambda url, h, body: rows) == {
+        date(2026, 11, 30): ("Betsy e CV", "f1")}  # a row without a week is ignored
+
+
+def test_mood_rows_save_and_read_back_and_a_hand_broken_row_is_skipped():
+    from mood import Mood
+    from notion_client import query_mood, save_mood
+
+    created = []
+    save_mood("tok", "diary", date(2026, 11, 24), Mood(energy=3, sleep=6.5, note="ok"), None,
+              create=lambda url, h, body: created.append(body) or {"id": "m1"}, update=None)
+    props = created[0]["properties"]
+    assert props["Energy"] == {"number": 3} and props["Sleep"] == {"number": 6.5}
+    rows = {"results": [
+        {"id": "m1", "properties": {"Day": {"date": {"start": "2026-11-24"}}, "Energy": {"number": 3},
+                                    "Sleep": {"number": 6.5}, "Note": {"rich_text": [{"plain_text": "ok"}]}}},
+        {"id": "m2", "properties": {"Day": {"date": {"start": "2026-11-23"}}, "Energy": {"number": 11},
+                                    "Sleep": {"number": None}, "Note": {"rich_text": []}}}]}
+    read = query_mood("tok", "db", date(2026, 11, 10), http=lambda url, h, body: rows)
+    assert list(read) == [date(2026, 11, 24)] and read[date(2026, 11, 24)][0].note == "ok"

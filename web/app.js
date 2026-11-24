@@ -227,7 +227,15 @@ function renderHome() {
   rows.sort((a, b) => a.sort - b.sort);
   $("#home-events").replaceChildren(...(rows.length ? rows.map((r) => r.node) : [h("div", { class: "empty" }, "Niente in calendario oggi.")]));
 
-  $("#priority-note").textContent = state.priority.ok ? "ordine verificato dall'AI" : `ordine per scadenza (${state.priority.reason})`;
+  $("#priority-note").textContent = state.priority.ok ? "ordine verificato dall'AI" : `ordine per ${state.priority.reason}`;
+  const reorder = $("#reorder");
+  reorder.hidden = !state.chat.text;
+  reorder.onclick = async () => {
+    reorder.disabled = true;
+    try { const r = await api("/api/priority", { method: "POST" }); toast(r.ok ? "Riordinato da Dani." : `Non riordinato: ${r.reason}`); poll(); }
+    catch (failure) { toast(failure.message, { bad: true }); }
+    reorder.disabled = false;
+  };
   const tasks = state.tasks.filter((t) => !gone(t.id));
   const shown = showAllTasks ? tasks : tasks.slice(0, 8);
   const taskNodes = shown.map((task) => h("div", { class: "item" },
@@ -332,7 +340,16 @@ function renderWeek() {
 
 const SOURCE_NAMES = { notion: "Notion", calendar: "Google Calendar", gmail: "Gmail" };
 
+function renderLifeStatus() {
+  const life = state.life_context || { on: false };
+  $("#life-status").textContent = !life.on
+    ? "La pagina Notion \u201cDani \u2014 chi sono e come pianifico\u201d non \u00e8 collegata (manca NOTION_CONTEXT_PAGE_ID)."
+    : life.error && !life.chars ? `La pagina Notion del contesto non si legge: ${life.error}`
+    : `Il contesto principale \u00e8 la tua pagina Notion \u201cDani \u2014 chi sono e come pianifico\u201d (${life.chars} caratteri letti): correggila l\u00ec.`;
+}
+
 function renderSources() {
+  renderLifeStatus();
   $("#sources").replaceChildren(...Object.entries(SOURCE_NAMES).map(([key, name]) => {
     const source = state.sources[key];
     const dot = source.ok === true ? "" : source.ok === false ? " bad" : " off";
@@ -356,6 +373,26 @@ async function refresh(source) {
 
 // The form is filled once (and after a save), not at every poll, so the
 // polling never overwrites what is being typed.
+// --- morning briefing preview (D2-061) ------------------------------------------
+
+async function loadBriefing() {
+  const note = await api("/api/briefing");
+  $("#briefing-status").textContent = note.channel
+    ? "Arriva sul telefono ogni mattina (ntfy). Questa è l'anteprima di oggi."
+    : "Nessun canale collegato (manca NTFY_TOPIC): per ora lo vedi solo qui.";
+  $("#briefing-text").textContent = `${note.title}\n\n${note.text}`;
+  const button = $("#briefing-send");
+  button.hidden = !note.channel;
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      await api("/api/briefing/send?force=true", { method: "POST" });
+      toast("Briefing inviato al telefono.");
+    } catch (failure) { toast(`Non inviato: ${failure.message}`, { bad: true }); }
+    button.disabled = false;
+  };
+}
+
 async function loadSettings() {
   const settings = await api("/api/settings");
   $("#context").value = settings.context;
@@ -405,13 +442,38 @@ function render() {
   fresh.className = "fresh" + (bad.length ? " bad" : "");
   const at = (s) => (s.at ? clock(s.at) + ":" + s.at.slice(17, 19) : "mai");
   fresh.replaceChildren(`aggiornato alle ${state.now.slice(11, 19)}`, h("br"),
-    bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`);
+    bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`,
+    ` · versione ${state.version || "?"}`);
   renderHome();
   renderWeek();
   renderSources();
 }
 
+// --- the morning call (D2-066): a tap on the briefing opens #buongiorno ----------
+
+async function morningCall() {
+  window.history.replaceState(null, "", "#home");
+  openChat();
+  let note;
+  try { note = await api("/api/briefing"); } catch (failure) { addMessage("note", `Briefing non disponibile: ${failure.message}`); return; }
+  const text = note.text;
+  addMessage("assistant", `${note.title}\n\n${text}`);
+  const play = h("button", { class: "btn small", onclick: () => {
+    speechSynthesis.cancel();
+    const voice = new SpeechSynthesisUtterance(text.replace(/•/g, ""));
+    voice.lang = "it-IT";
+    speechSynthesis.speak(voice);
+  } }, "\u25B6 Ascolta Dani");
+  const row = h("div", { class: "msg note" }, play);
+  $("#messages").append(row);
+  if ("speechSynthesis" in window) {
+    try { play.click(); } catch (failure) { /* the browser waits for her tap */ }
+  } else { play.remove(); }
+  $("#chat-input").placeholder = "Come stai, July?";
+}
+
 function route() {
+  if (location.hash === "#buongiorno") { morningCall(); }
   const page = ["home", "calendario", "meal", "consumi", "impostazioni"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
   for (const section of document.querySelectorAll(".page")) section.hidden = section.id !== "page-" + page;
   for (const link of document.querySelectorAll(".nav a")) {
@@ -419,8 +481,117 @@ function route() {
     if (link.dataset.page === page) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
+  if (page === "impostazioni") loadBriefing().catch(() => {});
+  if (page === "home") { loadMood(); loadFocus(); loadForecast(); }
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
+}
+
+// --- forecasts (D2-065) --------------------------------------------------------------
+
+async function loadForecast() {
+  let data;
+  try { data = await api("/api/forecast"); } catch (failure) { return; }
+  const card = $("#forecast-card");
+  card.hidden = !data.rows.length && !data.error;
+  if (card.hidden) return;
+  const tone = { "in linea": "ok", "stretta": "warn", "a rischio": "bad", "scaduta": "bad" };
+  $("#home-forecast").replaceChildren(...(data.error ? [h("p", { class: "muted" }, `Previsioni non disponibili: ${data.error}`)] : []),
+    ...data.lines.map((line, n) => h("p", { class: "forecast " + (tone[data.rows[n].status] || "") }, line)));
+}
+
+// --- the mood diary (D2-064) ------------------------------------------------------
+
+const ENERGY = ["", "a terra", "stanca", "così così", "bene", "al massimo"];
+
+function renderMood(diary) {
+  $("#mood-card").hidden = !diary.enabled;
+  if (!diary.enabled) return;
+  const box = $("#home-mood");
+  if (diary.mood) {
+    const m = diary.mood;
+    box.replaceChildren(h("p", {}, `Oggi: energia ${m.energy}/5 (${ENERGY[m.energy]})` +
+      (m.sleep != null ? ` · ${m.sleep} ore di sonno` : "") + (m.note ? ` · \u201c${m.note}\u201d` : "")),
+      h("button", { class: "btn ghost small", onclick: () => askMood(diary) }, "Cambia"));
+    return;
+  }
+  askMood(diary);
+}
+
+function askMood(diary) {
+  let energy = diary.mood ? diary.mood.energy : 0;
+  const buttons = [1, 2, 3, 4, 5].map((n) => h("button", { class: "btn ghost small energy", "data-n": n,
+    onclick: () => { energy = n; for (const b of buttons) b.classList.toggle("on", Number(b.dataset.n) === n); } },
+    `${n} · ${ENERGY[n]}`));
+  for (const b of buttons) b.classList.toggle("on", Number(b.dataset.n) === energy);
+  const sleep = h("input", { type: "number", min: "0", max: "16", step: "0.5", placeholder: "ore di sonno" });
+  const note = h("input", { type: "text", maxlength: "500", placeholder: "in due parole (facoltativo)" });
+  if (diary.mood) { sleep.value = diary.mood.sleep ?? ""; note.value = diary.mood.note || ""; }
+  const status = h("span", { class: "meta" });
+  $("#home-mood").replaceChildren(h("div", { class: "row" }, buttons), h("div", { class: "row" }, sleep, note),
+    h("div", { class: "row" }, h("button", { class: "btn small", onclick: async () => {
+      if (!energy) { status.textContent = "Scegli un numero da 1 a 5."; return; }
+      try {
+        renderMood(await api("/api/mood", { method: "PUT", json: {
+          energy, sleep: sleep.value === "" ? null : Number(sleep.value), note: note.value } }));
+        toast("Segnato nel diario.");
+      } catch (failure) { status.textContent = `Non salvato: ${failure.message}`; }
+    } }, "Salva"), status));
+}
+
+async function loadMood() {
+  try { renderMood(await api("/api/mood")); } catch (failure) { /* the card stays hidden */ }
+}
+
+// --- the week's focus and the Sunday check-in (D2-060) --------------------------
+
+function weekLabel(monday) {
+  return `settimana del ${dateIt(monday)}`;
+}
+
+function planFromFocus(focus) {
+  openChat();
+  send(`Proponimi la ${focus.ask_week === focus.next_week ? "prossima settimana" : "settimana"} partendo dal mio focus: ` +
+    `${focus.ask_week === focus.next_week ? focus.next_focus : focus.this_focus}`);
+}
+
+function renderFocus(focus) {
+  const card = $("#focus-card");
+  card.hidden = !focus.enabled;
+  if (!focus.enabled) return;
+  const box = $("#home-focus");
+  const shown = [];
+  if (focus.this_focus) shown.push(h("p", {}, h("b", {}, "Questa settimana: "), focus.this_focus));
+  if (focus.next_focus) shown.push(h("p", {}, h("b", {}, "Prossima settimana: "), focus.next_focus));
+  if (!focus.ask) {
+    box.replaceChildren(...shown, h("div", { class: "row" },
+      h("button", { class: "btn small", onclick: () => planFromFocus(focus) }, "Proponimi la settimana"),
+      h("button", { class: "btn ghost small", onclick: () => askFocus(focus, true) }, "Cambia il focus")));
+    return;
+  }
+  askFocus(focus, false, shown);
+}
+
+function askFocus(focus, editing, shown = []) {
+  const week = editing ? (new Date().getDay() === 0 ? focus.next_week : focus.this_week) : focus.ask_week;
+  const current = week === focus.next_week ? focus.next_focus : focus.this_focus;
+  const question = editing ? `Il focus della ${weekLabel(week)}` : focus.question;
+  const field = h("textarea", { rows: "3", placeholder: "Es. chiudere AMX-08, due candidature, 3 ore di Python" });
+  field.value = current || "";
+  const note = h("span", { class: "meta" });
+  $("#home-focus").replaceChildren(...shown, h("p", { class: "question" }, question), field,
+    h("div", { class: "row" }, h("button", { class: "btn small", onclick: async () => {
+      note.textContent = "Salvo…";
+      try {
+        const saved = await api("/api/focus", { method: "PUT", json: { week, text: field.value } });
+        renderFocus(saved);
+        toast("Focus salvato.");
+      } catch (failure) { note.textContent = `Non salvato: ${failure.message}`; }
+    } }, "Salva"), note));
+}
+
+async function loadFocus() {
+  try { renderFocus(await api("/api/focus")); } catch (failure) { /* the card stays hidden */ }
 }
 
 // --- token monitoring (D2-057) -------------------------------------------------
@@ -519,6 +690,7 @@ async function send(text) {
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
     if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
+    for (const block of answer.proposals || []) addBlockProposal(block);  // a plan (D2-059)
   } catch (failure) {
     waiting.remove();
     addMessage("note", `Dani non ha risposto: ${failure.message}`);
@@ -589,6 +761,7 @@ function addBlockProposal(proposal) {
   const card = h("div", { class: "msg proposal" },
     h("b", {}, proposal.title),
     h("div", {}, `${dateIt(dayOf(proposal.start))} ${clock(proposal.start)}–${clock(proposal.end)} · calendario studio`),
+    proposal.why ? h("div", { class: "meta" }, proposal.why) : null,
     proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
   const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
   buttons.append(
@@ -648,7 +821,7 @@ async function toggleMic() {
 
 function openChat() {
   $("#chat").hidden = false; $("#chat-open").hidden = true; $("#chat-input").focus();
-  if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
+  if (!$("#messages").children.length) addMessage("assistant", "Eccomi, July. Dimmi cosa ti serve: la giornata, la settimana, un piano. Non cambio niente senza il tuo sì.");
 }
 
 function setupChat() {

@@ -184,3 +184,13 @@ def test_a_rejected_block_is_not_planned_but_the_task_stays_listed():
     assert rejected_id not in {block["task_id"] for block in state["blocks"]}
     assert rejected_id in [task["id"] for task in state["tasks"]]  # still a task to do
     assert state["rejected_blocks"] == [rejected_id]
+
+
+def test_force_asks_again_with_the_same_tasks_and_context():
+    from live import Live
+
+    asked = []
+    live = Live(lambda: [], lambda s, e: [], lambda t, d, c: asked.append(1) or {"ok": False, "reason": "x", "priority": None},
+                clock=lambda: __import__("datetime").datetime(2026, 11, 24, tzinfo=__import__("models").AMSTERDAM))
+    assert live.update_priority("c") is True and live.update_priority("c") is False
+    assert live.update_priority("c", force=True) is True and len(asked) == 2

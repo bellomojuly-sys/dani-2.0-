@@ -223,7 +223,7 @@ def query_projects(token, database_id, http=post_json):
         cursor = answer["next_cursor"]
 
 
-MAX_PAGE_CHARS = 12000  # a long page is cut, so one read cannot flood the prompt
+MAX_PAGE_CHARS = 16000  # a long page is cut, so one read cannot flood the prompt
 
 
 def block_text(block):
@@ -242,25 +242,52 @@ def block_text(block):
     return text
 
 
-def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
-    """Return the text of a page's top-level blocks, at most ``limit`` characters.
+# Blocks whose children belong to the same page (a toggle's content, list
+# sub-items, columns). A sub-page or a database inside is never opened.
+NESTED = {"toggle", "callout", "quote", "column_list", "column", "synced_block",
+          "bulleted_list_item", "numbered_list_item", "to_do", "heading_1", "heading_2", "heading_3"}
+MAX_DEPTH = 3
 
-    Read-only: only GET requests. Nested blocks (toggles, sub-pages) are not
-    opened, so one call is one page and never a walk through the workspace.
+
+def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
+    """Return the text of a page, at most ``limit`` characters.
+
+    Read-only: only GET requests. Content inside toggles, callouts, columns
+    and nested lists is read too (D2-058: the life plan is written in
+    toggles), down to MAX_DEPTH levels and indented by level; sub-pages and
+    databases are never opened, so one call is one page.
     """
-    lines, cursor = [], None
-    while True:
-        url = f"{API}/blocks/{page_id}/children?page_size=100"
-        if cursor:
-            url += f"&start_cursor={cursor}"
-        answer = http(url, _headers(token))
-        lines.extend(line for line in map(block_text, answer.get("results", [])) if line)
-        text = "\n".join(lines)
-        if len(text) > limit:
-            return text[:limit] + "\n[... page cut here]"
-        if not answer.get("has_more"):
-            return text
-        cursor = answer["next_cursor"]
+    lines = []
+
+    def full():
+        return len("\n".join(lines)) > limit
+
+    def read(block_id, depth):
+        cursor = None
+        while True:
+            url = f"{API}/blocks/{block_id}/children?page_size=100"
+            if cursor:
+                url += f"&start_cursor={cursor}"
+            answer = http(url, _headers(token))
+            for block in answer.get("results", []):
+                line = block_text(block)
+                if line:
+                    lines.append("  " * depth + line)
+                if full():
+                    return
+                if block.get("has_children") and block.get("type") in NESTED and depth + 1 < MAX_DEPTH:
+                    read(block["id"], depth + 1)
+                    if full():
+                        return
+            if not answer.get("has_more"):
+                return
+            cursor = answer["next_cursor"]
+
+    read(page_id, 0)
+    text = "\n".join(lines)
+    if len(text) > limit:
+        return text[:limit] + "\n[... page cut here]"
+    return text
 
 
 # --- D2-057: token usage, one row per day, model and kind -----------------------
@@ -320,6 +347,91 @@ def save_usage(token, database_id, row, page_id=None, create=post_json, update=p
     if page_id is None:
         page = create(f"{API}/pages", _headers(token),
                       {"parent": {"database_id": database_id}, "properties": properties})
+    else:
+        page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
+    return page["id"]
+
+
+# --- D2-060: the week's focus, one row per week (its Monday) ---------------------
+
+
+def query_focus(token, database_id, since, http=post_json):
+    """{monday: (focus text, page_id)} for every week from ``since`` on."""
+    from datetime import date
+
+    weeks, cursor = {}, None
+    while True:
+        body = {"filter": {"property": "Week", "date": {"on_or_after": since.isoformat()}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        for page in answer.get("results", []):
+            props = page.get("properties", {})
+            start = ((props.get("Week") or {}).get("date") or {}).get("start")
+            if not start:
+                continue  # a row without a week is ignored, never guessed
+            weeks[date.fromisoformat(start[:10])] = (_plain_text((props.get("Focus") or {}).get("rich_text")), page["id"])
+        if not answer.get("has_more"):
+            return weeks
+        cursor = answer["next_cursor"]
+
+
+def save_focus(token, database_id, monday, text, page_id=None, create=post_json, update=patch_json):
+    """Create the week's row or overwrite its focus; return the page id."""
+    properties = {
+        "Name": {"title": [{"text": {"content": f"Settimana del {monday.isoformat()}"}}]},
+        "Week": {"date": {"start": monday.isoformat()}},
+        "Focus": {"rich_text": [{"text": {"content": text}}]},
+    }
+    if page_id is None:
+        page = create(f"{API}/pages", _headers(token), {"parent": {"database_id": database_id}, "properties": properties})
+    else:
+        page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
+    return page["id"]
+
+
+# --- D2-064: the mood diary, one row per day ---------------------------------------
+
+
+def query_mood(token, database_id, since, http=post_json):
+    """{day: (Mood, page_id)} for every day from ``since`` on; bad rows are skipped."""
+    from datetime import date
+
+    from mood import Mood
+
+    days, cursor = {}, None
+    while True:
+        body = {"filter": {"property": "Day", "date": {"on_or_after": since.isoformat()}}, "page_size": 100}
+        if cursor:
+            body["start_cursor"] = cursor
+        answer = http(f"{API}/databases/{database_id}/query", _headers(token), body)
+        for page in answer.get("results", []):
+            props = page.get("properties", {})
+            start = ((props.get("Day") or {}).get("date") or {}).get("start")
+            try:
+                mood = Mood(energy=(props.get("Energy") or {}).get("number"),
+                            sleep=(props.get("Sleep") or {}).get("number"),
+                            note=_plain_text((props.get("Note") or {}).get("rich_text")))
+            except ValidationError:
+                continue  # a row she edited by hand into an invalid value is ignored, never guessed
+            if start:
+                days[date.fromisoformat(start[:10])] = (mood, page["id"])
+        if not answer.get("has_more"):
+            return days
+        cursor = answer["next_cursor"]
+
+
+def save_mood(token, database_id, day, mood, page_id=None, create=post_json, update=patch_json):
+    """Create the day's row or overwrite it; return the page id."""
+    properties = {
+        "Name": {"title": [{"text": {"content": f"{day.isoformat()} · energia {mood.energy}/5"}}]},
+        "Day": {"date": {"start": day.isoformat()}},
+        "Energy": {"number": mood.energy},
+        "Sleep": {"number": mood.sleep},
+        "Note": {"rich_text": [{"text": {"content": mood.note}}] if mood.note else []},
+    }
+    if page_id is None:
+        page = create(f"{API}/pages", _headers(token), {"parent": {"database_id": database_id}, "properties": properties})
     else:
         page = update(f"{API}/pages/{page_id}", _headers(token), {"properties": properties})
     return page["id"]
