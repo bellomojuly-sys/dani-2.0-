@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-058 — my life context in a Notion page, always in the prompt**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-059 — top-down planning**.
 
 | Step | What | State |
 |---|---|---|
@@ -136,7 +136,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-055 | New task from the chat: `propose_task` → preview card → her Conferma → `create_task` in Notion with read-back; unknown areas and empty titles refused | Built 🟡 (her first real Confirm closes it) |
 | D2-056 | Read tools (calendar any period, all tasks, projects and goals, allow-listed pages) and a bounded tool loop in the chat; the chat shows what it read | Built 🟡 23 Nov (real check after sharing the pages)  |
 | D2-057 | Token monitoring: input/output tokens per day, model and kind, saved in Notion, "Consumi" page | Done 24 Nov `0d62960` |
-| D2-058–D2-061 | M17 — life context, top-down planning with invested free time, Sunday check-in, morning briefing | Proposed 23 Nov |
+| D2-058 | Life context in the Notion page "Dani — chi sono e come pianifico", always in the prompt; nested blocks read | Built 🟡 24 Nov (needs `NOTION_CONTEXT_PAGE_ID` on Render) |
+| D2-059–D2-061 | M17 — top-down planning with invested free time, Sunday check-in, morning briefing | Proposed 23 Nov |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 

@@ -332,7 +332,16 @@ function renderWeek() {
 
 const SOURCE_NAMES = { notion: "Notion", calendar: "Google Calendar", gmail: "Gmail" };
 
+function renderLifeStatus() {
+  const life = state.life_context || { on: false };
+  $("#life-status").textContent = !life.on
+    ? "La pagina Notion \u201cDani \u2014 chi sono e come pianifico\u201d non \u00e8 collegata (manca NOTION_CONTEXT_PAGE_ID)."
+    : life.error && !life.chars ? `La pagina Notion del contesto non si legge: ${life.error}`
+    : `Il contesto principale \u00e8 la tua pagina Notion \u201cDani \u2014 chi sono e come pianifico\u201d (${life.chars} caratteri letti): correggila l\u00ec.`;
+}
+
 function renderSources() {
+  renderLifeStatus();
   $("#sources").replaceChildren(...Object.entries(SOURCE_NAMES).map(([key, name]) => {
     const source = state.sources[key];
     const dot = source.ok === true ? "" : source.ok === false ? " bad" : " off";

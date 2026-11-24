@@ -547,3 +547,17 @@ def test_the_page_and_its_code_are_never_served_from_an_old_cache(tmp_path):
     assert http.get("/").headers["cache-control"] == "no-cache"
     assert http.get("/app.js").headers["cache-control"] == "no-cache"
     assert "cache-control" not in http.get("/api/state").headers
+
+
+def test_the_life_page_goes_into_the_chat_prompt_and_its_status_into_the_state(tmp_path):
+    from context import LifeContext
+
+    rig = Rig(tmp_path)
+    life = LifeContext(lambda: "Domenica niente studio. Obiettivo: lavoro entro dicembre.")
+    life.refresh()
+    chat = FakeChat("Va bene.")
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, life=life)
+    http = TestClient(app)
+    assert http.post("/api/chat", json={"message": "pianifica", "history": []}).status_code == 200
+    assert "lavoro entro dicembre" in chat.seen["messages"][0]["content"]
+    assert http.get("/api/state").json()["life_context"] == {"on": True, "chars": 57, "error": None}

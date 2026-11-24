@@ -46,6 +46,7 @@ from propose import (
 )
 
 from chat import chat_reply, chat_turn, speech_to_text
+from context import combine
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -108,7 +109,7 @@ class TaskBody(BaseModel):
 
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
-               create_block=None, create_task=None, read_tools=None, usage_log=None):
+               create_block=None, create_task=None, read_tools=None, usage_log=None, life=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -120,7 +121,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     while Notion is read-only for new tasks. read_tools is
     {name: (schema, function)} from reader.build_read_tools (D2-056): with it
     the chat looks things up by itself, read-only. usage_log is the
-    usage.UsageLog the model clients write into (D2-057), or None."""
+    usage.UsageLog the model clients write into (D2-057), or None. life is
+    the context.LifeContext of her Notion page (D2-058), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
@@ -144,6 +146,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         state["chat"] = {"text": chat_client is not None, "whisper": voice_client is not None}
         # Which code is live: Render sets RENDER_GIT_COMMIT; locally it is empty.
         state["version"] = os.environ.get("RENDER_GIT_COMMIT", "")[:7] or "locale"
+        state["life_context"] = {"on": life is not None, "chars": len(life.current()) if life else 0,
+                                 "error": life.error if life else None}
         state["calendar_write"] = {
             "delete": delete_event is not None,
             "move": move_event is not None,
@@ -238,11 +242,12 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=503, detail="chat non configurata: manca DEEPSEEK_API_KEY")
         current = settings()
         state = live.state(current)
+        context = combine(life.current() if life else "", current.context)
         try:
             if move_event is None and create_task is None and not read_tools:
-                return {"reply": chat_reply(chat_client, current.context, state, body.history, body.message)}
+                return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
             turn = chat_turn(
-                chat_client, current.context, state, body.history, body.message,
+                chat_client, context, state, body.history, body.message,
                 PROPOSE_MOVE_SCHEMA if move_event is not None else None,
                 PROPOSE_TASK_SCHEMA if create_task is not None else None,
                 read_tools=read_tools,
@@ -428,6 +433,7 @@ if __name__ == "__main__":  # pragma: no cover
     from notion_client import page_text, query_open_tasks, query_projects
     from notion_client import query_usage, save_usage
     from reader import build_read_tools, parse_pages
+    from context import LifeContext
     from usage import MeteredClient, UsageLog
 
     load_dotenv(".env")
@@ -521,9 +527,21 @@ if __name__ == "__main__":  # pragma: no cover
         save_totals = lambda: usage_log.flush(
             lambda row, page_id: save_usage(env["notion_token"], usage_db, row, page_id))
     print("Token usage saved in Notion" if usage_db else "Token usage kept in memory only (no NOTION_USAGE_DB_ID)")
-    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": save_totals}, daemon=True).start()
+    # D2-058: her life context page, re-read in the background loop.
+    life = None
+    context_page = None if demo else os.environ.get("NOTION_CONTEXT_PAGE_ID")
+    if context_page:
+        life = LifeContext(lambda: page_text(env["notion_token"], context_page))
+        print("Life context: " + ("read" if life.refresh() else f"not read ({life.error})"))
+
+    def after_refresh():
+        if save_totals:
+            save_totals()
+        if life:
+            life.refresh()
+    threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
-                     create_task=create_task, read_tools=read_tools, usage_log=usage_log)
+                     create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

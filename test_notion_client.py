@@ -353,3 +353,27 @@ def test_a_broken_usage_row_is_refused_and_query_filters_by_day():
     assert query_usage("tok", "db", date(2026, 10, 24),
                        http=lambda url, h, body: sent.append(body) or {"results": []}) == []
     assert sent[0]["filter"] == {"property": "Day", "date": {"on_or_after": "2026-10-24"}}
+
+
+def test_page_text_opens_toggles_and_nested_lists_but_not_sub_pages():
+    def para(text, kind="paragraph", **extra):
+        return {"type": kind, kind: {"rich_text": [{"plain_text": text}]}, **extra}
+
+    tree = {
+        "page": [para("FASE 1", "toggle", id="t1", has_children=True),
+                 {"type": "child_page", "child_page": {"title": "secret"}, "id": "sub", "has_children": True}],
+        "t1": [para("21 anni", "heading_3", id="h"), para("risparmio 600", "bulleted_list_item", id="b", has_children=True)],
+        "b": [para("fondo 1000", "bulleted_list_item", id="deep", has_children=True)],
+        "deep": [para("too deep")],
+        "sub": [para("never read")],
+    }
+    asked = []
+
+    def http(url, headers):
+        block_id = url.split("/blocks/")[1].split("/")[0]
+        asked.append(block_id)
+        return {"results": tree[block_id], "has_more": False}
+
+    text = page_text("tok", "page", http=http)
+    assert text.splitlines() == ["FASE 1", "  ### 21 anni", "  - risparmio 600", "    - fondo 1000"]
+    assert "sub" not in asked and "deep" not in asked  # sub-pages and a 4th level are never opened

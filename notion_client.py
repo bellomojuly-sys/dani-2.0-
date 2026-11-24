@@ -223,7 +223,7 @@ def query_projects(token, database_id, http=post_json):
         cursor = answer["next_cursor"]
 
 
-MAX_PAGE_CHARS = 12000  # a long page is cut, so one read cannot flood the prompt
+MAX_PAGE_CHARS = 16000  # a long page is cut, so one read cannot flood the prompt
 
 
 def block_text(block):
@@ -242,25 +242,52 @@ def block_text(block):
     return text
 
 
-def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
-    """Return the text of a page's top-level blocks, at most ``limit`` characters.
+# Blocks whose children belong to the same page (a toggle's content, list
+# sub-items, columns). A sub-page or a database inside is never opened.
+NESTED = {"toggle", "callout", "quote", "column_list", "column", "synced_block",
+          "bulleted_list_item", "numbered_list_item", "to_do", "heading_1", "heading_2", "heading_3"}
+MAX_DEPTH = 3
 
-    Read-only: only GET requests. Nested blocks (toggles, sub-pages) are not
-    opened, so one call is one page and never a walk through the workspace.
+
+def page_text(token, page_id, http=get_json, limit=MAX_PAGE_CHARS):
+    """Return the text of a page, at most ``limit`` characters.
+
+    Read-only: only GET requests. Content inside toggles, callouts, columns
+    and nested lists is read too (D2-058: the life plan is written in
+    toggles), down to MAX_DEPTH levels and indented by level; sub-pages and
+    databases are never opened, so one call is one page.
     """
-    lines, cursor = [], None
-    while True:
-        url = f"{API}/blocks/{page_id}/children?page_size=100"
-        if cursor:
-            url += f"&start_cursor={cursor}"
-        answer = http(url, _headers(token))
-        lines.extend(line for line in map(block_text, answer.get("results", [])) if line)
-        text = "\n".join(lines)
-        if len(text) > limit:
-            return text[:limit] + "\n[... page cut here]"
-        if not answer.get("has_more"):
-            return text
-        cursor = answer["next_cursor"]
+    lines = []
+
+    def full():
+        return len("\n".join(lines)) > limit
+
+    def read(block_id, depth):
+        cursor = None
+        while True:
+            url = f"{API}/blocks/{block_id}/children?page_size=100"
+            if cursor:
+                url += f"&start_cursor={cursor}"
+            answer = http(url, _headers(token))
+            for block in answer.get("results", []):
+                line = block_text(block)
+                if line:
+                    lines.append("  " * depth + line)
+                if full():
+                    return
+                if block.get("has_children") and block.get("type") in NESTED and depth + 1 < MAX_DEPTH:
+                    read(block["id"], depth + 1)
+                    if full():
+                        return
+            if not answer.get("has_more"):
+                return
+            cursor = answer["next_cursor"]
+
+    read(page_id, 0)
+    text = "\n".join(lines)
+    if len(text) > limit:
+        return text[:limit] + "\n[... page cut here]"
+    return text
 
 
 # --- D2-057: token usage, one row per day, model and kind -----------------------
