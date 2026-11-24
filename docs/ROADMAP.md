@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-062 — Dani's personality** (M18). M17 real checks wait for me: Render variables, ntfy app, my review of the life page |
+| **Active** | **D2-063 — reminders and evening check-in** (M18). Waiting for me: Render variables, ntfy app, my review of the two Notion pages |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -236,7 +236,7 @@ time, up to three days ahead), which delivers them while Render sleeps.
 
 | ID | Build | Output | Verify | Status |
 |---|---|---|---|---|
-| D2-062 | Dani's personality: one persona (warm, direct, motivating, Italian, short spoken sentences; never invents, never guilt-trips) used by the chat and the briefing; a "come voglio che mi parli" section of the life page can change it | Dani sounds like one person | A test checks the persona is in every prompt and the briefing; changing the page changes the prompt | ⬜ |
+| D2-062 | Dani's personality, from Giulia's 17-part questionnaire (24 Nov): she is a woman, a young high-performing executive assistant and coach, the woman Giulia wants to become; calm, direct, demanding, challenging, dry humour; "Chief" for work, "July" for personal. Full character in the Notion page "Dani — chi è Dani" (re-read every minute, before the life page in every prompt); a compact version in `persona.py` for the chat and the briefing | Dani sounds like one person, hers | Tests: the persona opens every prompt; the character page comes before the life page and is in every chat; the briefing speaks as Dani ("Chief", "July", a closing line per day) | 🟡 24 Nov — built; real check after `NOTION_PERSONA_PAGE_ID` on Render and my review of the "da confermare" lines |
 | D2-063 | Appointment reminders and the evening check-in: the morning send also schedules on ntfy a reminder 15 minutes before each timed event of the day and a "com'è andata oggi?" at 21:00 | Reminders without the server awake | Fake sender: one scheduled message per timed event, none for past or all-day events, none on Sunday for work; the 21:00 one is scheduled once | ⬜ |
 | D2-064 | Mood diary: "come stai?" answered with an energy level (1–5) and a sentence from the Home or the chat; saved in a Notion database; today's energy goes into the prompt (a low day is planned lighter) and yesterday's into the briefing | Dani knows how I feel | Save then read back; a low energy adds the lighter-day rule to the prompt; a missing value is never guessed | ⬜ |
 | D2-065 | Forecasts: for every project deadline, the free hours left until it against the open tasks' estimated time → on track / tight / at risk, and the date it would end at the current pace; in the briefing, the chat and the Home | Dani says what will slip before it slips | Fixed tasks and events give a known forecast; a task without an estimate counts 60 minutes and is said so | ⬜ |

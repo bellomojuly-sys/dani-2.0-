@@ -1,6 +1,9 @@
 """The morning briefing text (D2-061): a pure function of the dashboard state."""
 
+from datetime import date
+
 from briefing import build_briefing
+from persona import MORNING_LINES, morning_line
 
 
 def _state(today, **extra):
@@ -21,16 +24,16 @@ def _state(today, **extra):
 
 def test_a_weekday_briefing_has_the_programme_blocks_priorities_cycle_focus_and_the_question():
     note = build_briefing(_state("2026-11-24"), {"this_focus": "AMEXIO e CV", "next_focus": ""})
-    assert note["title"] == "Buongiorno Giulia · martedì 24 novembre"
+    assert note["title"] == "Buongiorno July · martedì 24 novembre"
     lines = note["text"].splitlines()
-    assert lines[0] == "Questo è il programma di oggi:"
+    assert lines[0] == "Chief, questa è la tua giornata:"
     assert "• 09:00–12:45 Lezione MA-AAI" in lines and "• tutto il giorno Deadline Betsy" in lines
     assert "Domani" not in note["text"]  # only today's events
     assert "Blocchi proposti: 13:00 AMX-08." in lines
     assert "Le priorità: T1; T2; T3." in lines  # three, not five
     assert "Ciclo: fase follicolare. energia in salita" in lines
     assert "Il focus della settimana: AMEXIO e CV" in lines
-    assert lines[-1] == "E tu, oggi come stai?"
+    assert lines[-1] == "E tu, July, oggi come stai?"
 
 
 def test_sunday_has_no_work_and_asks_for_next_weeks_focus():
@@ -44,4 +47,12 @@ def test_sunday_has_no_work_and_asks_for_next_weeks_focus():
 
 def test_an_empty_day_says_so_and_missing_parts_are_left_out():
     text = build_briefing(_state("2026-11-25", events=[], blocks=[], tasks=[], cycle=None))["text"]
-    assert text.splitlines() == ["Oggi non hai impegni fissi in calendario.", "E tu, oggi come stai?"]
+    assert text.splitlines() == ["Oggi non hai impegni fissi in calendario.", morning_line(date(2026, 11, 25)),
+                                 "E tu, July, oggi come stai?"]
+
+
+def test_the_closing_line_is_dannis_and_changes_from_day_to_day():
+    first = build_briefing(_state("2026-11-24"))["text"].splitlines()[-2]
+    second = build_briefing(_state("2026-11-25"))["text"].splitlines()[-2]
+    assert first in MORNING_LINES and second in MORNING_LINES and first != second
+    assert build_briefing(_state("2026-11-24"))["text"] == build_briefing(_state("2026-11-24"))["text"]  # same day, same text

@@ -119,7 +119,7 @@ class TaskBody(BaseModel):
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
-               week_focus=None, send_note=None):
+               week_focus=None, send_note=None, character=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -135,7 +135,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     the context.LifeContext of her Notion page (D2-058), or None. week_focus
     is the focus.WeekFocus of the Sunday check-in (D2-060), or None.
     send_note(title, text) sends the morning briefing to her phone (D2-061),
-    or is None while no notification channel is set up."""
+    or is None while no notification channel is set up. character is the
+    LifeContext of the page "Dani — chi è Dani" (D2-062), or None."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
 
@@ -256,7 +257,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=503, detail="chat non configurata: manca DEEPSEEK_API_KEY")
         current = settings()
         state = live.state(current)
-        context = combine(life.current() if life else "", current.context)
+        context = combine(life.current() if life else "", current.context,
+                          character.current() if character else "")
         if week_focus is not None:
             focus_lines = focus_prompt(week_focus.status(live.clock().date()))
             context = (context + "\n\n" + focus_lines).strip() if focus_lines else context
@@ -622,6 +624,13 @@ if __name__ == "__main__":  # pragma: no cover
         life = LifeContext(lambda: page_text(env["notion_token"], context_page))
         print("Life context: " + ("read" if life.refresh() else f"not read ({life.error})"))
 
+    # D2-062: Dani's character page, re-read like the life page.
+    character = None
+    character_page = None if demo else os.environ.get("NOTION_PERSONA_PAGE_ID")
+    if character_page:
+        character = LifeContext(lambda: page_text(env["notion_token"], character_page))
+        print("Dani's character: " + ("read" if character.refresh() else f"not read ({character.error})"))
+
     # D2-060: the week's focus from the Sunday check-in.
     focus_db = None if demo else os.environ.get("NOTION_FOCUS_DB_ID")
     if focus_db:
@@ -651,11 +660,13 @@ if __name__ == "__main__":  # pragma: no cover
             save_totals()
         if life:
             life.refresh()
+        if character:
+            character.refresh()
         refresh_focus()
     threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
                      create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
-                     week_focus=week_focus, send_note=send_note)
+                     week_focus=week_focus, send_note=send_note, character=character)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

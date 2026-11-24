@@ -35,9 +35,12 @@ class LifeContext:
             return self.text
 
 
-def combine(life, settings_text):
-    """The context paragraph for the prompt: life page first, then Settings."""
+def combine(life, settings_text, character=""):
+    """The context paragraph for the prompt: Dani's character page (D2-062),
+    then the life page, then Settings."""
     parts = []
+    if character.strip():
+        parts.append("Your full character, written by Giulia (page \"Dani — chi è Dani\"):\n" + character.strip())
     if life.strip():
         parts.append("Her life plan, projects and planning rules (her Notion page, she keeps it up to date):\n"
                      + life.strip())

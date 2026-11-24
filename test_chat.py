@@ -265,3 +265,13 @@ def test_a_propose_plan_call_comes_back_and_the_planning_method_is_in_the_prompt
     assert turn["plan"]["blocks"][0]["title"] == "Lettura" and turn["text"] == "Ecco il piano."
     system = client.requests[0]["messages"][0]["content"]
     assert "call propose_plan" in system and "invest it" in system and "top-down" in system
+
+
+def test_the_persona_opens_every_prompt_and_lets_her_page_override_it():
+    from persona import PERSONA
+
+    system = build_chat_messages("Your full character: più ironica", STATE, [], "ciao")[0]["content"]
+    assert system.startswith(PERSONA)
+    assert "a woman" in PERSONA and "\"Chief\"" in PERSONA and "\"July\"" in PERSONA
+    assert "follow it over these lines" in system
+    assert system.index(PERSONA) < system.index("più ironica")  # her page comes after, so it wins

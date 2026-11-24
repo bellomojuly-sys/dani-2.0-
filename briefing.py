@@ -11,6 +11,8 @@ checked against the dashboard. Sending it is separate (notify.py), so the
 text is tested without any network.
 """
 
+from persona import morning_line
+
 MAX_TASKS = 3
 WEEKDAYS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
@@ -34,13 +36,13 @@ def build_briefing(state, focus=None):
 
     today = state["today"]
     day = date.fromisoformat(today)
-    title = f"Buongiorno Giulia · {WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]}"
+    title = f"Buongiorno July · {WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]}"
     lines = []
     if day.weekday() == 6:
         lines.append("Oggi è domenica: niente lavoro né studio.")
     events = _today_items(state["events"], today)
     if events:
-        lines.append("Questo è il programma di oggi:")
+        lines.append("Chief, questa è la tua giornata:")
         for event in events:
             when = "tutto il giorno" if event["all_day"] else f"{_clock(event['start'])}–{_clock(event['end'])}"
             lines.append(f"• {when} {event['title']}")
@@ -61,5 +63,6 @@ def build_briefing(state, focus=None):
             lines.append(f"Il focus della settimana: {focus['this_focus']}")
         if day.weekday() == 6 and not focus.get("next_focus"):
             lines.append("Su cosa ti vuoi concentrare la settimana prossima? Rispondimi nell'app.")
-    lines.append("E tu, oggi come stai?")
+    lines.append(morning_line(day))
+    lines.append("E tu, July, oggi come stai?")
     return {"title": title, "text": "\n".join(lines)}

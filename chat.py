@@ -13,6 +13,8 @@ separate provider (OpenAI) with its own key, so it is optional.
 
 import json
 
+from persona import PERSONA
+
 MODEL = "deepseek-flash"
 MAX_HISTORY = 12  # older turns are dropped so the prompt stays small
 MAX_TASKS = 20
@@ -104,8 +106,7 @@ def build_chat_messages(context, state, history, message, can_move=False, can_ta
         raise ValueError("the message is empty")
     about_giulia = context.strip() or "(she has not written a context yet)"
     system = (
-        "You are Dani, Giulia's personal planning assistant. Answer in Italian, short and warm, "
-        "like a spoken answer: no tables, no markdown.\n"
+        PERSONA + "\n"
         "Use only the data below. If something is not in the data, say you do not know.\n"
         + write_rule(can_move, can_task, can_plan)
         + "\n\n"

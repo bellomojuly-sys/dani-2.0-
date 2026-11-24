@@ -646,8 +646,8 @@ def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
     pin = {"X-Dani-Pin": "1234"}
     assert http.post("/api/briefing/send").status_code == 401  # the schedule needs the PIN too
     shown = http.get("/api/briefing", headers=pin).json()
-    assert shown["title"] == "Buongiorno Giulia · martedì 10 novembre" and shown["channel"] is True
-    assert "Lezione MA-AAI" in shown["text"] and shown["text"].endswith("oggi come stai?")
+    assert shown["title"] == "Buongiorno July · martedì 10 novembre" and shown["channel"] is True
+    assert "Lezione MA-AAI" in shown["text"] and shown["text"].endswith("July, oggi come stai?")
     assert http.post("/api/briefing/send", headers=pin).json()["sent"] is True
     assert http.post("/api/briefing/send", headers=pin).json() == {"sent": False, "reason": "già inviato oggi"}
     assert http.post("/api/briefing/send?force=true", headers=pin).json()["sent"] is True
@@ -671,3 +671,15 @@ def test_a_failed_send_is_reported_and_can_be_retried(tmp_path):
     http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, send_note=flaky))
     assert http.post("/api/briefing/send").status_code == 502
     assert http.post("/api/briefing/send").json()["sent"] is True  # not marked as sent after a failure
+
+
+def test_the_character_page_goes_into_every_chat_prompt(tmp_path):
+    from context import LifeContext
+
+    rig = Rig(tmp_path)
+    character = LifeContext(lambda: "Dani chiama Giulia Chief per il lavoro.")
+    character.refresh()
+    chat = FakeChat("Ok, Chief.")
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None, character=character))
+    http.post("/api/chat", json={"message": "ciao", "history": []})
+    assert "Dani chiama Giulia Chief" in chat.seen["messages"][0]["content"]

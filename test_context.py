@@ -24,3 +24,9 @@ def test_combine_puts_the_life_page_first_and_skips_empty_parts():
     assert "her Notion page" in both and "Settings" in both
     assert "Settings" not in combine("Obiettivi", "  ")
     assert combine("", "") == ""
+
+
+def test_the_character_page_comes_before_the_life_page():
+    text = combine("Obiettivi 2027", "stanca", character="Dani è una donna, diretta")
+    assert text.index("Dani è una donna") < text.index("Obiettivi 2027") < text.index("stanca")
+    assert "Dani — chi è Dani" in text
