@@ -641,7 +641,7 @@ def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
     rig = Rig(tmp_path)
     sent = []
     app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
-                     send_note=lambda title, text, at=None, priority=None: sent.append((title, text, at)))
+                     send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, text, at)))
     http = TestClient(app)
     pin = {"X-Dani-Pin": "1234"}
     assert http.post("/api/briefing/send").status_code == 401  # the schedule needs the PIN too
@@ -664,7 +664,7 @@ def test_a_failed_send_is_reported_and_can_be_retried(tmp_path):
     rig = Rig(tmp_path)
     calls = []
 
-    def flaky(title, text, at=None, priority=None):
+    def flaky(title, text, at=None, priority=None, link=None):
         calls.append(title)
         if len(calls) == 1:
             raise RuntimeError("ntfy answered HTTP 502")
@@ -693,7 +693,7 @@ def test_the_morning_send_schedules_the_days_reminders_with_a_delivery_time(tmp_
     rig = Rig(tmp_path)  # NOW is 13:21 on Tuesday 10 November
     sent = []
     http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
-                                 send_note=lambda title, text, at=None, priority=None: sent.append((title, at))))
+                                 send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, at))))
     body = http.post("/api/briefing/send").json()
     later = [(title, at) for title, at in sent if at is not None]
     assert body["scheduled"] == len(later) and body["not_scheduled"] == 0
@@ -738,3 +738,13 @@ def test_forecast_is_served_put_in_the_chat_prompt_and_at_risk_lines_reach_the_b
     http.post("/api/chat", json={"message": "come sono messa?", "history": []})
     assert "Forecast of her deadlines" in chat.seen["messages"][0]["content"]
     assert "Attenzione: Entro il 2026-11-10" in http.get("/api/briefing").json()["text"]
+
+
+def test_a_tap_on_the_briefing_opens_the_morning_call(tmp_path):
+    rig = Rig(tmp_path)
+    links = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None, link=None: links.append((at, link))))
+    http.post("/api/briefing/send")
+    assert links[0] == (None, "buongiorno")  # the briefing itself opens #buongiorno
+    assert all(link is None for at, link in links[1:])  # reminders open the app normally

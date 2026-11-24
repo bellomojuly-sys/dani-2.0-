@@ -383,7 +383,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         live.refresh("all")  # the morning data, not the last cached minute
         note = briefing_now()
         try:
-            send_note(note["title"], note["text"])
+            send_note(note["title"], note["text"], link="buongiorno")  # a tap opens the spoken morning call
         except (RuntimeError, ValueError) as failure:
             raise HTTPException(status_code=502, detail=str(failure))
         sent_briefings.add(today)
@@ -728,9 +728,10 @@ if __name__ == "__main__":  # pragma: no cover
     # D2-061: the morning briefing goes to her phone through ntfy, when a topic is set.
     send_note = None
     if os.environ.get("NTFY_TOPIC"):
-        send_note = lambda title, text, at=None, priority=None: send_ntfy(
+        app_url = (os.environ.get("DANI_URL") or "").rstrip("/")
+        send_note = lambda title, text, at=None, priority=None, link=None: send_ntfy(
             os.environ["NTFY_TOPIC"], title, text, server=os.environ.get("NTFY_SERVER", DEFAULT_SERVER),
-            click=os.environ.get("DANI_URL") or None, token=os.environ.get("NTFY_TOKEN") or None,
+            click=(f"{app_url}/#{link}" if link else app_url) or None, token=os.environ.get("NTFY_TOKEN") or None,
             at=at, priority=priority)
     print("Morning briefing: " + ("ntfy on" if send_note else "no channel (no NTFY_TOPIC)"))
 

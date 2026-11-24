@@ -441,7 +441,31 @@ function render() {
   renderSources();
 }
 
+// --- the morning call (D2-066): a tap on the briefing opens #buongiorno ----------
+
+async function morningCall() {
+  window.history.replaceState(null, "", "#home");
+  openChat();
+  let note;
+  try { note = await api("/api/briefing"); } catch (failure) { addMessage("note", `Briefing non disponibile: ${failure.message}`); return; }
+  const text = note.text;
+  addMessage("assistant", `${note.title}\n\n${text}`);
+  const play = h("button", { class: "btn small", onclick: () => {
+    speechSynthesis.cancel();
+    const voice = new SpeechSynthesisUtterance(text.replace(/•/g, ""));
+    voice.lang = "it-IT";
+    speechSynthesis.speak(voice);
+  } }, "\u25B6 Ascolta Dani");
+  const row = h("div", { class: "msg note" }, play);
+  $("#messages").append(row);
+  if ("speechSynthesis" in window) {
+    try { play.click(); } catch (failure) { /* the browser waits for her tap */ }
+  } else { play.remove(); }
+  $("#chat-input").placeholder = "Come stai, July?";
+}
+
 function route() {
+  if (location.hash === "#buongiorno") { morningCall(); }
   const page = ["home", "calendario", "meal", "consumi", "impostazioni"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
   for (const section of document.querySelectorAll(".page")) section.hidden = section.id !== "page-" + page;
   for (const link of document.querySelectorAll(".nav a")) {
@@ -789,7 +813,7 @@ async function toggleMic() {
 
 function openChat() {
   $("#chat").hidden = false; $("#chat-open").hidden = true; $("#chat-input").focus();
-  if (!$("#messages").children.length) addMessage("assistant", "Ciao Giulia! Chiedimi della tua giornata o della settimana. Da qui non modifico nulla senza il tuo sì.");
+  if (!$("#messages").children.length) addMessage("assistant", "Eccomi, July. Dimmi cosa ti serve: la giornata, la settimana, un piano. Non cambio niente senza il tuo sì.");
 }
 
 function setupChat() {
