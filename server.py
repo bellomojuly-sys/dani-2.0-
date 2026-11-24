@@ -54,6 +54,7 @@ from briefing import build_briefing
 from reminders import plan_day_messages
 from mood import RECORD_MOOD_SCHEMA, mood_prompt
 from forecast import at_risk, forecast
+from wake import snooze_messages, stopped_message
 from forecast import describe as describe_forecast
 from cycle import CycleSettings
 from store import (
@@ -101,6 +102,10 @@ class FocusBody(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class WakeBody(BaseModel):
+    event: Literal["snoozed", "stopped"]
+
+
 class ChatBody(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[dict] = []
@@ -146,6 +151,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
     forecast_cache = {"at": None, "rows": [], "error": None}  # D2-065, recomputed every 15 minutes
+    snoozes = {}  # day -> snoozes so far (D2-067); in memory: a morning, not a history
 
     def current_forecast():
         now = live.clock()
@@ -398,6 +404,28 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             except (RuntimeError, ValueError):
                 failed += 1
         return {"sent": True, **note, "scheduled": scheduled, "not_scheduled": failed}
+
+    @api.post("/wake")
+    def post_wake(body: WakeBody):
+        """Called by her iPhone Shortcut when the alarm is snoozed or stopped."""
+        if send_note is None:
+            raise HTTPException(status_code=503, detail="nessun canale di notifica: manca NTFY_TOPIC")
+        now = live.clock()
+        today = now.date()
+        if body.event == "snoozed":
+            snoozes[today] = snoozes.get(today, 0) + 1
+            messages = snooze_messages(snoozes[today], now, live.events)
+        else:
+            done = stopped_message(snoozes.get(today, 0))
+            messages = [done] if done else []
+        sent = 0
+        for message in messages:
+            try:
+                send_note(message["title"], message["text"], at=message["at"], priority=message["priority"])
+                sent += 1
+            except (RuntimeError, ValueError):
+                pass
+        return {"event": body.event, "snoozes": snoozes.get(today, 0), "sent": sent}
 
     @api.get("/forecast")
     def get_forecast():

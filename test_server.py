@@ -748,3 +748,22 @@ def test_a_tap_on_the_briefing_opens_the_morning_call(tmp_path):
     http.post("/api/briefing/send")
     assert links[0] == (None, "buongiorno")  # the briefing itself opens #buongiorno
     assert all(link is None for at, link in links[1:])  # reminders open the app normally
+
+
+# --- D2-067: the wake-up guard ---------------------------------------------------------
+
+
+def test_wake_counts_snoozes_escalates_and_needs_the_pin(tmp_path):
+    rig = Rig(tmp_path)
+    sent = []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
+                                 send_note=lambda title, text, at=None, priority=None, link=None: sent.append((title, priority))))
+    pin = {"X-Dani-Pin": "1234"}
+    assert http.post("/api/wake", json={"event": "snoozed"}).status_code == 401
+    for _ in range(3):
+        body = http.post("/api/wake", json={"event": "snoozed"}, headers=pin).json()
+    assert body == {"event": "snoozed", "snoozes": 3, "sent": 3}
+    assert sent[-3][0] == "Chief. Alzati." and sent[-3][1] == 5
+    assert http.post("/api/wake", json={"event": "stopped"}, headers=pin).json()["sent"] == 1
+    assert sent[-1][0] == "Brava, July"
+    assert http.post("/api/wake", json={"event": "dormo"}, headers=pin).status_code == 422
