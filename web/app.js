@@ -529,6 +529,7 @@ async function send(text) {
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
     if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
+    for (const block of answer.proposals || []) addBlockProposal(block);  // a plan (D2-059)
   } catch (failure) {
     waiting.remove();
     addMessage("note", `Dani non ha risposto: ${failure.message}`);
@@ -599,6 +600,7 @@ function addBlockProposal(proposal) {
   const card = h("div", { class: "msg proposal" },
     h("b", {}, proposal.title),
     h("div", {}, `${dateIt(dayOf(proposal.start))} ${clock(proposal.start)}–${clock(proposal.end)} · calendario studio`),
+    proposal.why ? h("div", { class: "meta" }, proposal.why) : null,
     proposal.warnings.map((warning) => h("div", { class: "warn" }, `⚠ ${warning}`)), buttons);
   const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
   buttons.append(

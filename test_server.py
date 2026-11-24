@@ -561,3 +561,53 @@ def test_the_life_page_goes_into_the_chat_prompt_and_its_status_into_the_state(t
     assert http.post("/api/chat", json={"message": "pianifica", "history": []}).status_code == 200
     assert "lavoro entro dicembre" in chat.seen["messages"][0]["content"]
     assert http.get("/api/state").json()["life_context"] == {"on": True, "chars": 57, "error": None}
+
+
+# --- D2-059: a plan from the chat, confirmed block by block ----------------------
+
+
+def test_a_plan_from_the_chat_is_checked_on_the_whole_period_and_written_only_after_yes(tmp_path):
+    from models import Event
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    asked, created = [], []
+    december_shift = Event(calendar="lavoro", title="Turno", start=datetime(2026, 12, 2, 17, 0, tzinfo=AMSTERDAM),
+                           end=datetime(2026, 12, 2, 23, 0, tzinfo=AMSTERDAM))
+
+    def fetch(start, end):
+        asked.append((start, end))
+        return [december_shift] if start.month == 12 else []
+
+    rig.live.fetch_events = fetch
+    plan = json.dumps({"blocks": [
+        {"title": "Betsy · BT-003", "start": "2026-12-01T10:00", "end": "2026-12-01T12:00", "why": "consegna 1 feb"},
+        {"title": "Lettura", "start": "2026-12-02T15:30", "end": "2026-12-02T16:30"}]})
+    chat = ScriptedChat([("Ecco dicembre.", [("propose_plan", plan)])])
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                     create_block=lambda title, start, end: created.append(title) or "new-id")
+    http = TestClient(app)
+    body = http.post("/api/chat", json={"message": "pianifica i primi di dicembre", "history": []}).json()
+    assert asked == [(datetime(2026, 12, 1).date(), datetime(2026, 12, 3).date())]  # the whole period, end included
+    assert [p["title"] for p in body["proposals"]] == ["Betsy · BT-003", "Lettura"]
+    assert body["proposals"][1]["warnings"] == ["finisce dopo le 16:00 (giorno di turno)"]
+    assert "2 blocchi" in body["reply"] and "1 ha un avviso" in body["reply"]
+    assert created == []  # a proposal writes nothing
+    first = body["proposals"][0]["id"]
+    assert http.post("/api/confirm", json={"id": first}).json()["ok"] is True
+    assert created == ["Betsy · BT-003"]
+    assert http.post("/api/confirm", json={"id": first}).status_code == 404  # twice changes nothing more
+    assert created == ["Betsy · BT-003"]
+
+
+def test_a_broken_plan_from_the_model_writes_nothing(tmp_path):
+    from test_chat import ScriptedChat
+
+    rig = Rig(tmp_path)
+    created = []
+    chat = ScriptedChat([("", [("propose_plan", '{"blocks": []}')])])
+    app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                     create_block=lambda title, start, end: created.append(title) or "x")
+    body = TestClient(app).post("/api/chat", json={"message": "pianifica", "history": []}).json()
+    assert body["reply"].startswith("Non posso proporre questo piano") and "proposals" not in body
+    assert created == []

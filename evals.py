@@ -6,7 +6,9 @@ uses, 10-16 November 2026), so a right answer is checkable by a human and by
 this script. A fact is a list of acceptable spellings: the answer passes the
 fact when it contains any of them, case-insensitively.
 
-    python3 evals.py        # asks the real model once per question
+    python3 evals.py                 # asks the real model once per question
+    python3 evals.py --plan          # D2-059: the planning cases, checked on the blocks
+    python3 evals.py --model M --base-url URL --key-env NAME   # measure another model
 
 The command builds the prompt exactly like the dashboard chat (chat_reply on
 Live.state), asks the model, checks the facts and prints PASS or FAIL per
@@ -17,7 +19,7 @@ in ``.env`` and refuses clearly without it.
 whole harness with a fake model and never call the real API.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models import AMSTERDAM
 
@@ -70,6 +72,49 @@ def run_evals(ask, cases=CASES):
     return results
 
 
+# --- D2-059: planning cases, checked by code on the proposed blocks --------------
+
+PLAN_CASES = [
+    {"question": "Pianificami domani: studio, progetti e un po' di tempo libero investito.",
+     "invested": ["lettura", "leggere", "corso", "python", "sql", "palestra", "inglese", "c++"]},
+    {"question": "Organizzami il resto della settimana partendo dai miei obiettivi.",
+     "invested": ["lettura", "leggere", "corso", "python", "sql", "palestra", "inglese", "c++"]},
+]
+
+
+def plan_problems(turn, events, case):
+    """What is wrong with the plan a turn proposed (empty list = it passes).
+
+    The plan must exist, no block may break a rule (every warning of
+    build_plan_proposals is a problem), and at least one block must be
+    invested free time (a title with one of ``case["invested"]``).
+    """
+    from propose import build_plan_proposals
+
+    if turn.get("plan") is None:
+        return ["no plan was proposed"]
+    try:
+        numbers = iter(range(10**6))
+        made = build_plan_proposals(turn["plan"], events, lambda: f"e{next(numbers)}")
+    except ValueError as problem:
+        return [f"the plan was refused: {problem}"]
+    problems = [f"{p.title} {p.start:%a %d %H:%M}: {w}" for p in made for w in p.warnings]
+    if not any(word in p.title.casefold() for p in made for word in case["invested"]):
+        problems.append("no block of invested free time")
+    return problems
+
+
+def run_plan_evals(ask_turn, events, cases=PLAN_CASES):
+    """``ask_turn(question) -> chat_turn result``; one row per case."""
+    results = []
+    for case in cases:
+        turn = ask_turn(case["question"])
+        problems = plan_problems(turn, events, case)
+        results.append({"question": case["question"], "answer": turn.get("text", ""),
+                        "passed": not problems, "missing": problems})
+    return results
+
+
 def fixture_state():
     """The dashboard state built from the saved fixtures at the fixed clock."""
     from dashboard import demo_sources
@@ -96,14 +141,33 @@ def main():  # pragma: no cover - the command calls the real model on purpose
 
     from chat import chat_reply
 
+    def flag(name, default):
+        return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
     load_dotenv(".env")
-    key = os.environ.get("DEEPSEEK_API_KEY")
+    # The model is a key and an address: --model, --base-url and --key-env measure another one.
+    key = os.environ.get(flag("--key-env", "DEEPSEEK_API_KEY"))
     if not key:
-        print("DEEPSEEK_API_KEY is missing in .env: the evaluations ask the real model.")
+        print("The API key is missing in .env: the evaluations ask the real model.")
         sys.exit(2)
-    client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
+    client = OpenAI(api_key=key, base_url=flag("--base-url", "https://api.deepseek.com"))
+    model = flag("--model", "deepseek-flash")
     state = fixture_state()
-    results = run_evals(lambda question: chat_reply(client, CONTEXT, state, [], question))
+    if "--plan" in sys.argv:
+        from chat import chat_turn
+        from dashboard import demo_sources
+        from propose import PROPOSE_PLAN_SCHEMA
+        from reader import build_read_tools
+
+        fetch_tasks, fetch_events = demo_sources()
+        tasks = fetch_tasks()
+        tools = build_read_tools(fetch_events, lambda: tasks)
+        events = fetch_events(NOW.date(), NOW.date() + timedelta(days=7))
+        results = run_plan_evals(lambda q: chat_turn(client, CONTEXT, state, [], q, model=model, read_tools=tools,
+                                                     plan_schema=PROPOSE_PLAN_SCHEMA), events)
+    else:
+        results = run_evals(lambda question: chat_reply(client, CONTEXT, state, [], question, model=model))
+    print(f"model: {model}")
     for row in results:
         mark = "PASS" if row["passed"] else "FAIL"
         print(f"{mark}  {row['question']}")

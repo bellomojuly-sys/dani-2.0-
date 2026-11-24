@@ -37,6 +37,8 @@ from propose import (
     BlockProposal,
     TaskProposal,
     build_block_proposal,
+    PROPOSE_PLAN_SCHEMA,
+    build_plan_proposals,
     build_proposal,
     build_task_proposal,
     describe,
@@ -244,18 +246,41 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         state = live.state(current)
         context = combine(life.current() if life else "", current.context)
         try:
-            if move_event is None and create_task is None and not read_tools:
+            if move_event is None and create_task is None and create_block is None and not read_tools:
                 return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
             turn = chat_turn(
                 chat_client, context, state, body.history, body.message,
                 PROPOSE_MOVE_SCHEMA if move_event is not None else None,
                 PROPOSE_TASK_SCHEMA if create_task is not None else None,
                 read_tools=read_tools,
+                plan_schema=PROPOSE_PLAN_SCHEMA if create_block is not None else None,
             )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
         except Exception as failure:  # the provider or the network
             raise HTTPException(status_code=502, detail=f"modello non disponibile: {type(failure).__name__}")
+        if turn.get("plan") is not None:
+            # A plan: read the whole period, check every block, show them. Nothing is written here.
+            try:
+                days = sorted(datetime.fromisoformat(str(block["start"])[:16]).date()
+                              for block in turn["plan"].get("blocks", []))
+                period = live.fetch_events(days[0], days[-1] + timedelta(days=1)) if days else []
+                hidden = {entry.key for entry in current.hidden_events}
+                period = [event for event in period if event.key not in hidden]
+                made = build_plan_proposals(turn["plan"], period, lambda: uuid.uuid4().hex[:8])
+            except (ValueError, TypeError, KeyError, AttributeError) as problem:
+                return {"reply": f"Non posso proporre questo piano: {problem}.", "reads": turn["reads"]}
+            except RuntimeError as failure:  # the calendar could not be read for those days
+                return {"reply": f"Non riesco a leggere il calendario per controllare il piano: {failure}.",
+                        "reads": turn["reads"]}
+            for proposal in made:
+                proposals[proposal.id] = proposal
+            flagged = sum(1 for proposal in made if proposal.warnings)
+            summary = f"Ti propongo {len(made)} blocchi: confermali uno per uno."
+            if flagged:
+                summary += f" {flagged} {'ha' if flagged == 1 else 'hanno'} un avviso da guardare."
+            text = (turn["text"] + "\n\n" if turn["text"] else "") + summary
+            return {"reply": text, "proposals": [p.model_dump(mode="json") for p in made], "reads": turn["reads"]}
         if turn["task"] is not None:
             # The model asked for a new task: check it in code and show it. Nothing is written here.
             areas = {task.area for task in live.tasks if task.area}
@@ -334,7 +359,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         if isinstance(proposal, BlockProposal):
             if create_block is None:
                 raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
-            if live.find_task(proposal.task_id) is None:
+            if proposal.task_id and live.find_task(proposal.task_id) is None:
                 del proposals[body.id]
                 raise HTTPException(status_code=409, detail="il task non è più fra quelli aperti: richiedi il blocco di nuovo")
             try:

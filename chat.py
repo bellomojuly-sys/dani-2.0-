@@ -51,9 +51,21 @@ NO_WRITE_RULE = (
 )
 
 
-def write_rule(can_move, can_task):
+PLAN_RULE = (
+    "To plan a period (a day, a week, a month), work top-down like her own planner: "
+    "1) start from her goals and active projects (her life page above, read_projects) and the deadlines "
+    "(read_tasks); 2) read the calendar of the whole period (read_calendar); 3) for a month, say first the "
+    "month's goals per area and project (AMEXIO, Betsy, Dani, job search, MG), then what each week is for; "
+    "for a week or a day, go straight to the blocks; 4) follow her planning rules; lessons, shifts and "
+    "appointments never move; 5) plan her free time too and invest it (reading, courses, ICT study, gym, "
+    "personal projects), but leave real rest; 6) then call propose_plan with the blocks of the nearest "
+    "days (at most 20) and say in one sentence what does not fit and slips, and by how much."
+)
+
+
+def write_rule(can_move, can_task, can_plan=False):
     """The paragraph that tells the model what it may propose (never do)."""
-    if not can_move and not can_task:
+    if not can_move and not can_task and not can_plan:
         return NO_WRITE_RULE
     parts = ["You cannot change the calendar or Notion yourself."]
     if can_move:
@@ -71,11 +83,13 @@ def write_rule(can_move, can_task):
         )
     else:
         parts.append("You cannot change Notion.")
+    if can_plan:
+        parts.append("To add new blocks to her calendar, call propose_plan: she confirms each block. " + PLAN_RULE)
     parts.append("Never say a change is done.")
     return " ".join(parts)
 
 
-def build_chat_messages(context, state, history, message, can_move=False, can_task=False):
+def build_chat_messages(context, state, history, message, can_move=False, can_task=False, can_plan=False):
     """Return the messages for the model: system prompt, recent turns, new message.
 
     ``can_move`` says whether the calendar is connected in writing: only then
@@ -93,7 +107,7 @@ def build_chat_messages(context, state, history, message, can_move=False, can_ta
         "You are Dani, Giulia's personal planning assistant. Answer in Italian, short and warm, "
         "like a spoken answer: no tables, no markdown.\n"
         "Use only the data below. If something is not in the data, say you do not know.\n"
-        + write_rule(can_move, can_task)
+        + write_rule(can_move, can_task, can_plan)
         + "\n\n"
         + f"What Giulia told you about herself and her rules:\n{about_giulia}\n\n"
         f"{describe_state(state)}"
@@ -134,7 +148,7 @@ def _call_id(call, number):
 
 
 def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None,
-              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS):
+              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS, plan_schema=None):
     """One turn in which the model may read (D2-056), then answer or propose.
 
     ``read_tools`` is {name: (schema, function)} (see reader.build_read_tools).
@@ -142,26 +156,28 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
     once with its arguments, the results go back as "tool" messages and the
     model is asked again. At most ``max_rounds`` rounds, then ValueError.
 
-    Returns {"text", "move", "task", "reads"}. ``move`` / ``task`` are the
-    arguments of the first propose_move / propose_task call, still unchecked:
-    propose.build_proposal and propose.build_task_proposal validate them.
+    Returns {"text", "move", "task", "plan", "reads"}. ``move`` / ``task`` /
+    ``plan`` are the arguments of the first propose_move / propose_task /
+    propose_plan call, still unchecked: propose.build_proposal,
+    build_task_proposal and build_plan_proposals validate them.
     ``reads`` lists every read that ran ({"tool", "arguments"}), so the page
     and the tests can see what Dani looked up. Arguments that are not JSON
     raise ValueError; so does an answer with neither text nor a call. At least
     one schema or read tool must be given.
     """
     read_tools = read_tools or {}
-    tools = [schema for schema in (move_schema, task_schema) if schema is not None]
+    tools = [schema for schema in (move_schema, task_schema, plan_schema) if schema is not None]
     tools += [schema for schema, _ in read_tools.values()]
     if not tools:
         raise ValueError("chat_turn needs at least one tool schema")
     messages = build_chat_messages(
         context, state, history, message,
         can_move=move_schema is not None, can_task=task_schema is not None,
+        can_plan=plan_schema is not None,
     )
     if read_tools:
         messages[0]["content"] = messages[0]["content"].replace("Use only the data below.", READ_RULE, 1)
-    wanted = {"propose_move": "move", "propose_task": "task"}
+    wanted = {"propose_move": "move", "propose_task": "task", "propose_plan": "plan"}
     reads = []
     for _ in range(max_rounds):
         response = client.chat.completions.create(model=model, messages=messages, tools=tools)
@@ -177,12 +193,12 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
         for call, arguments in parsed:
             slot = wanted.get(call.function.name)
             if slot is not None:
-                return {"text": text, "move": None, "task": None, slot: arguments, "reads": reads}
+                return {"text": text, "move": None, "task": None, "plan": None, slot: arguments, "reads": reads}
         asked = [(call, arguments) for call, arguments in parsed if call.function.name in read_tools]
         if not asked:
             if not text:
                 raise ValueError("the model returned an empty answer")
-            return {"text": text, "move": None, "task": None, "reads": reads}
+            return {"text": text, "move": None, "task": None, "plan": None, "reads": reads}
         ids = [_call_id(call, len(reads) + n) for n, (call, _) in enumerate(asked)]
         messages.append({
             "role": "assistant",

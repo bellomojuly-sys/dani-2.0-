@@ -165,3 +165,74 @@ def test_a_past_deadline_is_flagged_not_refused():
 def test_task_requests_the_code_refuses(arguments, reason):
     with pytest.raises(ValueError, match=reason):
         build_task_proposal(arguments, AREAS, "t1", today=TODAY)
+
+
+# --- D2-059: a plan from the chat ------------------------------------------------
+
+from datetime import datetime as _dt  # noqa: E402
+
+from models import AMSTERDAM as _AMS, Event as _Event  # noqa: E402
+from propose import MAX_PLAN_BLOCKS, build_plan_proposals  # noqa: E402
+
+_SHIFT = _Event(calendar="lavoro", title="Turno", start=_dt(2026, 12, 2, 17, 0, tzinfo=_AMS),
+                end=_dt(2026, 12, 2, 23, 0, tzinfo=_AMS))
+_LESSON = _Event(calendar="Università", title="Applied GenAI", start=_dt(2026, 12, 1, 13, 0, tzinfo=_AMS),
+                 end=_dt(2026, 12, 1, 16, 0, tzinfo=_AMS))
+
+
+def _ids():
+    counter = iter(range(100))
+    return lambda: f"p{next(counter)}"
+
+
+def _block(title, start, end, why=""):
+    return {"title": title, "start": start, "end": end, "why": why}
+
+
+def test_a_clean_plan_gives_one_proposal_per_block_without_warnings():
+    plan = {"blocks": [_block("AMEXIO · AMX-08", "2026-12-01T09:30", "2026-12-01T12:00", "consegna 18 dic"),
+                       _block("Lettura", "2026-12-01T17:00", "2026-12-01T18:00")]}
+    made = build_plan_proposals(plan, [_LESSON, _SHIFT], _ids())
+    assert [(p.id, p.title, p.task_id, p.warnings) for p in made] == [
+        ("p0", "AMEXIO · AMX-08", None, []), ("p1", "Lettura", None, [])]
+    assert made[0].why == "consegna 18 dic" and made[0].start.tzinfo is not None
+
+
+def test_every_rule_is_flagged_never_silently_accepted():
+    plan = {"blocks": [
+        _block("Su una lezione", "2026-12-01T14:00", "2026-12-01T15:00"),
+        _block("Troppo presto", "2026-12-01T08:00", "2026-12-01T09:00"),
+        _block("Dopo le 16 in giorno di turno", "2026-12-02T15:00", "2026-12-02T16:30"),
+        _block("Tardi", "2026-12-03T19:30", "2026-12-03T20:30"),
+        _block("Domenica", "2026-12-06T10:00", "2026-12-06T11:00"),
+    ]}
+    made = {p.title: p.warnings for p in build_plan_proposals(plan, [_LESSON, _SHIFT], _ids())}
+    assert any("Applied GenAI" in w for w in made["Su una lezione"])
+    assert made["Troppo presto"] == ["inizia prima delle 09:30"]
+    assert made["Dopo le 16 in giorno di turno"] == ["finisce dopo le 16:00 (giorno di turno)"]
+    assert made["Tardi"] == ["finisce dopo le 20:00"]
+    assert "è di domenica" in made["Domenica"]
+
+
+def test_blocks_of_the_same_plan_cannot_overlap_and_a_day_over_seven_hours_is_flagged():
+    overlap = {"blocks": [_block("A", "2026-12-03T10:00", "2026-12-03T11:00"),
+                          _block("B", "2026-12-03T10:30", "2026-12-03T11:30")]}
+    first, second = build_plan_proposals(overlap, [], _ids())
+    assert first.warnings == ["si sovrappone al blocco «B» del piano"]
+    assert second.warnings == ["si sovrappone al blocco «A» del piano"]
+    long_day = {"blocks": [_block("M", "2026-12-03T09:30", "2026-12-03T13:30"),
+                           _block("P", "2026-12-03T14:00", "2026-12-03T17:30")]}  # 7.5 hours
+    assert all("supera le 7 ore" in p.warnings[-1] for p in build_plan_proposals(long_day, [], _ids()))
+
+
+@pytest.mark.parametrize("plan, message", [
+    ({}, "non contiene blocchi"),
+    ({"blocks": []}, "non contiene blocchi"),
+    ({"blocks": [_block("X", "2026-12-03T10:00", "2026-12-03T10:00")]}, "la fine deve essere dopo"),
+    ({"blocks": [{"title": "", "start": "2026-12-03T10:00", "end": "2026-12-03T11:00"}]}, "blocco non valido"),
+    ({"blocks": [{"title": "X", "start": "domani"}]}, "blocco non valido"),
+    ({"blocks": [_block("X", "2026-12-03T10:00", "2026-12-03T11:00")] * (MAX_PLAN_BLOCKS + 1)}, "al massimo"),
+])
+def test_a_broken_plan_is_refused(plan, message):
+    with pytest.raises(ValueError, match=message):
+        build_plan_proposals(plan, [], _ids())
