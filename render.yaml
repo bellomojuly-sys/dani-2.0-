@@ -33,6 +33,12 @@ services:
         sync: false
       - key: NOTION_FOCUS_DB_ID
         sync: false
+      - key: NTFY_TOPIC
+        sync: false
+      - key: NTFY_TOKEN
+        sync: false
+      - key: DANI_URL
+        value: https://dani-2-0.onrender.com
       - key: GCAL_ICS_URL
         sync: false
       - key: OPENAI_API_KEY

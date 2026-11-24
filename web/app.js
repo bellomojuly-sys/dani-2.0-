@@ -365,6 +365,26 @@ async function refresh(source) {
 
 // The form is filled once (and after a save), not at every poll, so the
 // polling never overwrites what is being typed.
+// --- morning briefing preview (D2-061) ------------------------------------------
+
+async function loadBriefing() {
+  const note = await api("/api/briefing");
+  $("#briefing-status").textContent = note.channel
+    ? "Arriva sul telefono ogni mattina (ntfy). Questa è l'anteprima di oggi."
+    : "Nessun canale collegato (manca NTFY_TOPIC): per ora lo vedi solo qui.";
+  $("#briefing-text").textContent = `${note.title}\n\n${note.text}`;
+  const button = $("#briefing-send");
+  button.hidden = !note.channel;
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      await api("/api/briefing/send?force=true", { method: "POST" });
+      toast("Briefing inviato al telefono.");
+    } catch (failure) { toast(`Non inviato: ${failure.message}`, { bad: true }); }
+    button.disabled = false;
+  };
+}
+
 async function loadSettings() {
   const settings = await api("/api/settings");
   $("#context").value = settings.context;
@@ -429,6 +449,7 @@ function route() {
     if (link.dataset.page === page) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   }
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
+  if (page === "impostazioni") loadBriefing().catch(() => {});
   if (page === "home") loadFocus();
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);

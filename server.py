@@ -50,6 +50,7 @@ from propose import (
 from chat import chat_reply, chat_turn, speech_to_text
 from context import combine
 from focus import focus_prompt
+from briefing import build_briefing
 from cycle import CycleSettings
 from store import (
     SETTINGS_FILE,
@@ -118,7 +119,7 @@ class TaskBody(BaseModel):
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
-               week_focus=None):
+               week_focus=None, send_note=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -132,8 +133,11 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     the chat looks things up by itself, read-only. usage_log is the
     usage.UsageLog the model clients write into (D2-057), or None. life is
     the context.LifeContext of her Notion page (D2-058), or None. week_focus
-    is the focus.WeekFocus of the Sunday check-in (D2-060), or None."""
+    is the focus.WeekFocus of the Sunday check-in (D2-060), or None.
+    send_note(title, text) sends the morning briefing to her phone (D2-061),
+    or is None while no notification channel is set up."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
+    sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
 
     def check_pin(x_dani_pin: str | None = Header(default=None)):
         if pin and x_dani_pin != pin:
@@ -313,6 +317,32 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         proposals[proposal.id] = proposal
         return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
 
+    def briefing_now():
+        today = live.clock().date()
+        focus = week_focus.status(today) if week_focus is not None else None
+        return build_briefing(live.state(settings()), focus)
+
+    @api.get("/briefing")
+    def get_briefing():
+        return {**briefing_now(), "channel": send_note is not None}
+
+    @api.post("/briefing/send")
+    def post_briefing_send(force: bool = False):
+        """Called by the morning schedule (or by her). Once per day unless force."""
+        if send_note is None:
+            raise HTTPException(status_code=503, detail="nessun canale di notifica: manca NTFY_TOPIC")
+        today = live.clock().date()
+        if today in sent_briefings and not force:
+            return {"sent": False, "reason": "già inviato oggi"}
+        live.refresh("all")  # the morning data, not the last cached minute
+        note = briefing_now()
+        try:
+            send_note(note["title"], note["text"])
+        except (RuntimeError, ValueError) as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        sent_briefings.add(today)
+        return {"sent": True, **note}
+
     @api.get("/focus")
     def get_focus():
         if week_focus is None:
@@ -490,6 +520,7 @@ if __name__ == "__main__":  # pragma: no cover
     from reader import build_read_tools, parse_pages
     from context import LifeContext
     from focus import WeekFocus
+    from notify import DEFAULT_SERVER, send_ntfy
     from notion_client import query_focus, save_focus
     from usage import MeteredClient, UsageLog
 
@@ -607,6 +638,13 @@ if __name__ == "__main__":  # pragma: no cover
             print(f"week focus not read: {failure}")
 
     refresh_focus()
+    # D2-061: the morning briefing goes to her phone through ntfy, when a topic is set.
+    send_note = None
+    if os.environ.get("NTFY_TOPIC"):
+        send_note = lambda title, text: send_ntfy(
+            os.environ["NTFY_TOPIC"], title, text, server=os.environ.get("NTFY_SERVER", DEFAULT_SERVER),
+            click=os.environ.get("DANI_URL") or None, token=os.environ.get("NTFY_TOKEN") or None)
+    print("Morning briefing: " + ("ntfy on" if send_note else "no channel (no NTFY_TOPIC)"))
 
     def after_refresh():
         if save_totals:
@@ -618,6 +656,6 @@ if __name__ == "__main__":  # pragma: no cover
     app = create_app(live, mark_done, chat_client, voice_client, pin, settings_path,
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
                      create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
-                     week_focus=week_focus)
+                     week_focus=week_focus, send_note=send_note)
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))
     uvicorn.run(app, host=host, port=port, log_level="warning")

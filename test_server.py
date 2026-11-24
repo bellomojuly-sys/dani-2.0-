@@ -632,3 +632,42 @@ def test_focus_endpoints_save_the_answer_and_put_it_in_the_chat_prompt(tmp_path)
     assert http.put("/api/focus", json={"week": "2026-11-10", "text": "x"}).status_code == 422  # not a Monday
     assert TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None)).get(
         "/api/focus").json() == {"enabled": False}
+
+
+# --- D2-061: the morning briefing -------------------------------------------------
+
+
+def test_briefing_is_shown_and_sent_once_per_day_behind_the_pin(tmp_path):
+    rig = Rig(tmp_path)
+    sent = []
+    app = create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None,
+                     send_note=lambda title, text: sent.append((title, text)))
+    http = TestClient(app)
+    pin = {"X-Dani-Pin": "1234"}
+    assert http.post("/api/briefing/send").status_code == 401  # the schedule needs the PIN too
+    shown = http.get("/api/briefing", headers=pin).json()
+    assert shown["title"] == "Buongiorno Giulia · martedì 10 novembre" and shown["channel"] is True
+    assert "Lezione MA-AAI" in shown["text"] and shown["text"].endswith("oggi come stai?")
+    assert http.post("/api/briefing/send", headers=pin).json()["sent"] is True
+    assert http.post("/api/briefing/send", headers=pin).json() == {"sent": False, "reason": "già inviato oggi"}
+    assert http.post("/api/briefing/send?force=true", headers=pin).json()["sent"] is True
+    assert len(sent) == 2
+
+
+def test_without_a_channel_the_briefing_is_shown_but_not_sent(rig):
+    assert rig.http.get("/api/briefing").json()["channel"] is False
+    assert rig.http.post("/api/briefing/send").status_code == 503
+
+
+def test_a_failed_send_is_reported_and_can_be_retried(tmp_path):
+    rig = Rig(tmp_path)
+    calls = []
+
+    def flaky(title, text):
+        calls.append(title)
+        if len(calls) == 1:
+            raise RuntimeError("ntfy answered HTTP 502")
+
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, send_note=flaky))
+    assert http.post("/api/briefing/send").status_code == 502
+    assert http.post("/api/briefing/send").json()["sent"] is True  # not marked as sent after a failure

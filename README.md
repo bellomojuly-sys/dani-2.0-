@@ -94,7 +94,7 @@ For the tests, coverage and mutation testing, install the dev tools too:
 
 ## Status
 
-Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **D2-061 — morning briefing**.
+Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study objectives: [`docs/STUDY-PLAN.md`](docs/STUDY-PLAN.md). Active now: **M17 real checks** (D2-056, D2-058–D2-061 built, waiting for the Render variables and the ntfy app).
 
 | Step | What | State |
 |---|---|---|
@@ -139,7 +139,7 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-058 | Life context in the Notion page "Dani — chi sono e come pianifico", always in the prompt; nested blocks read | Built 🟡 24 Nov (needs `NOTION_CONTEXT_PAGE_ID` on Render) |
 | D2-059 | Top-down planning: `propose_plan` from the chat, day rules as warnings, each block confirmed alone; `evals.py --plan`, `--model` | Built 🟡 24 Nov |
 | D2-060 | Sunday check-in: week focus saved in Notion, Home card, in the chat prompt, "Proponimi la settimana" | Built 🟡 24 Nov |
-| D2-061 | M17 — morning briefing | Proposed 23 Nov |
+| D2-061 | Morning briefing: pure text, `/api/briefing`, ntfy sender, GitHub Actions schedule, preview in Settings | Built 🟡 24 Nov (needs `NTFY_TOPIC` and the repository secrets) |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 
