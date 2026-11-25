@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **D2-069 Telegram: waiting for the bot token** · **M18 real checks (mine)**: D2-062–D2-068 built; waiting for the Render variables, the ntfy app, the iPhone Shortcut and my review of the Notion pages. Next: M19 | Waiting for me: Render variables, ntfy app, my review of the two Notion pages |
+| **Active** | **Dani V1** — next: context and memory gap analysis, M10 evaluation set (DeepSeek), M15 Gmail and M16 Fitbit code (credentials from me later). Waiting for me: Render variables, Telegram bot, cron-job.org, Twilio |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -224,6 +224,36 @@ model is a key and a base URL, and the evaluations (D2-032) run per model.
 **Gate M17:** I ask Dani "pianificami le prossime settimane" and it answers
 from my life plan, my projects and my real calendars, the way Claude does; on
 Sunday it asks me for the week's focus, and every morning I get the briefing.
+
+## Dani V1 — one agent, finished first (25 November, my decision)
+
+**Focus rule:** no multi-agent work until the V1 gate passes. Dani V1 is ONE
+agent with the personality I wrote ("Dani — chi è Dani"), that reads my
+calendars, tasks, mail and Fitbit, and plans my days correctly from my rules,
+my cycle phase and my mood. The agent team (M20) is designed only after.
+
+| V1 capability | Where | Status |
+|---|---|---|
+| Personality, Chief / July | D2-062 | 🟡 built, my review pending |
+| Calendars, Tasks, Projects, life page | D2-056, D2-058 | ✅ / 🟡 |
+| Plans days and weeks from my rules, cycle phase and mood | D2-059, D2-064, cycle | 🟡 |
+| Says what slips (forecast) | D2-065 | 🟡 |
+| Talks to me first: briefing, reminders, Telegram, wake-up call | D2-061, D2-063, D2-069, D2-070 | 🟡 waiting for my set-up |
+| Reads my mail (read-only) | M15 | ⬜ |
+| Reads my Fitbit (sleep, activity) | M16 | ⬜ |
+| What Dani lacks in context and memory | gap analysis | ⬜ |
+| DeepSeek: what it does well and badly on my cases | M10 evaluation set (~20 cases) | ⬜ |
+
+**V1 gate:** for one real week Dani plans every day from my calendar, tasks,
+mail, sleep, cycle and mood, I follow it, and the evaluation set passes.
+
+**After V1 — M20, Dani's team (proposed 25 Nov, not before the V1 gate):**
+Dani stays the only one I talk to and delegates to specialists with their own
+memory and a model chosen by cost (inbox → cheap, planning → medium, Dani and
+technical work → strong); "lavori per l'AI": an executor (Claude Code) prepares
+work overnight (e.g. the site for Gianluca) and Dani reports in the morning —
+parameters, skills used, what she needs from me, timing. Needs the Anthropic
+API key (paid separately): ask-first.
 
 ## M18 — Dani is with me during the day (24 November, my decision)
 
@@ -421,3 +451,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-24 | New milestone M18 on Giulia's request — Dani is with me during the day: personality (D2-062), appointment reminders and evening check-in scheduled on ntfy (D2-063), mood diary (D2-064), forecasts (D2-065), the spoken morning call (D2-066), wake-up guard with an iPhone Shortcut (D2-067), fewer priority tokens (D2-068). A real phone call is paid: ask-first |
 | 2026-11-24 | D2-069 Telegram added on Giulia's request: ntfy notifications could not be answered without opening the app; on Telegram Dani writes first and she answers there, by text or voice |
 | 2026-11-25 | D2-070 wake-up call through Twilio, after Giulia overslept on 24 Nov with only a notification; her yes to the cost (~2–4 € a month with an EEA number) |
+| 2026-11-25 | Focus decision: finish Dani V1 (one agent: calendar, tasks, mail, Fitbit, rules, cycle, mood, personality) before any multi-agent work; the agent team and the overnight executor become M20, after the V1 gate |
