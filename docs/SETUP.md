@@ -1,83 +1,107 @@
-# Dani — configurazione completa (V1)
+# Dani V1 — configurazione dal telefono
 
-Una volta sola, in quest'ordine. Ogni passo dice **dove** cliccare e **cosa
-incollare su Render** (Render → servizio *dani-2.0-* → **Environment** →
-*Add Environment Variable* → **Save Changes**). Dopo ogni salvataggio Render
-riparte da solo (~1 minuto e mezzo).
+Tutto si fa dall'iPhone. Una volta sola, in quest'ordine. Spunta ogni riga.
 
-> Regola d'oro: chiavi e password si incollano **solo su Render**, mai in una
-> chat, mai su GitHub.
+**Trucco Safari:** per Render, GitHub, Outlook, Fitbit e Twilio usa Safari
+(non le app) e tocca **aA → Richiedi sito desktop**.
+
+**Regola d'oro:** chiavi, token e password si incollano **solo su Render**
+(o nei secret di GitHub), mai in una chat.
+
+**Su Render:** servizio *dani* → **Environment** → *Add Environment Variable*
+→ **Save Changes**. Dopo ogni salvataggio Render riparte da solo (~1,5 min):
+conviene aggiungere più variabili insieme e salvare una volta.
 
 ---
 
+## 0. Render su `main` (2 min)
+Da oggi `main` contiene tutta la V1.
+- [ ] Render → servizio *dani* → **Settings** → **Branch** → `main` → salva
+      (se il servizio è nato da Blueprint: **Blueprints** → *dani* → Settings → Branch `main`).
+- [ ] Aspetta **Live** (Events: "Deploy live").
+
 ## 1. Render, pulizia (2 min)
-1. Render → Environment.
-2. Se vedi righe con **"Duplicate key"** in rosso: cestino 🗑 su quelle righe.
-3. Togli `NTFY_TOPIC` (con Telegram non serve).
-4. Controlla che ci sia `DANI_URL` = `https://dani-2-0.onrender.com`.
+- [ ] Environment: righe con **"Duplicate key"** in rosso → cestino 🗑.
+- [ ] Togli `NTFY_TOPIC` (le notifiche ora arrivano su Telegram).
+- [ ] C'è `DANI_URL` = `https://dani-2-0.onrender.com`.
 
-## 2. Supabase — la memoria di Dani (5 min)
-1. supabase.com → **Start your project** → accedi (anche con GitHub).
-2. **New project** → nome `dani` → password a caso (non ti serve) → **Region: Frankfurt (eu-central-1)** → *Create*.
-3. A sinistra **SQL Editor** → *New query* → incolla **tutto** il file `docs/memory.sql` → **Run**. Deve dire *Success*.
-4. A sinistra **Project Settings → API**:
-   - *Project URL* → su Render come `SUPABASE_URL`
-   - *service_role* (clic su *Reveal*) → su Render come `SUPABASE_SERVICE_KEY`
-5. Per vedere i dati: **Table Editor** (tabelle `conversations`, `events`, `measures`).
+## 2. Telegram — Dani come contatto (5 min) · app Telegram
+Dettagli in `docs/TELEGRAM.md`.
+- [ ] Cerca **@BotFather** → `/newbot` → nome `Dani` → username che finisce in `bot`.
+- [ ] Copia il token → Render `TELEGRAM_BOT_TOKEN` → Save.
+- [ ] Quando è Live, scrivi **"ciao"** al tuo bot: ti risponde con il tuo chat id.
+- [ ] Render `TELEGRAM_CHAT_ID` = quel numero → Save.
 
-## 3. Telegram — Dani come contatto (5 min)
-Vedi `docs/TELEGRAM.md`: @BotFather → `/newbot` → `TELEGRAM_BOT_TOKEN` su Render
-→ scrivi "ciao" al bot → `TELEGRAM_CHAT_ID` su Render.
+## 3. Il pinger — Dani sempre sveglia (3 min) · Safari
+- [ ] cron-job.org → account gratuito.
+- [ ] **Create cronjob** → URL `https://dani-2-0.onrender.com/healthz` → ogni **10 minuti** → salva.
+      (Senza questo, alle 6:45 Render dorme e la chiamata non parte.)
 
-## 4. Il pinger — Dani sempre sveglia (3 min)
-1. cron-job.org → crea un account gratuito.
-2. **Create cronjob** → URL `https://dani-2-0.onrender.com/healthz` → ogni **10 minuti** → salva.
+## 4. GitHub — il briefing delle 6:30 (3 min) · Safari, sito desktop
+- [ ] github.com/bellomojuly-sys/dani-2.0-/settings/secrets/actions → *New repository secret*:
+  - `DANI_URL` = `https://dani-2-0.onrender.com`
+  - `DANI_PIN` = il tuo PIN
+- [ ] (Prova) **Actions** → *Morning briefing* → **Run workflow**: il briefing arriva su Telegram.
 
-## 5. Gmail — lettura (5 min)
-1. Il tuo account Google → **Sicurezza** → attiva la **Verifica in due passaggi** se non c'è.
-2. Cerca **"Password per le app"** (myaccount.google.com/apppasswords) → nome `Dani` → *Crea*.
-3. Copia le 16 lettere (senza spazi). Su Render:
-   - `GMAIL_USER` = il tuo indirizzo Gmail
-   - `GMAIL_APP_PASSWORD` = le 16 lettere
-4. Dani legge soltanto: non segna come lette, non sposta, non cancella, non invia.
+## 5. Supabase — la memoria (5 min) · Safari
+- [ ] supabase.com → accedi (anche con GitHub) → **New project** → nome `dani`,
+      password a caso, **Region: Frankfurt (eu-central-1)** → *Create*.
+- [ ] Copia lo schema: in un'altra scheda apri
+      github.com/bellomojuly-sys/dani-2.0-/blob/main/docs/memory.sql → **Raw** →
+      tieni premuto → *Seleziona tutto* → *Copia*.
+- [ ] Supabase → **SQL Editor** → *New query* → incolla → **Run** → deve dire *Success*.
+- [ ] **Project Settings → API** (o *Data API* / *API Keys*):
+  - *Project URL* → Render `SUPABASE_URL`
+  - chiave *service_role* (*Reveal*) → Render `SUPABASE_SERVICE_KEY` → Save.
 
-## 6. Outlook scuola → Gmail (3 min)
-1. outlook.office.com → ⚙️ **Impostazioni → Posta → Inoltro**.
-2. **Abilita l'inoltro** → il tuo indirizzo Gmail → *Mantieni una copia* ✅ → Salva.
-3. Se l'opzione non c'è o è bloccata dalla scuola, scrivimelo: c'è un piano B.
-4. (Facoltativo) Se il tuo indirizzo di scuola non è `@student.fontys.nl` o
-   `@fontys.nl`, metti su Render `SCHOOL_MAIL_MARKERS` = il tuo dominio di scuola.
+## 6. Gmail — lettura (5 min) · Safari
+- [ ] Account Google → **Sicurezza** → **Verifica in due passaggi** attiva.
+- [ ] myaccount.google.com/apppasswords → nome `Dani` → *Crea* → copia le 16 lettere (senza spazi).
+- [ ] Render: `GMAIL_USER` = il tuo indirizzo Gmail, `GMAIL_APP_PASSWORD` = le 16 lettere → Save.
+      (Dani legge soltanto: non segna come lette, non sposta, non cancella, non invia.)
 
-## 7. Fitbit — sonno e attività (10 min)
-1. dev.fitbit.com → **Manage → Register An App**:
-   - Application Name: `Dani` · Website / Organization: `https://dani-2-0.onrender.com`
-   - **OAuth 2.0 Application Type: Personal**
-   - **Redirect URL: `https://dani-2-0.onrender.com/fitbit/callback`**
-   - Default Access Type: **Read Only**
-2. Salva → copia *OAuth 2.0 Client ID* e *Client Secret*. Su Render:
-   `FITBIT_CLIENT_ID`, `FITBIT_CLIENT_SECRET` (serve Supabase già fatto).
-3. Quando Render è Live, apri nel browser:
-   `https://dani-2-0.onrender.com/fitbit/connect?key=IL_TUO_PIN`
-   → **Consenti** → deve dire *"Fitbit collegato"*.
+## 7. Outlook scuola → Gmail (3 min) · Safari, sito desktop
+- [ ] outlook.office.com → ⚙️ **Impostazioni → Posta → Inoltro** (l'app Outlook non ce l'ha).
+- [ ] **Abilita l'inoltro** → il tuo Gmail → *Mantieni una copia* ✅ → Salva.
+- [ ] Se è bloccato dalla scuola: dimmelo, c'è un piano B.
+- [ ] (Solo se la tua mail di scuola non è `@student.fontys.nl` / `@fontys.nl`)
+      Render `SCHOOL_MAIL_MARKERS` = il tuo dominio.
 
-## 8. Twilio — la chiamata sveglia (15 min)
-Vedi `docs/TWILIO.md`. In breve: account → Upgrade → **numero europeo** →
-`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `MY_PHONE`,
-`WAKE_TIME` (es. `06:45`) su Render.
+## 8. Fitbit — sonno e attività (10 min) · Safari, sito desktop · dopo Supabase
+- [ ] dev.fitbit.com → **Manage → Register An App**:
+  - Application Name `Dani` · Website / Organization `https://dani-2-0.onrender.com`
+  - **OAuth 2.0 Application Type: Personal**
+  - **Redirect URL: `https://dani-2-0.onrender.com/fitbit/callback`**
+  - Default Access Type: **Read Only**
+- [ ] Render: `FITBIT_CLIENT_ID`, `FITBIT_CLIENT_SECRET` → Save.
+- [ ] Quando è Live: `https://dani-2-0.onrender.com/fitbit/connect?key=IL_TUO_PIN`
+      → **Consenti** → deve dire *"Fitbit collegato"*.
 
-## 9. GitHub (3 min)
-1. github.com/bellomojuly-sys/dani-2.0-/settings/secrets/actions → *New repository secret*:
-   `DANI_URL` = `https://dani-2-0.onrender.com`, `DANI_PIN` = il tuo PIN.
-2. Apri la PR #4 → **Merge pull request** → *Confirm merge*.
+## 9. Twilio — Dani ti chiama per svegliarti (15 min) · Safari, sito desktop · a pagamento
+Costo: un numero europeo (pochi €/mese) + ~0,024 $/min verso un cellulare olandese.
+Dettagli in `docs/TWILIO.md`.
+- [ ] twilio.com → crea l'account → verifica il tuo cellulare.
+- [ ] **Upgrade** + prima ricarica (con l'account di prova la chiamata parte con
+      un messaggio di Twilio).
+- [ ] **Phone Numbers → Buy a number** → paese europeo (es. Paesi Bassi), capacità **Voice**.
+      Se chiede documento o indirizzo (*Regulatory Bundle*), compilalo: può
+      richiedere qualche ora/giorno di approvazione.
+- [ ] Render:
+  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` — home della console Twilio
+  - `TWILIO_FROM` — il numero comprato, formato `+31…`
+  - `MY_PHONE` — il tuo cellulare, formato `+31…`
+  - `WAKE_TIME` — es. `06:45` (lunedì–sabato; domenica no) → Save.
 
-## 10. iPhone — la sveglia posticipata (5 min)
-Vedi `docs/WAKE-SHORTCUT.md`.
+## 10. iPhone — sveglia posticipata (5 min) · app Comandi
+- [ ] Segui `docs/WAKE-SHORTCUT.md`: con Twilio attivo un posticipo fa partire subito la chiamata.
 
-## 11. Notion (10 min)
-Rileggi e correggi "Dani — chi sono e come pianifico" e "Dani — chi è Dani"
-(le righe "da confermare"). Su Render, se mancano:
-`NOTION_CONTEXT_PAGE_ID`, `NOTION_PERSONA_PAGE_ID`, `NOTION_FOCUS_DB_ID`,
-`NOTION_MOOD_DB_ID`, `NOTION_USAGE_DB_ID`, `NOTION_PROJECTS_DB_ID`, `NOTION_PAGES`.
+## 11. Notion (10 min) · app Notion
+- [ ] Rileggi e correggi le righe **"da confermare"** in "Dani — chi sono e come
+      pianifico" e "Dani — chi è Dani".
+- [ ] Su Render, se mancano: `NOTION_CONTEXT_PAGE_ID`, `NOTION_PERSONA_PAGE_ID`,
+      `NOTION_FOCUS_DB_ID`, `NOTION_MOOD_DB_ID`, `NOTION_USAGE_DB_ID`,
+      `NOTION_PROJECTS_DB_ID`, `NOTION_PAGES` (gli ID te li posso preparare io).
 
 ## 12. Prova
-Segui `docs/TEST-GUIDA.md`.
+- [ ] Segui `docs/TEST-GUIDA.md` e segna ✅/❌. Prova veloce della chiamata:
+      metti `WAKE_TIME` a 5 minuti da adesso (passo D1), poi rimetti l'ora vera.

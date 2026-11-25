@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **Dani V1** — next: context and memory gap analysis, M10 evaluation set (DeepSeek), M15 Gmail and M16 Fitbit code (credentials from me later). Waiting for me: Render variables, Telegram bot, cron-job.org, Twilio |
+| **Active** | **Dani V1** — set-up from my phone (`docs/SETUP.md`, Twilio included), then `docs/TEST-GUIDA.md`. Still to build: context and memory gap analysis, M10 evaluation set (DeepSeek). Since 25 Nov `main` holds all of V1 and Render deploys `main` |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -454,3 +454,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-24 | D2-069 Telegram added on Giulia's request: ntfy notifications could not be answered without opening the app; on Telegram Dani writes first and she answers there, by text or voice |
 | 2026-11-25 | D2-070 wake-up call through Twilio, after Giulia overslept on 24 Nov with only a notification; her yes to the cost (~2–4 € a month with an EEA number) |
 | 2026-11-25 | Focus decision: finish Dani V1 (one agent: calendar, tasks, mail, Fitbit, rules, cycle, mood, personality) before any multi-agent work; the agent team and the overnight executor become M20, after the V1 gate |
+| 2026-11-25 | The deployed V1 branch (D2-069 Telegram, D2-070 Twilio call, memory, Gmail, Fitbit) merged into `main`; Render moves to `main`; `docs/SETUP.md` rewritten as a phone checklist, Twilio included (her yes to the cost) |
