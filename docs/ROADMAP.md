@@ -239,7 +239,8 @@ my cycle phase and my mood. The agent team (M20) is designed only after.
 | Plans days and weeks from my rules, cycle phase and mood | D2-059, D2-064, cycle | 🟡 |
 | Says what slips (forecast) | D2-065 | 🟡 |
 | Talks to me first: briefing, reminders, Telegram, wake-up call | D2-061, D2-063, D2-069, D2-070 | 🟡 waiting for my set-up |
-| Reads my mail (read-only) | M15 | ⬜ |
+| Reads my mail (read-only): **Gmail and Outlook (school, Microsoft 365)**, both in the morning briefing | M15 | ⬜ (Outlook: the Fontys tenant may need admin consent; plan B: auto-forward school mail to Gmail) |
+| Memory that learns: every conversation, every suggestion and my reaction (answered, ignored, done, snoozed), mood and sleep, in a Postgres database (Supabase or Neon, EU); Notion stays for what I write | memory | ⬜ (choice pending) |
 | Reads my Fitbit (sleep, activity) | M16 | ⬜ |
 | What Dani lacks in context and memory | gap analysis | ⬜ |
 | DeepSeek: what it does well and badly on my cases | M10 evaluation set (~20 cases) | ⬜ |
