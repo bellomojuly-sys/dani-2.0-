@@ -120,3 +120,8 @@ def test_parse_pages_reads_env_and_refuses_typos():
     for bad in ("piano di vita", "=abc", "nome="):
         with pytest.raises(ValueError, match="name=page_id"):
             parse_pages(bad)
+
+
+def test_due_before_includes_the_day_itself(tools):
+    # Mutation testing (25 Nov) found that "<=" could become "<" unnoticed.
+    assert [r["title"] for r in tools["read_tasks"]({"due_before": "2026-11-28"})] == ["AMX-16 preview"]
