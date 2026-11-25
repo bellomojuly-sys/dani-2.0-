@@ -617,7 +617,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         if proposal is None:
             raise HTTPException(status_code=404, detail="proposta non trovata (già confermata o rifiutata)")
         if isinstance(proposal, TaskProposal):
-            if create_task is None:
+            if create_task is None:  # pragma: no cover - defensive: no task preview exists without create_task
                 raise HTTPException(status_code=503, detail="Notion non è collegato per creare task")
             try:
                 made = create_task(proposal.title, proposal.area, proposal.deadline, proposal.duration_minutes)
@@ -628,7 +628,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             found = live.find_task(made.id) is not None
             return {"ok": True, "title": proposal.title, "read_back": found}
         if isinstance(proposal, BlockProposal):
-            if create_block is None:
+            if create_block is None:  # pragma: no cover - defensive: no block preview exists without create_block
                 raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
             if proposal.task_id and live.find_task(proposal.task_id) is None:
                 del proposals[body.id]
@@ -641,7 +641,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             live.refresh("calendar")
             made = [e for e in live.events if e.api_id == created]
             return {"ok": True, "title": proposal.title, "read_back": bool(made)}
-        if move_event is None:
+        if move_event is None:  # pragma: no cover - defensive: no move preview exists without move_event
             raise HTTPException(status_code=503, detail="il calendario non è collegato in scrittura")
         event = live.find_event(proposal.event_key)
         if event is None or (event.start, event.end) != (proposal.old_start, proposal.old_end):
