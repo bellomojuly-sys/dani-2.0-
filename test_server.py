@@ -874,3 +874,54 @@ def test_with_telegram_the_briefing_and_the_wake_up_go_there(tmp_path):
     http.post("/api/wake", json={"event": "snoozed"})
     assert "sveglia" in tg.sent[-1][0]
     assert http.get("/healthz").json() == {"ok": True}
+
+
+# --- D2-070: the wake-up call ------------------------------------------------------------
+
+
+def _caller(calls, wake_time="06:45"):
+    from twilio_client import is_from_twilio
+
+    return {"call": lambda url: calls.append(url) or "CA1", "base_url": "https://dani", "secret": "tw1",
+            "verify": lambda url, params, given: is_from_twilio("auth", url, params, given), "wake_time": wake_time}
+
+
+def _signed(http, path, params):
+    from urllib.parse import urlencode
+
+    from twilio_client import signature
+
+    return http.post(path, content=urlencode(params), headers={
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Twilio-Signature": signature("auth", f"https://dani{path}", params)})
+
+
+def test_the_wake_call_starts_at_wake_time_and_stops_when_she_solves_it(tmp_path):
+    from datetime import timedelta
+
+    rig, calls = Rig(tmp_path), []
+    morning_time = NOW.replace(hour=6, minute=45)
+    rig.live.clock = lambda: morning_time
+    app = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, caller=_caller(calls))
+    http = TestClient(app)
+    app.state.tick(morning_time - timedelta(minutes=1))
+    assert calls == []
+    app.state.tick(morning_time)
+    assert calls == ["https://dani/twilio/tw1/voice"]
+    assert http.post("/twilio/tw1/voice").status_code == 403  # not signed by Twilio
+    question = _signed(http, "/twilio/tw1/voice", {"CallSid": "CA1"}).text
+    assert "Quanto fa" in question and "Buongiorno July" in question
+    a, b = question.split("Quanto fa ")[1].split("?")[0].split(" per ")
+    done = _signed(http, "/twilio/tw1/answer", {"CallSid": "CA1", "Digits": str(int(a) * int(b))}).text
+    assert "Brava July" in done
+    app.state.tick(morning_time + timedelta(minutes=5))
+    assert len(calls) == 1  # awake: no more calls
+
+
+def test_a_snooze_rings_her_at_once(tmp_path):
+    rig, calls = Rig(tmp_path), []
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 caller=_caller(calls, wake_time=None)))
+    assert http.post("/api/wake", json={"event": "snoozed"}).status_code == 200
+    assert len(calls) == 1
+    assert http.post("/twilio/wrong/voice").status_code == 404

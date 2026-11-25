@@ -37,6 +37,16 @@ services:
         sync: false
       - key: NOTION_MOOD_DB_ID
         sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: MY_PHONE
+        sync: false
+      - key: WAKE_TIME
+        sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID

@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -56,6 +56,8 @@ from mood import RECORD_MOOD_SCHEMA, mood_prompt
 from forecast import at_risk, forecast
 from wake import snooze_messages, stopped_message
 from telegram_client import read_update
+from wake_call import Morning, new_question, twiml_done, twiml_question, wake_time_today
+from urllib.parse import parse_qsl
 from forecast import describe as describe_forecast
 from cycle import CycleSettings
 from store import (
@@ -129,7 +131,8 @@ class TaskBody(BaseModel):
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
-               week_focus=None, send_note=None, character=None, mood_log=None, telegram=None):
+               week_focus=None, send_note=None, character=None, mood_log=None, telegram=None,
+               caller=None):
     """Build the app. mark_done(task_id) performs the Notion write;
     chat_client / voice_client are OpenAI-style clients or None (= not set up);
     pin, when set, must come in the X-Dani-Pin header of every /api request;
@@ -151,7 +154,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     is the mood.MoodLog of her diary (D2-064), or None. telegram (D2-069) is
     {"send": f(text, buttons=None), "answer": f(callback_id, text),
     "voice": f(file_id) -> bytes, "chat_id": str or None, "secret": str}: Dani
-    talks with her there, and every message to her phone goes there."""
+    talks with her there, and every message to her phone goes there.
+    caller (D2-070) is {"call": f(url) -> call sid, "verify": f(url, params,
+    signature) -> bool, "base_url": str, "secret": str, "wake_time": "HH:MM"
+    or None}: Dani phones her until she solves a calculation."""
     proposals = {}  # id -> Proposal waiting for her Confirm; lost at restart on purpose
     sent_briefings = set()  # days whose briefing was sent: a retried schedule sends nothing twice
 
@@ -417,10 +423,13 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     @api.post("/wake")
     def post_wake(body: WakeBody):
         """Called by her iPhone Shortcut when the alarm is snoozed or stopped."""
-        if send_note is None:
+        if send_note is None and caller is None:
             raise HTTPException(status_code=503, detail="nessun canale di notifica: manca NTFY_TOPIC")
         now = live.clock()
         today = now.date()
+        if body.event == "snoozed" and caller is not None:
+            morning_of(now).snoozed(now)
+            place_call(now)  # D2-070: a snooze means a phone call, at once
         if body.event == "snoozed":
             snoozes[today] = snoozes.get(today, 0) + 1
             messages = snooze_messages(snoozes[today], now, live.events)
@@ -428,7 +437,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             done = stopped_message(snoozes.get(today, 0))
             messages = [done] if done else []
         sent = 0
-        for message in messages:
+        for message in messages if send_note is not None else []:
             try:
                 send_note(message["title"], message["text"], at=message["at"], priority=message["priority"])
                 sent += 1
@@ -594,6 +603,79 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
 
     app.include_router(api)
 
+    # --- D2-070: the wake-up call ---------------------------------------------------
+    mornings = {}
+
+    def morning_of(now):
+        if now.date() not in mornings:
+            mornings.clear()  # only today matters
+            mornings[now.date()] = Morning(now.date())
+        return mornings[now.date()]
+
+    def place_call(now):
+        morning = morning_of(now)
+        morning.calling(now)
+        try:
+            caller["call"](f"{caller['base_url']}/twilio/{caller['secret']}/voice")
+        except RuntimeError as failure:
+            print(f"wake call failed: {failure}")
+        if morning.gave_up and send_note is not None:
+            try:
+                send_note("Ti ho chiamata 10 volte", "July, ti ho chiamata 10 volte e non hai risposto. "
+                          "Se sei sveglia scrivimi; se non lo sei, questa è l'ultima: alzati.", priority=5)
+            except (RuntimeError, ValueError):
+                pass
+
+    def wake_calls(now):
+        """Called every minute: start a call when one is due."""
+        if caller is None:
+            return False
+        morning = morning_of(now)
+        if morning.due(now, wake_time_today(caller.get("wake_time"), now)):
+            place_call(now)
+            return True
+        return False
+
+    async def twilio_form(request, secret):
+        if caller is None or secret != caller["secret"]:
+            raise HTTPException(status_code=404)
+        params = dict(parse_qsl((await request.body()).decode()))
+        url = f"{caller['base_url']}{request.url.path}"
+        if not caller["verify"](url, params, request.headers.get("x-twilio-signature", "")):
+            raise HTTPException(status_code=403)
+        return params
+
+    def first_thing_today(now):
+        ahead = sorted((e for e in live.events if not e.all_day and e.start.date() == now.date() and e.start > now),
+                       key=lambda e: e.start)
+        return f" Alle {ahead[0].start:%H:%M} hai {ahead[0].title}." if ahead else ""
+
+    @app.post("/twilio/{secret}/voice", include_in_schema=False)
+    async def twilio_voice(secret: str, request: Request):
+        await twilio_form(request, secret)
+        morning = morning_of(live.clock())
+        if morning.question is None:
+            morning.question = new_question(morning.rng)
+        action = f"{caller['base_url']}/twilio/{caller['secret']}/answer"
+        intro = "Buongiorno July, sono Dani. Sei sveglia? Dimostramelo." if morning.calls <= 1 else \
+            f"July, è la chiamata numero {morning.calls}. Basta dormire."
+        return Response(twiml_question(intro, morning.question["text"], action), media_type="application/xml")
+
+    @app.post("/twilio/{secret}/answer", include_in_schema=False)
+    async def twilio_answer(secret: str, request: Request):
+        params = await twilio_form(request, secret)
+        now = live.clock()
+        morning = morning_of(now)
+        result, question = morning.answer(params.get("Digits"), params.get("SpeechResult"))
+        action = f"{caller['base_url']}/twilio/{caller['secret']}/answer"
+        if result == "awake":
+            text = f"Brava July, sei sveglia.{first_thing_today(now)} Acqua, luce, e si parte."
+            return Response(twiml_done(text), media_type="application/xml")
+        if result == "wrong":
+            return Response(twiml_question("No, sbagliato. Svegliati e riprova.", question["text"], action),
+                            media_type="application/xml")
+        return Response(twiml_done("Ancora addormentata. Ti richiamo tra tre minuti."), media_type="application/xml")
+
     # --- D2-069: Telegram, Dani as a contact she talks to ---------------------------
     telegram_history = []  # recent turns of the Telegram chat, like the page's history
     queued = []            # (at, text) messages waiting for their time (wake follow-ups)
@@ -677,9 +759,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         The day's reminders are recomputed from the calendar each time and only
         those in (last minute, now] go out, so a restart neither loses nor
         repeats them. The morning briefing still comes from its schedule."""
+        now = now or live.clock()
+        wake_calls(now)
         if not telegram_active():
             return 0
-        now = now or live.clock()
         last = clock_state["last"]
         clock_state["last"] = now
         hidden = {entry.key for entry in settings().hidden_events}
@@ -943,9 +1026,26 @@ if __name__ == "__main__":  # pragma: no cover
         else:
             print("Telegram: DANI_URL is missing, the webhook cannot be set")
 
+    # D2-070: the wake-up call through Twilio.
+    caller = None
+    sid, auth = os.environ.get("TWILIO_ACCOUNT_SID"), os.environ.get("TWILIO_AUTH_TOKEN")
+    if sid and auth and os.environ.get("TWILIO_FROM") and os.environ.get("MY_PHONE") and os.environ.get("DANI_URL"):
+        import hashlib
+
+        import twilio_client
+
+        caller = {
+            "call": lambda url: twilio_client.start_call(sid, auth, os.environ["TWILIO_FROM"], os.environ["MY_PHONE"], url),
+            "verify": lambda url, params, given: twilio_client.is_from_twilio(auth, url, params, given),
+            "base_url": os.environ["DANI_URL"].rstrip("/"),
+            "secret": hashlib.sha256(("dani-twilio:" + auth).encode()).hexdigest()[:32],
+            "wake_time": os.environ.get("WAKE_TIME") or None,
+        }
+        print(f"Wake-up call: on (WAKE_TIME {caller['wake_time'] or 'not set: only on a snooze'})")
+
     def after_refresh():
         refresh_mood()
-        if telegram is not None:
+        if telegram is not None or caller is not None:
             app.state.tick()
         if save_totals:
             save_totals()
@@ -958,7 +1058,7 @@ if __name__ == "__main__":  # pragma: no cover
                      delete_event=delete_event, move_event=move_event, create_block=create_block,
                      create_task=create_task, read_tools=read_tools, usage_log=usage_log, life=life,
                      week_focus=week_focus, send_note=send_note, character=character, mood_log=mood_log,
-                     telegram=telegram)
+                     telegram=telegram, caller=caller)
     # Started after the app exists: after_refresh uses app.state.tick.
     threading.Thread(target=refresh_forever, args=(live, settings_path), kwargs={"after": after_refresh}, daemon=True).start()
     print(f"Dani dashboard on http://{host}:{port}" + (" (demo data)" if demo else ""))

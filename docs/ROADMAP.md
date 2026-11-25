@@ -270,7 +270,9 @@ answers in "Dani — chi è Dani".
 
 **D2-069 (added 24 Nov, her decision): Telegram.** Dani becomes a Telegram contact: she writes first (briefing, reminders, wake-up, evening check-in) and Giulia answers there, by text or voice (Whisper), with Conferma / Rifiuta buttons under proposals. Only her chat id is answered; the webhook has a secret derived from the bot token; a minute clock in the refresh loop sends the day's reminders from the calendar (a restart neither loses nor repeats them); `/healthz` for a free uptime pinger keeps Render awake. Status: 🟡 built 24 Nov, 428 tests green; waiting for the bot token (`docs/TELEGRAM.md`).
 
-**A real phone call** (not a notification) needs a paid service (ntfy Pro
+**D2-070 (added 25 Nov, her yes to the cost): the wake-up phone call through Twilio.** At WAKE_TIME (Monday–Saturday) and at once on a snooze, Dani phones her and asks a mental calculation (voice or keypad, Italian voice); right → "Brava July" and the first appointment; wrong → a new one; no answer → a new call every 3 minutes, at most 10, then a message. Twilio callbacks are accepted only with a valid X-Twilio-Signature. Status: 🟡 built 25 Nov, 438 tests green; waiting for the Twilio account, an EEA number and the variables (`docs/TWILIO.md`). Cost ≈ number + ~0.024 $/min to a Dutch mobile from an EEA number.
+
+**A real phone call** (not a notification) — now D2-070, see above needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
 **Gate M18:** on a normal weekday Dani wakes me, speaks my day, reminds me of
@@ -418,3 +420,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-23 | New row D2-057 on Giulia's request: token monitoring (input and output tokens per day, saved in Notion, a "Consumi" page). The ⬜ M17 rows after it renumbered: life context → D2-058, top-down planning → D2-059, Sunday check-in → D2-060, morning briefing → D2-061 |
 | 2026-11-24 | New milestone M18 on Giulia's request — Dani is with me during the day: personality (D2-062), appointment reminders and evening check-in scheduled on ntfy (D2-063), mood diary (D2-064), forecasts (D2-065), the spoken morning call (D2-066), wake-up guard with an iPhone Shortcut (D2-067), fewer priority tokens (D2-068). A real phone call is paid: ask-first |
 | 2026-11-24 | D2-069 Telegram added on Giulia's request: ntfy notifications could not be answered without opening the app; on Telegram Dani writes first and she answers there, by text or voice |
+| 2026-11-25 | D2-070 wake-up call through Twilio, after Giulia overslept on 24 Nov with only a notification; her yes to the cost (~2–4 € a month with an EEA number) |
