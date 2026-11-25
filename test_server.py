@@ -925,3 +925,122 @@ def test_a_snooze_rings_her_at_once(tmp_path):
     assert http.post("/api/wake", json={"event": "snoozed"}).status_code == 200
     assert len(calls) == 1
     assert http.post("/twilio/wrong/voice").status_code == 404
+
+
+# --- V1: memory, mail, Fitbit ------------------------------------------------------------
+
+
+class FakeMemory:
+    def __init__(self):
+        self.messages, self.events, self.reacted, self.measures, self.kv = [], [], [], [], {}
+
+    def log_message(self, channel, role, content):
+        self.messages.append((channel, role, content))
+
+    def recent_messages(self, channel, limit=24):
+        return [{"role": r, "content": c} for ch, r, c in self.messages if ch == channel][-limit:]
+
+    def log_event(self, kind, ref="", detail=None):
+        self.events.append((kind, ref))
+        return len(self.events)
+
+    def react(self, event_id, reaction, at):
+        self.reacted.append((event_id, reaction))
+
+    def put_measure(self, day, name, value, source):
+        self.measures.append((name, value, source))
+
+    def reactions(self, since):
+        return [{"kind": k, "reaction": None} for k, _ in self.events]
+
+
+def test_conversations_are_remembered_and_telegram_history_survives_a_restart(tmp_path):
+    from test_chat import ScriptedChat
+
+    rig, memory = Rig(tmp_path), FakeMemory()
+    http = TestClient(create_app(rig.live, rig.done.append, FakeChat("Ciao July."), None, None, rig.path,
+                                 web_dir=None, memory=memory))
+    http.post("/api/chat", json={"message": "ciao", "history": []})
+    assert memory.messages == [("app", "user", "ciao"), ("app", "assistant", "Ciao July.")]
+    memory.messages.append(("telegram", "user", "ho dormito male"))
+    memory.messages.append(("telegram", "assistant", "Oggi piano, allora."))
+    chat = FakeChat("Me lo ricordo.")
+    restarted = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                                      memory=memory, telegram=FakeTelegram()))
+    _post(restarted, {"message": {"chat": {"id": 42}, "text": "come mi sentivo stamattina?"}})
+    sent = chat.seen["messages"]
+    assert {"role": "user", "content": "ho dormito male"} in sent  # read back from the memory, not lost
+
+
+def test_reminders_have_done_and_snooze_buttons_and_her_reaction_is_recorded(tmp_path):
+    from datetime import timedelta
+
+    from models import Event
+
+    rig, memory, tg = Rig(tmp_path), FakeMemory(), FakeTelegram()
+    rig.live.events = [Event(calendar="personale", title="Dentista", start=NOW.replace(hour=15, minute=0, second=0),
+                             end=NOW.replace(hour=16, minute=0, second=0))]
+    app = create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None, telegram=tg, memory=memory)
+    moment = NOW
+    while not any(buttons for _, buttons in tg.sent) and moment < NOW.replace(hour=23):
+        moment += timedelta(minutes=1)
+        app.state.tick(moment)
+    text, buttons = next((t, b) for t, b in tg.sent if b)
+    assert [label for label, _ in buttons] == ["Fatto", "Posticipa 15'"]
+    http = TestClient(app)
+    _post(http, {"callback_query": {"id": "q", "data": buttons[1][1], "message": {"chat": {"id": 42}}}})
+    assert memory.reacted[-1][1] == "snoozed" and tg.answers[-1].startswith("Ok, te lo ricordo")
+    assert http.get("/api/memory/summary").json()["enabled"] is True
+
+
+def test_the_briefing_has_the_mail_and_last_nights_sleep_and_a_short_night_reaches_the_chat(tmp_path):
+    from mail_client import parse_message
+    from test_mail_client import raw
+
+    rig, memory = Rig(tmp_path), FakeMemory()
+
+    class FakeFitbit:
+        def read_day(self, day):
+            return {"sleep_hours": 5.2, "sleep_efficiency": 80, "steps": 4000, "resting_hr": 60}
+
+    mail = lambda since: [parse_message(raw("Gianluca <g@bar.it>", "Sito"))]
+    chat = FakeChat("Piano leggero.")
+    http = TestClient(create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
+                                 memory=memory, mail=mail, fitbit=FakeFitbit()))
+    text = http.get("/api/briefing").json()["text"]
+    assert "Stanotte hai dormito 5.2 ore (Fitbit)." in text and "• Gianluca: Sito" in text
+    assert text.splitlines()[-1] == "E tu, July, oggi come stai?"  # the extra lines come before the closing
+    assert ("sleep_hours", 5.2, "fitbit") in memory.measures
+    http.post("/api/chat", json={"message": "cosa faccio oggi?", "history": []})
+    assert "A short night" in chat.seen["messages"][0]["content"]
+
+
+def test_fitbit_connect_needs_the_pin_and_a_valid_state(tmp_path):
+    rig = Rig(tmp_path)
+
+    class FakeFitbit:
+        client_id, redirect_uri, codes = "CID", "https://dani/fitbit/callback", []
+
+        def connect(self, code, redirect_uri):
+            self.codes.append(code)
+
+    fitbit = FakeFitbit()
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, "1234", rig.path, web_dir=None, fitbit=fitbit),
+                      follow_redirects=False)
+    assert http.get("/fitbit/connect").status_code == 401
+    jump = http.get("/fitbit/connect?key=1234")
+    assert jump.status_code == 307 and jump.headers["location"].startswith("https://www.fitbit.com/oauth2/authorize")
+    state = jump.headers["location"].split("state=")[1].split("&")[0]
+    assert http.get("/fitbit/callback?code=C1&state=wrong").status_code == 400
+    assert http.get(f"/fitbit/callback?code=C1&state={state}").json()["ok"] is True and fitbit.codes == ["C1"]
+
+
+def test_a_broken_memory_never_stops_dani(tmp_path):
+    class Broken(FakeMemory):
+        def log_message(self, *args):
+            raise RuntimeError("memory could not be reached")
+
+    rig = Rig(tmp_path)
+    http = TestClient(create_app(rig.live, rig.done.append, FakeChat("Eccomi."), None, None, rig.path,
+                                 web_dir=None, memory=Broken()))
+    assert http.post("/api/chat", json={"message": "ciao", "history": []}).json()["reply"] == "Eccomi."
