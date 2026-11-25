@@ -239,11 +239,12 @@ my cycle phase and my mood. The agent team (M20) is designed only after.
 | Plans days and weeks from my rules, cycle phase and mood | D2-059, D2-064, cycle | 🟡 |
 | Says what slips (forecast) | D2-065 | 🟡 |
 | Talks to me first: briefing, reminders, Telegram, wake-up call | D2-061, D2-063, D2-069, D2-070 | 🟡 waiting for my set-up |
-| Reads my mail (read-only): **Gmail and Outlook (school, Microsoft 365)**, both in the morning briefing | M15 | ⬜ (Outlook: the Fontys tenant may need admin consent; plan B: auto-forward school mail to Gmail) |
-| Memory that learns: every conversation, every suggestion and my reaction (answered, ignored, done, snoozed), mood and sleep, in a Postgres database (Supabase or Neon, EU); Notion stays for what I write | memory | ⬜ (choice pending) |
-| Reads my Fitbit (sleep, activity) | M16 | ⬜ |
+| Reads my mail (read-only): **Gmail and Outlook (school, Microsoft 365)**, both in the morning briefing | M15 | 🟡 25 Nov built: Gmail over IMAP with an app password, read-only (EXAMINE, BODY.PEEK); school Outlook forwarded to Gmail and recognised by domain; briefing section per box; `read_mail` tool with mail as untrusted data. Waiting for the app password |
+| Memory that learns: every conversation, every suggestion and my reaction (answered, ignored, done, snoozed), mood and sleep, in a Postgres database (Supabase or Neon, EU); Notion stays for what I write | memory | 🟡 25 Nov built on Supabase (REST, `docs/memory.sql`): conversations survive restarts, reminders with Fatto / Posticipa record her reaction, measures. Waiting for the Supabase project |
+| Reads my Fitbit (sleep, activity) | M16 | 🟡 25 Nov built: read-only scopes, rotating token in the memory store, /fitbit/connect; last night's sleep in the briefing and a short night lightens the plan. Waiting for the Fitbit app |
 | What Dani lacks in context and memory | gap analysis | ⬜ |
 | DeepSeek: what it does well and badly on my cases | M10 evaluation set (~20 cases) | ⬜ |
+| Tests: 100% line and branch coverage of product code; mutation testing on every module; her acceptance guide `docs/TEST-GUIDA.md`; set-up `docs/SETUP.md` | tests | 🟡 25 Nov |
 
 **V1 gate:** for one real week Dani plans every day from my calendar, tasks,
 mail, sleep, cycle and mood, I follow it, and the evaluation set passes.
