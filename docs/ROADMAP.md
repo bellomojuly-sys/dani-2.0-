@@ -63,7 +63,7 @@ rewritten on this model after F5 and the pending quizzes.
 | Field | Value |
 |---|---|
 | Done | D2-001 to D2-023, D2-051 (7 Oct–11 Nov 2026). Gates M01, M02, M03 passed in code |
-| **Active** | **M18 real checks (mine)**: D2-062–D2-068 built; waiting for the Render variables, the ntfy app, the iPhone Shortcut and my review of the Notion pages. Next: M19 | Waiting for me: Render variables, ntfy app, my review of the two Notion pages |
+| **Active** | **Dani V1** — next: context and memory gap analysis, M10 evaluation set (DeepSeek), M15 Gmail and M16 Fitbit code (credentials from me later). Waiting for me: Render variables, Telegram bot, cron-job.org, Twilio |
 | Then | V1 closes with D2-055. Next: M17 — Dani plans my whole life (D2-056 to D2-061) |
 | After the demo | Walk-throughs of the 🟡 rows (suspended 11 Nov, my decision), D2-038 (secrets on Render), D2-024a (secret guard) |
 | Target | Gate M09, the app demo, by Friday 13 November |
@@ -225,6 +225,38 @@ model is a key and a base URL, and the evaluations (D2-032) run per model.
 from my life plan, my projects and my real calendars, the way Claude does; on
 Sunday it asks me for the week's focus, and every morning I get the briefing.
 
+## Dani V1 — one agent, finished first (25 November, my decision)
+
+**Focus rule:** no multi-agent work until the V1 gate passes. Dani V1 is ONE
+agent with the personality I wrote ("Dani — chi è Dani"), that reads my
+calendars, tasks, mail and Fitbit, and plans my days correctly from my rules,
+my cycle phase and my mood. The agent team (M20) is designed only after.
+
+| V1 capability | Where | Status |
+|---|---|---|
+| Personality, Chief / July | D2-062 | 🟡 built, my review pending |
+| Calendars, Tasks, Projects, life page | D2-056, D2-058 | ✅ / 🟡 |
+| Plans days and weeks from my rules, cycle phase and mood | D2-059, D2-064, cycle | 🟡 |
+| Says what slips (forecast) | D2-065 | 🟡 |
+| Talks to me first: briefing, reminders, Telegram, wake-up call | D2-061, D2-063, D2-069, D2-070 | 🟡 waiting for my set-up |
+| Reads my mail (read-only): **Gmail and Outlook (school, Microsoft 365)**, both in the morning briefing | M15 | 🟡 25 Nov built: Gmail over IMAP with an app password, read-only (EXAMINE, BODY.PEEK); school Outlook forwarded to Gmail and recognised by domain; briefing section per box; `read_mail` tool with mail as untrusted data. Waiting for the app password |
+| Memory that learns: every conversation, every suggestion and my reaction (answered, ignored, done, snoozed), mood and sleep, in a Postgres database (Supabase or Neon, EU); Notion stays for what I write | memory | 🟡 25 Nov built on Supabase (REST, `docs/memory.sql`): conversations survive restarts, reminders with Fatto / Posticipa record her reaction, measures. Waiting for the Supabase project |
+| Reads my Fitbit (sleep, activity) | M16 | 🟡 25 Nov built: read-only scopes, rotating token in the memory store, /fitbit/connect; last night's sleep in the briefing and a short night lightens the plan. Waiting for the Fitbit app |
+| What Dani lacks in context and memory | gap analysis | ⬜ |
+| DeepSeek: what it does well and badly on my cases | M10 evaluation set (~20 cases) | ⬜ |
+| Tests: 100% line and branch coverage of product code; mutation testing on every module; her acceptance guide `docs/TEST-GUIDA.md`; set-up `docs/SETUP.md` | tests | 🟡 25 Nov |
+
+**V1 gate:** for one real week Dani plans every day from my calendar, tasks,
+mail, sleep, cycle and mood, I follow it, and the evaluation set passes.
+
+**After V1 — M20, Dani's team (proposed 25 Nov, not before the V1 gate):**
+Dani stays the only one I talk to and delegates to specialists with their own
+memory and a model chosen by cost (inbox → cheap, planning → medium, Dani and
+technical work → strong); "lavori per l'AI": an executor (Claude Code) prepares
+work overnight (e.g. the site for Gianluca) and Dani reports in the morning —
+parameters, skills used, what she needs from me, timing. Needs the Anthropic
+API key (paid separately): ask-first.
+
 ## M18 — Dani is with me during the day (24 November, my decision)
 
 The goal: an autonomous assistant with a personality that talks to me first.
@@ -268,7 +300,11 @@ answers in "Dani — chi è Dani".
 - **A real phone call** for the alarm and the important things: paid service
   and new credential, ask-first.
 
-**A real phone call** (not a notification) needs a paid service (ntfy Pro
+**D2-069 (added 24 Nov, her decision): Telegram.** Dani becomes a Telegram contact: she writes first (briefing, reminders, wake-up, evening check-in) and Giulia answers there, by text or voice (Whisper), with Conferma / Rifiuta buttons under proposals. Only her chat id is answered; the webhook has a secret derived from the bot token; a minute clock in the refresh loop sends the day's reminders from the calendar (a restart neither loses nor repeats them); `/healthz` for a free uptime pinger keeps Render awake. Status: 🟡 built 24 Nov, 428 tests green; waiting for the bot token (`docs/TELEGRAM.md`).
+
+**D2-070 (added 25 Nov, her yes to the cost): the wake-up phone call through Twilio.** At WAKE_TIME (Monday–Saturday) and at once on a snooze, Dani phones her and asks a mental calculation (voice or keypad, Italian voice); right → "Brava July" and the first appointment; wrong → a new one; no answer → a new call every 3 minutes, at most 10, then a message. Twilio callbacks are accepted only with a valid X-Twilio-Signature. Status: 🟡 built 25 Nov, 438 tests green; waiting for the Twilio account, an EEA number and the variables (`docs/TWILIO.md`). Cost ≈ number + ~0.024 $/min to a Dutch mobile from an EEA number.
+
+**A real phone call** (not a notification) — now D2-070, see above needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
 **Gate M18:** on a normal weekday Dani wakes me, speaks my day, reminds me of
@@ -415,3 +451,6 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-23 | New milestone M17 — Dani plans my whole life, like Claude does: read tools and the tool loop (D2-056), life context file (D2-057, M14 pulled forward), top-down planning with invested free time — reading, courses (D2-058), Sunday check-in (D2-059), morning briefing on the phone (D2-060, pulls Later #3 forward). MG Integration enters as context only (scouting agent, no roadmap yet). The model is measured with the evaluations while building |
 | 2026-11-23 | New row D2-057 on Giulia's request: token monitoring (input and output tokens per day, saved in Notion, a "Consumi" page). The ⬜ M17 rows after it renumbered: life context → D2-058, top-down planning → D2-059, Sunday check-in → D2-060, morning briefing → D2-061 |
 | 2026-11-24 | New milestone M18 on Giulia's request — Dani is with me during the day: personality (D2-062), appointment reminders and evening check-in scheduled on ntfy (D2-063), mood diary (D2-064), forecasts (D2-065), the spoken morning call (D2-066), wake-up guard with an iPhone Shortcut (D2-067), fewer priority tokens (D2-068). A real phone call is paid: ask-first |
+| 2026-11-24 | D2-069 Telegram added on Giulia's request: ntfy notifications could not be answered without opening the app; on Telegram Dani writes first and she answers there, by text or voice |
+| 2026-11-25 | D2-070 wake-up call through Twilio, after Giulia overslept on 24 Nov with only a notification; her yes to the cost (~2–4 € a month with an EEA number) |
+| 2026-11-25 | Focus decision: finish Dani V1 (one agent: calendar, tasks, mail, Fitbit, rules, cycle, mood, personality) before any multi-agent work; the agent team and the overnight executor become M20, after the V1 gate |
