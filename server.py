@@ -188,8 +188,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         if mail_cache["at"] is None or now - mail_cache["at"] > timedelta(minutes=10):
             try:
                 mail_cache.update(at=now, messages=mail(now - timedelta(hours=24)), error=None)
+                print(f"Mail: {len(mail_cache['messages'])} messages read in the last 24 hours")
             except RuntimeError as failure:
                 mail_cache.update(at=now, error=str(failure))
+                print(f"Mail not read: {failure}")
         return mail_cache["messages"]
 
     def body_today():
