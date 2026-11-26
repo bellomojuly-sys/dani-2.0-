@@ -3,6 +3,8 @@
 Each test names the behaviour it pins, so a mutant in these lines is caught.
 """
 
+from urllib.parse import parse_qs
+
 import io
 import json
 import random
@@ -132,6 +134,8 @@ def test_twilio_start_call_posts_the_call_and_returns_its_sid():
     assert start_call("AC1", "TOKEN", "+3110", "+3161", "https://dani/voice", opener) == "CA123"
     assert seen["url"].endswith("/Accounts/AC1/Calls.json") and "To=%2B3161" in seen["data"]
     assert seen["auth"].startswith("Basic ") and "TOKEN" not in seen["auth"]
+    # A trial account accepts only the basic parameters (HTTP 400 otherwise).
+    assert sorted(parse_qs(seen["data"])) == ["From", "To", "Url"]
 
 
 def test_twilio_errors_are_clear_and_never_show_the_token():

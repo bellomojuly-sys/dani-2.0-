@@ -19,8 +19,9 @@ API = "https://api.twilio.com/2010-04-01"
 
 def start_call(account_sid, auth_token, from_number, to_number, url, opener=request.urlopen, timeout=20):
     """Ask Twilio to call ``to_number``; when she answers Twilio fetches ``url``. Returns the call SID."""
-    body = parse.urlencode({"To": to_number, "From": from_number, "Url": url, "Method": "POST",
-                            "Timeout": "30"}).encode()
+    # Only the three basic parameters: a trial account refuses the others with HTTP 400.
+    # Twilio's defaults do the rest (POST to ``url``, 60 seconds of ringing).
+    body = parse.urlencode({"To": to_number, "From": from_number, "Url": url}).encode()
     auth = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode()
     req = request.Request(f"{API}/Accounts/{account_sid}/Calls.json", data=body, method="POST",
                           headers={"Authorization": f"Basic {auth}",
