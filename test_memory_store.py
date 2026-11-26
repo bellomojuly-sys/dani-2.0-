@@ -19,6 +19,14 @@ class FakeHTTP:
         return self.answers.pop(0) if self.answers else None
 
 
+def test_a_new_secret_key_goes_only_in_the_apikey_header():
+    http = FakeHTTP([[{"id": 7}]])
+    Memory("https://x.supabase.co", "sb_secret_ABC", http).log_message("app", "user", "ciao")
+    headers = http.calls[0][2]
+    assert headers["apikey"] == "sb_secret_ABC"
+    assert "Authorization" not in headers
+
+
 def test_every_request_carries_the_key_and_logs_say_which_agent_wrote_them():
     http = FakeHTTP([[{"id": 7}]])
     memory = Memory("https://x.supabase.co/", "KEY", http)

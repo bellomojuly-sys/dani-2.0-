@@ -37,7 +37,11 @@ def send(method, url, headers, body=None, opener=request.urlopen, timeout=20):
 class Memory:
     def __init__(self, url, key, http=send, agent="dani"):
         self.base = url.rstrip("/") + "/rest/v1"
-        self.headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        # A legacy service_role key is a JWT and also goes in Authorization. The new
+        # secret keys (sb_secret_...) are not JWTs: they go in the apikey header only.
+        self.headers = {"apikey": key, "Content-Type": "application/json"}
+        if not key.startswith("sb_"):
+            self.headers["Authorization"] = f"Bearer {key}"
         self.http = http
         self.agent = agent
 
