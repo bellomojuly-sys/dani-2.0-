@@ -70,6 +70,15 @@ Then, in this order, without being asked:
 
 If a Notion tool is not available in this session, do steps 1, 3 (in the repo) and 4, and list exactly what still has to be copied to Notion. Never claim Notion was updated if it was not.
 
+## End of every session (always, even if no microphase was closed)
+
+Before the session ends, without being asked, give Giulia a short recap in Italian with four headings:
+
+1. **Cosa ho fatto** — what changed in this session (files, commits, branches, Notion pages), with commit hashes.
+2. **Cosa resta** — what is still open: the unfinished part of the active step, the next step, anything blocked and why.
+3. **Cosa devi controllare** — what she must check herself: code or tests to read, a manual "Verify" to run, decisions waiting for her, anything not pushed or not copied to Notion.
+4. **Concetti chiave** — the key concepts this session touched (names only, one line each, linked to the study objective ID), so she can look them up in her notebook. No theory lessons here.
+
 ## Notion: where things live
 
 | What | Where |
