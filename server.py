@@ -31,6 +31,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from delete_events import PROPOSE_DELETE_SCHEMA, DeleteProposal, build_delete_proposal, describe_delete
 from plan_message import PlanProposal, describe_plan, verdict
 from propose import (
     PROPOSE_MOVE_SCHEMA,
@@ -425,7 +426,8 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             context += ("\n\nForecast of her deadlines (free hours by her rules vs estimated work; "
                         "say what is at risk before it slips and propose what to move):\n" + "\n".join(lines))
         try:
-            if move_event is None and create_task is None and create_block is None and not read_tools and mood_log is None:
+            if move_event is None and create_task is None and create_block is None and delete_event is None \
+                    and not read_tools and mood_log is None:
                 return {"reply": chat_reply(chat_client, context, state, body.history, body.message)}
             turn = chat_turn(
                 chat_client, context, state, body.history, body.message,
@@ -434,6 +436,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                 read_tools=read_tools,
                 plan_schema=PROPOSE_PLAN_SCHEMA if create_block is not None else None,
                 mood_schema=RECORD_MOOD_SCHEMA if mood_log is not None else None,
+                delete_schema=PROPOSE_DELETE_SCHEMA if delete_event is not None else None,
             )
         except ValueError as problem:
             raise HTTPException(status_code=502, detail=str(problem))
@@ -480,6 +483,17 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                 return {"reply": f"Non posso proporre questo task: {problem}.", "reads": turn["reads"]}
             proposals[proposal.id] = proposal
             return {"reply": describe_task(proposal), "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
+        if turn.get("delete") is not None:
+            # The model asked to delete events (D2-073): checked and shown, nothing is deleted here.
+            shown = [live.find_event(row["key"]) for row in state["events"]]
+            refs = {ref: event for ref, event in event_refs(shown).items() if event is not None}
+            try:
+                proposal = build_delete_proposal(turn["delete"], refs, current.tickable_calendars, uuid.uuid4().hex[:8])
+            except ValueError as problem:
+                return {"reply": f"Non posso proporre di cancellarlo: {problem}.", "reads": turn["reads"]}
+            proposals[proposal.id] = proposal
+            text = (turn["text"] + "\n\n" if turn["text"] else "") + describe_delete(proposal)
+            return {"reply": text, "proposal": proposal.model_dump(mode="json"), "reads": turn["reads"]}
         if turn["move"] is None:
             return {"reply": turn["text"], "reads": turn["reads"]}
         # The model asked for a move: check it in code and show it. Nothing is written here.
@@ -718,6 +732,28 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             live.refresh("notion")
             found = live.find_task(made.id) is not None
             return {"ok": True, "title": proposal.title, "read_back": found}
+        if isinstance(proposal, DeleteProposal):
+            # Her yes to delete (D2-073): each event once; one already gone counts as done.
+            # A failed delete stops, and the events already deleted leave the proposal.
+            if delete_event is None:  # pragma: no cover - defensive: no delete proposal exists without delete_event
+                raise HTTPException(status_code=503, detail="il calendario non è collegato in scrittura")
+            total, done, keys = len(proposal.events), 0, {e.key for e in proposal.events}
+            while proposal.events:
+                wanted = proposal.events[0]
+                event = find_event_anywhere(wanted.key)
+                if event is not None:
+                    try:
+                        delete_event(event)
+                    except (RuntimeError, ValueError) as failure:
+                        live.refresh("calendar")
+                        raise HTTPException(status_code=502, detail=f"cancellati {done} eventi su {total}: {failure}")
+                proposal.events.pop(0)
+                done += 1
+            del proposals[body.id]  # confirming twice changes nothing more
+            live.refresh("calendar")
+            still = [e for e in live.events if e.key in keys]  # read back: none of them is there any more
+            return {"ok": True, "title": f"{total} eventi", "read_back": not still,
+                    "message": f"Fatto: {'cancellato 1 evento' if total == 1 else f'cancellati {total} eventi'}."}
         if isinstance(proposal, PlanProposal):
             # Her one yes for the whole plan (D2-071): every block, in order. If a
             # write fails, the blocks already created leave the plan, so a second
@@ -891,6 +927,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     def show_answer(answer):
         """Send a chat answer to Telegram: the text, then one card per proposal with buttons.
         A plan is one message with Conferma tutto / Cambia qualcosa under it (D2-071)."""
+        if (answer.get("proposal") or {}).get("kind") == "delete":
+            proposal_id = answer["proposal"]["id"]
+            tell(answer["reply"], [("Cancella", f"c:{proposal_id}"), ("Annulla", f"r:{proposal_id}")])
+            return
         if answer.get("plan"):
             plan_id = answer["plan"]["id"]
             tell(answer["reply"], [("Conferma tutto", f"c:{plan_id}"), ("Cambia qualcosa", f"m:{plan_id}")])

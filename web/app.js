@@ -640,7 +640,7 @@ async function send(text) {
     if (answer.reads && answer.reads.length) addMessage("note", "Ho letto: " + answer.reads.map(describeRead).join(" · "));
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
-    if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
+    if (answer.proposal) ({ task: addTaskProposal, delete: addDeleteProposal }[answer.proposal.kind] || addProposal)(answer.proposal);
     if (answer.plan) addPlanProposal(answer.plan);  // a whole plan, one yes (D2-071)
   } catch (failure) {
     waiting.remove();
@@ -728,6 +728,32 @@ function addBlockProposal(proposal) {
       await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
       close("Rifiutata: non ho scritto nulla.");
     } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+
+// Events Dani proposes to delete (D2-073): the list is her message above;
+// nothing is deleted until Cancella is pressed.
+function addDeleteProposal(proposal) {
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, proposal.events.length === 1 ? "1 evento da cancellare" : `${proposal.events.length} eventi da cancellare`), buttons);
+  const close = (text) => { buttons.replaceChildren(h("span", { class: "meta" }, text)); };
+  buttons.append(
+    h("button", { class: "btn small", onclick: async () => {
+      close("Cancello dal calendario…");
+      try {
+        const done = await api("/api/confirm", { method: "POST", json: { id: proposal.id } });
+        close(done.message);
+        history.push({ role: "user", content: "Confermo." }, { role: "assistant", content: done.message });
+        poll();
+      } catch (failure) { close(`Non cancellato: ${failure.message}`); }
+    } }, "Cancella"),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
+      close("Annullato: non ho cancellato nulla.");
+      history.push({ role: "user", content: "No, non cancellarli." });
+    } }, "Annulla"));
   $("#messages").append(card);
   $("#messages").scrollTop = $("#messages").scrollHeight;
 }

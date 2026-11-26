@@ -26,6 +26,7 @@ uguale all'ultimo commit (se no, la cache: chiudi l'app e riaprila).
 | B2 | Guarda gli avvisi ⚠ | Un blocco dopo le 16 in un giorno di turno, prima delle 9:30 o di domenica è segnalato | |
 | B3 | Il piano contiene tempo libero investito | Lettura, Python, palestra o corsi | |
 | B4 | "Conferma tutto" (poi prova anche "Cambia qualcosa") | Tutti i blocchi nel calendario "studio"; "Fatto: N blocchi nel calendario, riletti." | |
+| B4c | Chat: "cancella la palestra di domani" | Lista con Cancella / Annulla; dopo Cancella non c'è più in Google Calendar. "Cancella il turno" viene rifiutato | |
 | B4b | Calendario → trascina un evento di "personale" o "studio" | Scheda "Sposto a …" con gli avvisi; dopo Conferma è al nuovo orario anche in Google Calendar | |
 | B5 | Home → "Come stai, July?" → 2, 5 ore | Poi in chat "pianificami oggi": piano leggero, lo dice | |
 | B6 | Home → Previsioni | Le scadenze vere con "in linea / stretta / a rischio" | |
