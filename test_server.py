@@ -918,6 +918,15 @@ def test_the_wake_call_starts_at_wake_time_and_stops_when_she_solves_it(tmp_path
     assert len(calls) == 1  # awake: no more calls
 
 
+def test_a_real_twilio_request_with_empty_fields_is_accepted(tmp_path):
+    # Twilio sends empty fields (CallerCity=, FromState=) and signs them too.
+    rig = Rig(tmp_path)
+    http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,
+                                 caller=_caller([], wake_time=None)))
+    answer = _signed(http, "/twilio/tw1/voice", {"CallSid": "CA1", "CallerCity": "", "FromState": ""})
+    assert answer.status_code == 200 and "Quanto fa" in answer.text
+
+
 def test_a_snooze_rings_her_at_once(tmp_path):
     rig, calls = Rig(tmp_path), []
     http = TestClient(create_app(rig.live, rig.done.append, None, None, None, rig.path, web_dir=None,

@@ -716,12 +716,16 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         return False
 
     async def twilio_form(request, secret):
+        # Each refusal is printed (uvicorn's access log is off), so the Logs say why a call failed.
         if caller is None or secret != caller["secret"]:
+            print(f"twilio callback refused: unknown address {request.url.path.split('/')[-1]}")
             raise HTTPException(status_code=404)
-        params = dict(parse_qsl((await request.body()).decode()))
+        params = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
         url = f"{caller['base_url']}{request.url.path}"
         if not caller["verify"](url, params, request.headers.get("x-twilio-signature", "")):
+            print(f"twilio callback refused: signature does not match for {url.split('/twilio/')[0]}/twilio/…")
             raise HTTPException(status_code=403)
+        print(f"twilio callback accepted: {request.url.path.split('/')[-1]}")
         return params
 
     def first_thing_today(now):
