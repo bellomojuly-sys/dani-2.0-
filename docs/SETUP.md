@@ -24,6 +24,7 @@ Da oggi `main` contiene tutta la V1.
 - [ ] Environment: righe con **"Duplicate key"** in rosso → cestino 🗑.
 - [ ] Togli `NTFY_TOPIC` (le notifiche ora arrivano su Telegram).
 - [ ] C'è `DANI_URL` = `https://dani-2-0.onrender.com`.
+- [ ] C'è `PYTHONUNBUFFERED` = `1` (senza, i Logs di Render non mostrano i messaggi di Dani).
 
 ## 2. Telegram — Dani come contatto (5 min) · app Telegram
 Dettagli in `docs/TELEGRAM.md`.
