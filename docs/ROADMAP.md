@@ -308,6 +308,8 @@ answers in "Dani — chi è Dani".
 
 **Proposed 26 Nov (her decision, option A): Google Health API instead of Fitbit Web.** Google switched off the Fitbit Web API and its OAuth endpoints on 2 Nov 2026, so the M16 Fitbit code cannot connect. Goal: all her health data (sleep, activity, heart rate) without reconnecting every week. First an experiment, no code: a Google Cloud project with the consent screen *In production* but unverified (personal use, one user), one consent, and check that the refresh token survives more than 7 days (Testing mode expires it after 7; Health scopes are restricted, so Google may refuse an unverified app). If it holds: the code and a Decision Log (provider change Fitbit → Google Health). Until then sleep comes from the mood diary.
 
+**Proposed 26 Nov (her request): the morning mail digest.** Once a day, with the 6:30 briefing: the model reads sender, subject and first lines of the night's mail (marked as untrusted data, never instructions) and returns, validated with pydantic, groups chosen from her mail and her Notion context (e.g. work and applications, school, money, shopping, people, newsletters), one summary line per group, and proposed actions ("new application from X — add it to the list?"). The digest goes into the Telegram briefing and the Home card, saved in Supabase so a restart neither loses nor recomputes it. A Yes goes through the existing preview → yes → write path (D2-055); Dani never replies to or sends mail. An invalid model answer falls back to the plain list. Assumed (to confirm): actions are Notion tasks only, calendar events later. Built after the V1 set-up. Decision Log: classification by the model instead of rules.
+
 **A real phone call** (not a notification) — now D2-070, see above needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
@@ -462,3 +464,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-26 | Proposed (not built): change the wake time from Telegram (`/sveglia`), saved in Supabase. Twilio runs on the free trial (30 days, 75 min, German trial number calling her Italian number) |
 | 2026-11-26 | Fitbit Web API switched off by Google on 2 Nov 2026; her choice: migrate to the Google Health API after the V1 set-up, starting with an experiment on token lifetime (no weekly reconnect). Decision Log to write |
 | 2026-11-26 | M15 on the Home, her request: the "Mail da leggere" card shows the last 24 hours (people first, newsletters counted, Amsterdam time, Gmail or school); Gmail's status and "Aggiorna" in Settings → Sources |
+| 2026-11-26 | Proposed (her request): the model groups the mail once a day with the morning briefing and proposes actions (preview → yes); after the V1 set-up |
