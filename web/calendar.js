@@ -9,9 +9,22 @@ const GC = {
   SNAP: 15,              // minutes: a drag lands on the quarter hour
   VIEWS: { day: 1, three: 3, week: 7, month: 42 },
   LABELS: { day: "Giorno", three: "3 giorni", week: "Settimana", month: "Mese" },
-  // Google Calendar's colours, darkened where white text needs it (contrast ≥ 4.5:1).
-  NAMED: [["studio", "#0B6BCB"], ["univ", "#8E24AA"], ["lavoro", "#D50000"], ["eitje", "#D50000"], ["personal", "#0B8043"]],
-  OTHERS: ["#3F51B5", "#C2410C", "#0F7B5F", "#C0504D", "#616161", "#5C6BC0"],
+  // Her colours (D2-072, 26 Nov): pink tones that stay apart; shifts always yellow,
+  // university light blue, theory study violet, every project its own colour.
+  // bg = fill, fg = text on it, ink = text on white (Dani's dashed proposals). All ≥ 4.5:1.
+  WORK: { label: "Lavoro", bg: "#FFD54F", fg: "#3E2E00", ink: "#3E2E00" },
+  UNI: { label: "Università", bg: "#8EC9F5", fg: "#0B3050", ink: "#0B3050" },
+  THEORY: { label: "Teoria", bg: "#6A4C93", fg: "#FFFFFF", ink: "#6A4C93" },
+  PERSONAL: { label: "Personale", bg: "#F8BBD0", fg: "#5A1530", ink: "#5A1530" },
+  OTHER: { label: "Altro", bg: "#8D6E7A", fg: "#FFFFFF", ink: "#6E525D" },
+  PROJECTS: {
+    amexio: { label: "AMEXIO", bg: "#6D1B3B", fg: "#FFFFFF", ink: "#6D1B3B" },
+    betsy: { label: "Betsy", bg: "#F06292", fg: "#3D0A1E", ink: "#3D0A1E" },
+    dani: { label: "Dani", bg: "#C2185B", fg: "#FFFFFF", ink: "#C2185B" },
+  },
+  // Any other project ("Nome · cosa"): one of these, always the same for the same name.
+  MORE: [["#B5532B", "#FFFFFF"], ["#FFAB91", "#4A1A0A"], ["#B76E79", "#2B0A12"]],
+  NOT_PROJECTS: ["lettura", "teoria", "studio", "palestra", "corso", "pausa"],
 };
 
 const cal = {
@@ -35,13 +48,28 @@ const pad = (n) => String(n).padStart(2, "0");
 const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const offsetOf = (iso) => iso.slice(19) || "+01:00";
 
-function calColor(name) {
-  const key = (name || "").toLowerCase();
-  for (const [part, color] of GC.NAMED) if (key.includes(part)) return color;
-  let hash = 0;
-  for (const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return GC.OTHERS[hash % GC.OTHERS.length];
+// Which colour an event or a block gets, from its calendar and its title.
+function colorOf(calendar, title) {
+  const where = (calendar || "").toLowerCase(), what = (title || "").toLowerCase();
+  if (["lavoro", "eitje", "turno", "werk"].some((w) => where.includes(w)) || /\bturno\b/.test(what)) return { key: "work", ...GC.WORK };
+  if (["univ", "fontys", "canvas"].some((w) => where.includes(w))) return { key: "uni", ...GC.UNI };
+  for (const [name, color] of Object.entries(GC.PROJECTS)) {
+    if (new RegExp(`\\b${name}\\b`).test(what)) return { key: name, ...color };
+  }
+  if (what.includes("teoria")) return { key: "theory", ...GC.THEORY };
+  const parts = (title || "").split(/\s+[·–-]\s+|:\s*/);
+  const prefix = parts.length > 1 ? parts[0].trim() : "";
+  if (prefix && prefix.length <= 24 && !GC.NOT_PROJECTS.includes(prefix.toLowerCase())) {
+    let hash = 0;
+    for (const ch of prefix.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    const [bg, fg] = GC.MORE[hash % GC.MORE.length];
+    return { key: "p:" + prefix.toLowerCase(), label: prefix, bg, fg, ink: fg === "#FFFFFF" ? bg : fg };
+  }
+  if (where.includes("studio")) return { key: "theory", ...GC.THEORY };
+  if (where.includes("personal")) return { key: "personal", ...GC.PERSONAL };
+  return { key: "other", ...GC.OTHER, label: calendar || GC.OTHER.label };
 }
+const paint = (c) => `--c:${c.bg};--f:${c.fg};--k:${c.ink}`;
 
 function shownDays() {
   if (cal.view === "day") return [cal.anchor];
@@ -129,11 +157,11 @@ function itemsOf(day) {
   for (const e of cal.events) {
     if (gone(e.key) || e.all_day || e.start.slice(0, 10) !== day) continue;
     const to = e.end.slice(0, 10) === day ? minutes(e.end) : 24 * 60;
-    items.push({ kind: "event", data: e, from: minutes(e.start), to, title: e.title, color: calColor(e.calendar), movable: e.tickable });
+    items.push({ kind: "event", data: e, from: minutes(e.start), to, title: e.title, color: colorOf(e.calendar, e.title), movable: e.tickable });
   }
   for (const b of state.blocks || []) {
     if (gone(b.task_id) || b.start.slice(0, 10) !== day) continue;
-    items.push({ kind: "block", data: b, from: minutes(b.start), to: minutes(b.end), title: b.title, color: calColor("studio"), movable: true });
+    items.push({ kind: "block", data: b, from: minutes(b.start), to: minutes(b.end), title: b.title, color: colorOf("studio", b.title), movable: true });
   }
   return items;
 }
@@ -149,8 +177,12 @@ function drawCalendar() {
   for (const button of document.querySelectorAll(".gc-views button")) {
     button.setAttribute("aria-pressed", String(button.dataset.view === cal.view));
   }
-  const names = [...new Set(cal.events.map((e) => e.calendar))].sort();
-  $("#gc-cals").replaceChildren(...names.map((name) => h("span", { class: "gc-cal" }, h("i", { style: `background:${calColor(name)}` }), name)),
+  // The legend: the colours actually on screen, by what they mean.
+  const shown = new Map();
+  for (const e of cal.events) { const c = colorOf(e.calendar, e.title); shown.set(c.key, c); }
+  for (const b of state.blocks || []) { const c = colorOf("studio", b.title); shown.set(c.key, c); }
+  $("#gc-cals").replaceChildren(...[...shown.values()].sort((a, b) => a.label.localeCompare(b.label))
+    .map((c) => h("span", { class: "gc-cal" }, h("i", { style: `background:${c.bg}` }), c.label)),
     h("span", { class: "gc-cal" }, h("i", { class: "tentative" }), "proposto da Dani"),
     ...(cal.error ? [h("span", { class: "gc-err" }, `Calendario non letto: ${cal.error}`)] : []));
   const before = $("#gc-body .gc-scroll");
@@ -196,7 +228,7 @@ function drawGrid(days) {
   const head = h("div", { class: "gc-head", style: `grid-template-columns:${columns}` }, h("div", { class: "gc-tz" }, `GMT${state.now.slice(19, 22)}`), ...days.map(dayHead));
   const allDay = h("div", { class: "gc-allday", style: `grid-template-columns:${columns}` }, h("div"),
     ...days.map((day) => h("div", { class: "gc-allday-cell" }, allDayOf(day).map((e) => h("button", {
-      class: "gc-chip", style: `background:${calColor(e.calendar)}`, onclick: () => openCard({ kind: "event", data: e }) }, e.title)))));
+      class: "gc-chip", style: paint(colorOf(e.calendar, e.title)), onclick: () => openCard({ kind: "event", data: e }) }, e.title)))));
   const height = 24 * GC.HOUR_PX;
   const gutter = h("div", { class: "gc-gutter", style: `height:${height}px` });
   for (let hour = 1; hour < 24; hour++) gutter.append(h("span", { style: `top:${hour * GC.HOUR_PX}px` }, `${pad(hour)}:00`));
@@ -241,7 +273,7 @@ function drawColumn(day, index, height) {
       role: "button", tabindex: "0", "aria-label": `${item.title}, ${dateIt(day)} ${time}`,
       style: `top:${item.from / 60 * GC.HOUR_PX}px;height:${Math.max(length / 60 * GC.HOUR_PX - 2, 18)}px;` +
         `left:calc(${item.indent}px + (100% - 10px - ${item.indent}px) * ${item.slot / item.slots});` +
-        `width:calc((100% - 10px - ${item.indent}px) * ${1 / item.slots} - 1px);z-index:${item.depth + 1};--c:${item.color}`,
+        `width:calc((100% - 10px - ${item.indent}px) * ${1 / item.slots} - 1px);z-index:${item.depth + 1};${paint(item.color)}`,
     }, short ? h("span", { class: "gc-line" }, h("b", {}, item.title), `, ${hhmm(item.from)}`)
       : [h("b", {}, item.title), h("span", { class: "gc-time" }, time)]);
     node.addEventListener("keydown", (event) => { if (event.key === "Enter") openCard(item); });
@@ -265,7 +297,7 @@ function drawMonth(days) {
       h("button", { class: "gc-mnum" + (day === state.today ? " today" : ""), onclick: () => { cal.anchor = day; setView("day"); } },
         String(Number(day.slice(8)))));
     for (const { e, all } of chips.slice(0, 3)) {
-      cell.append(h("button", { class: "gc-mchip" + (all ? " all" : ""), style: `--c:${calColor(e.calendar)}`,
+      cell.append(h("button", { class: "gc-mchip" + (all ? " all" : ""), style: paint(colorOf(e.calendar, e.title)),
         onclick: () => openCard({ kind: "event", data: e }) },
         all ? e.title : [h("i"), h("span", { class: "gc-mt" }, clock(e.start)), e.title]));
     }
@@ -374,7 +406,7 @@ function endDrag(event) {
 function closeCard() { $("#gc-sheet").hidden = true; $("#gc-sheet").replaceChildren(); }
 
 function cardShell(item, ...content) {
-  const color = item.kind === "block" ? calColor("studio") : calColor(item.data.calendar);
+  const color = colorOf(item.kind === "block" ? "studio" : item.data.calendar, item.data.title).bg;
   const sheet = $("#gc-sheet");
   sheet.replaceChildren(h("div", { class: "gc-card", role: "dialog", "aria-modal": "true", "aria-label": item.data.title },
     h("div", { class: "gc-card-actions" }, ...cardActions(item), h("button", { class: "gc-icon", "aria-label": "Chiudi", onclick: closeCard }, "✕")),
