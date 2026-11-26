@@ -306,6 +306,8 @@ answers in "Dani — chi è Dani".
 
 **Proposed 26 Nov (her request, not built yet): wake time from Telegram.** `/sveglia 6:30` (from tomorrow on), `/sveglia domani 8:00` (one day only), `/sveglia off domani`, `/sveglia` (shows it); saved in the Supabase `kv` table so a restart keeps it; `WAKE_TIME` on Render stays the fallback. To decide: per-weekday times, Sunday. Gets an ID after the V1 set-up.
 
+**Proposed 26 Nov (her decision, option A): Google Health API instead of Fitbit Web.** Google switched off the Fitbit Web API and its OAuth endpoints on 2 Nov 2026, so the M16 Fitbit code cannot connect. Goal: all her health data (sleep, activity, heart rate) without reconnecting every week. First an experiment, no code: a Google Cloud project with the consent screen *In production* but unverified (personal use, one user), one consent, and check that the refresh token survives more than 7 days (Testing mode expires it after 7; Health scopes are restricted, so Google may refuse an unverified app). If it holds: the code and a Decision Log (provider change Fitbit → Google Health). Until then sleep comes from the mood diary.
+
 **A real phone call** (not a notification) — now D2-070, see above needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
@@ -458,3 +460,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-25 | Focus decision: finish Dani V1 (one agent: calendar, tasks, mail, Fitbit, rules, cycle, mood, personality) before any multi-agent work; the agent team and the overnight executor become M20, after the V1 gate |
 | 2026-11-25 | The deployed V1 branch (D2-069 Telegram, D2-070 Twilio call, memory, Gmail, Fitbit) merged into `main`; Render moves to `main`; `docs/SETUP.md` rewritten as a phone checklist, Twilio included (her yes to the cost) |
 | 2026-11-26 | Proposed (not built): change the wake time from Telegram (`/sveglia`), saved in Supabase. Twilio runs on the free trial (30 days, 75 min, German trial number calling her Italian number) |
+| 2026-11-26 | Fitbit Web API switched off by Google on 2 Nov 2026; her choice: migrate to the Google Health API after the V1 set-up, starting with an experiment on token lifetime (no weekly reconnect). Decision Log to write |
