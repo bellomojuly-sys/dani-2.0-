@@ -723,7 +723,9 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         params = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
         url = f"{caller['base_url']}{request.url.path}"
         if not caller["verify"](url, params, request.headers.get("x-twilio-signature", "")):
-            print(f"twilio callback refused: signature does not match for {url.split('/twilio/')[0]}/twilio/…")
+            given = request.headers.get("x-twilio-signature", "")
+            print(f"twilio callback refused: signature does not match for {url.split('/twilio/')[0]}/twilio/… "
+                  f"(given {given[:6] or 'none'}, fields {','.join(sorted(params))})")
             raise HTTPException(status_code=403)
         print(f"twilio callback accepted: {request.url.path.split('/')[-1]}")
         return params

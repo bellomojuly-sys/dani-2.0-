@@ -46,5 +46,18 @@ def signature(auth_token, url, params):
     return base64.b64encode(digest).decode()
 
 
+def _with_and_without_port(url):
+    """Twilio may sign the URL with the default port (:443) or without it, like its own validator accepts."""
+    parts = parse.urlsplit(url)
+    host = parts.hostname or ""
+    default = {"https": 443, "http": 80}.get(parts.scheme)
+    bare = parse.urlunsplit((parts.scheme, host, parts.path, parts.query, ""))
+    ported = parse.urlunsplit((parts.scheme, f"{host}:{parts.port or default}", parts.path, parts.query, ""))
+    return [url, bare, ported]
+
+
 def is_from_twilio(auth_token, url, params, given):
-    return bool(given) and hmac.compare_digest(signature(auth_token, url, params), given)
+    if not given:
+        return False
+    return any(hmac.compare_digest(signature(auth_token, candidate, params), given)
+               for candidate in _with_and_without_port(url))

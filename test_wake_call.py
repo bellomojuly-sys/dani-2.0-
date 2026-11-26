@@ -84,3 +84,12 @@ def test_a_restart_long_after_the_wake_time_does_not_ring_her():
     morning = Morning(now.date())
     assert morning.due(now, now.replace(hour=15, minute=0))  # 30 minutes late: still her wake-up
     assert not morning.due(now, now.replace(hour=6, minute=45))  # hours later: no call
+
+
+def test_a_signature_made_on_the_url_with_port_443_is_accepted_too():
+    params = {"CallSid": "CA1", "CallerCity": ""}
+    with_port = signature("token", "https://dani-2-0.onrender.com:443/twilio/x/voice", params)
+    assert is_from_twilio("token", "https://dani-2-0.onrender.com/twilio/x/voice", params, with_port)
+    without = signature("token", "https://dani-2-0.onrender.com/twilio/x/voice", params)
+    assert is_from_twilio("token", "https://dani-2-0.onrender.com:443/twilio/x/voice", params, without)
+    assert not is_from_twilio("token", "https://dani-2-0.onrender.com/twilio/x/answer", params, with_port)
