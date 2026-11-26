@@ -92,7 +92,8 @@ class Morning:
             return False
         if self.next_call is not None:
             return now >= self.next_call
-        return wake_at is not None and now >= wake_at
+        # Only within an hour of the wake time: a restart later in the day must not ring her again.
+        return wake_at is not None and wake_at <= now < wake_at + timedelta(hours=1)
 
     def calling(self, now):
         """A call starts: count it and plan the next one in case she does not get up."""

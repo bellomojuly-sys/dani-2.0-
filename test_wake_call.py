@@ -77,3 +77,10 @@ def test_only_a_request_signed_by_twilio_is_accepted():
     assert not is_from_twilio("token", "https://dani/twilio/x/answer", {**params, "Digits": "1"}, good)
     assert not is_from_twilio("other", "https://dani/twilio/x/answer", params, good)
     assert not is_from_twilio("token", "https://dani/twilio/x/answer", params, "")
+
+
+def test_a_restart_long_after_the_wake_time_does_not_ring_her():
+    now = datetime(2026, 11, 26, 15, 30, tzinfo=AMSTERDAM)  # Thursday
+    morning = Morning(now.date())
+    assert morning.due(now, now.replace(hour=15, minute=0))  # 30 minutes late: still her wake-up
+    assert not morning.due(now, now.replace(hour=6, minute=45))  # hours later: no call
