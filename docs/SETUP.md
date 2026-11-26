@@ -33,6 +33,14 @@ Dettagli in `docs/TELEGRAM.md`.
 - [ ] Quando è Live, scrivi **"ciao"** al tuo bot: ti risponde con il tuo chat id.
 - [ ] Render `TELEGRAM_CHAT_ID` = quel numero → Save.
 
+## 2b. OpenAI — Whisper, i vocali (3 min) · Safari
+Il credito resta sull'account; una chiave si può sempre creare nuova (quella
+vecchia non si può più rileggere).
+- [ ] Render → Environment: c'è già `OPENAI_API_KEY`? Se sì, salta.
+- [ ] Se no: platform.openai.com/api-keys → **Create new secret key** → nome `Dani`
+      → copia subito (si vede una volta sola) → Render `OPENAI_API_KEY` → Save.
+- [ ] (Controllo credito: platform.openai.com/settings/organization/billing.)
+
 ## 3. Il pinger — Dani sempre sveglia (3 min) · Safari
 - [ ] cron-job.org → account gratuito.
 - [ ] **Create cronjob** → URL `https://dani-2-0.onrender.com/healthz` → ogni **10 minuti** → salva.
