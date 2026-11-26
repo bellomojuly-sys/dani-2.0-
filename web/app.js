@@ -204,8 +204,32 @@ const ASK_HINT = "Clicca per parlarne con Dani";
 
 // --- Home --------------------------------------------------------------------
 
+function renderMail() {
+  const mail = state.mail || { on: false, messages: [] };
+  const source = state.sources.gmail || {};
+  if (!mail.on) {
+    $("#mail-note").textContent = "";
+    $("#home-mail").replaceChildren(h("p", { class: "muted" }, h("span", { class: "dot off" }), "Gmail non collegato."));
+    return;
+  }
+  if (source.ok === false) {
+    $("#mail-note").textContent = "";
+    $("#home-mail").replaceChildren(h("p", { class: "muted" }, h("span", { class: "dot bad" }), `Gmail non letto: ${source.error}`));
+    return;
+  }
+  const people = mail.messages.filter((m) => !m.newsletter);
+  const newsletters = mail.messages.length - people.length;
+  $("#mail-note").textContent = `ultime 24 ore${newsletters ? ` · ${newsletters} newsletter` : ""}`;
+  $("#home-mail").replaceChildren(...(people.length ? people.slice(0, 6).map((m) => h("div", { class: "item" },
+    h("div", { class: "when" }, m.date ? clock(m.date) : ""),
+    h("div", { class: "body" }, h("div", { class: "title" }, m.subject),
+      h("div", { class: "meta" }, m.from_name, " ", h("span", { class: "chip" }, m.box === "scuola" ? "scuola" : "gmail")))))
+    : [h("div", { class: "empty" }, "Nessuna mail da persone nelle ultime 24 ore.")]));
+}
+
 function renderHome() {
   $("#home-date").textContent = dateIt(state.today);
+  renderMail();
 
   const today = state.today;
   const rows = [];
@@ -357,7 +381,7 @@ function renderSources() {
       : source.ok === false ? `errore alle ${clock(source.at)}: ${source.error}` : (source.error || "mai aggiornato");
     return h("div", { class: "item" },
       h("div", { class: "body" }, h("div", { class: "title" }, h("span", { class: "dot" + dot }), name), h("div", { class: "meta" }, text)),
-      h("button", { class: "btn ghost small", disabled: key === "gmail", onclick: () => refresh(key) }, "Aggiorna"));
+      h("button", { class: "btn ghost small", disabled: key === "gmail" && !(state.mail && state.mail.on), onclick: () => refresh(key) }, "Aggiorna"));
   }));
   $("#hidden").replaceChildren(...(state.hidden_events.length ? state.hidden_events.map((entry) => h("div", { class: "item" },
     h("div", { class: "body" }, h("div", { class: "title" }, entry.title),

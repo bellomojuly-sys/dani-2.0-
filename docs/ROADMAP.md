@@ -461,3 +461,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-25 | The deployed V1 branch (D2-069 Telegram, D2-070 Twilio call, memory, Gmail, Fitbit) merged into `main`; Render moves to `main`; `docs/SETUP.md` rewritten as a phone checklist, Twilio included (her yes to the cost) |
 | 2026-11-26 | Proposed (not built): change the wake time from Telegram (`/sveglia`), saved in Supabase. Twilio runs on the free trial (30 days, 75 min, German trial number calling her Italian number) |
 | 2026-11-26 | Fitbit Web API switched off by Google on 2 Nov 2026; her choice: migrate to the Google Health API after the V1 set-up, starting with an experiment on token lifetime (no weekly reconnect). Decision Log to write |
+| 2026-11-26 | M15 on the Home, her request: the "Mail da leggere" card shows the last 24 hours (people first, newsletters counted, Amsterdam time, Gmail or school); Gmail's status and "Aggiorna" in Settings → Sources |

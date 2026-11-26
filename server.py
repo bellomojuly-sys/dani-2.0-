@@ -132,6 +132,15 @@ class TaskBody(BaseModel):
     task_id: str = Field(min_length=1)
 
 
+def _local_time(iso):
+    """A mail date in the sender's time zone → Amsterdam time, so the Home shows her clock."""
+    if not iso:
+        return None
+    from models import AMSTERDAM
+
+    return datetime.fromisoformat(iso).astimezone(AMSTERDAM).isoformat(timespec="minutes")
+
+
 def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                settings_path=SETTINGS_FILE, web_dir="web", delete_event=None, move_event=None,
                create_block=None, create_task=None, read_tools=None, usage_log=None, life=None,
@@ -270,6 +279,15 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             "create_block": create_block is not None,
         }
         state["notion_write"] = {"create_task": create_task is not None}
+        # M15 on the Home: the last 24 hours of mail (newest first) and Gmail's status in Settings.
+        if mail is None:
+            state["mail"] = {"on": False, "messages": []}
+        else:
+            messages = recent_mail()
+            when = mail_cache["at"].isoformat(timespec="seconds") if mail_cache["at"] else None
+            state["sources"]["gmail"] = {"ok": mail_cache["error"] is None, "at": when, "error": mail_cache["error"]}
+            state["mail"] = {"on": True, "messages": [{**{k: m[k] for k in ("from_name", "subject", "box", "newsletter")},
+                                                       "date": _local_time(m["date"])} for m in messages[:20]]}
         return state
 
     @api.get("/state")
@@ -279,7 +297,10 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
     @api.post("/refresh")
     def post_refresh(body: RefreshBody):
         if body.source == "gmail":
-            raise HTTPException(status_code=409, detail="Gmail non è ancora collegato")
+            if mail is None:
+                raise HTTPException(status_code=409, detail="Gmail non è collegato (GMAIL_USER, GMAIL_APP_PASSWORD)")
+            mail_cache["at"] = None  # read again now
+            return full_state()
         live.refresh(body.source)
         return full_state()
 

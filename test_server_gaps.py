@@ -356,3 +356,33 @@ def test_a_plan_on_telegram_comes_as_one_card_per_block(tmp_path):
     _post(http, {"message": {"chat": {"id": 42}, "text": "pianifica martedì"}})
     card, buttons = tg.sent[-1]
     assert card == "Betsy · 01/12 10:00–12:00" and [b[0] for b in buttons] == ["Conferma", "Rifiuta"]
+
+
+def test_the_home_shows_the_last_mail_in_amsterdam_time_and_gmail_status(tmp_path):
+    messages = [{"from_name": "Olga", "from": "o@fontys.nl", "subject": "Feedback", "date": "2026-11-26T13:05:00+00:00",
+                 "box": "scuola", "newsletter": False, "snippet": "..."}]
+    reads = []
+    _, http = app_with(tmp_path, mail=lambda since: reads.append(since) or messages)
+    state = http.get("/api/state").json()
+    assert state["mail"]["on"] is True
+    assert state["mail"]["messages"] == [{"from_name": "Olga", "subject": "Feedback", "box": "scuola",
+                                          "newsletter": False, "date": "2026-11-26T14:05+01:00"}]
+    assert state["sources"]["gmail"]["ok"] is True
+    http.post("/api/refresh", json={"source": "gmail"})  # "Aggiorna" reads again at once
+    assert len(reads) == 2
+
+
+def test_a_gmail_failure_is_shown_in_the_sources_not_hidden(tmp_path):
+    def broken(since):
+        raise RuntimeError("Gmail refused the login or the search: error")
+
+    state = app_with(tmp_path, mail=broken)[1].get("/api/state").json()
+    assert state["sources"]["gmail"] == {"ok": False, "at": state["sources"]["gmail"]["at"],
+                                         "error": "Gmail refused the login or the search: error"}
+    assert state["mail"]["messages"] == []
+
+
+def test_without_gmail_the_home_says_it_is_not_connected(tmp_path):
+    _, http = app_with(tmp_path)
+    assert http.get("/api/state").json()["mail"] == {"on": False, "messages": []}
+    assert http.post("/api/refresh", json={"source": "gmail"}).status_code == 409
