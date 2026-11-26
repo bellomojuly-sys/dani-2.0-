@@ -714,7 +714,7 @@ async function send(text) {
     addMessage("assistant", answer.reply);
     sayAloud(answer.reply);
     if (answer.proposal) (answer.proposal.kind === "task" ? addTaskProposal : addProposal)(answer.proposal);
-    for (const block of answer.proposals || []) addBlockProposal(block);  // a plan (D2-059)
+    if (answer.plan) addPlanProposal(answer.plan);  // a whole plan, one yes (D2-071)
   } catch (failure) {
     waiting.remove();
     addMessage("note", `Dani non ha risposto: ${failure.message}`);
@@ -801,6 +801,35 @@ function addBlockProposal(proposal) {
       await api("/api/reject", { method: "POST", json: { id: proposal.id } }).catch(() => {});
       close("Rifiutata: non ho scritto nulla.");
     } }, "Rifiuta"));
+  $("#messages").append(card);
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+
+// A whole plan (D2-071): the day-by-day text is Dani's message above; here
+// only the two buttons. Nothing is written until Conferma tutto is pressed.
+function addPlanProposal(plan) {
+  const buttons = h("div", { class: "row" });
+  const card = h("div", { class: "msg proposal" },
+    h("b", {}, `${plan.blocks.length} ${plan.blocks.length === 1 ? "blocco nuovo" : "blocchi nuovi"} nel calendario studio`), buttons);
+  const close = (text, ...more) => { buttons.replaceChildren(h("span", { class: "meta" }, text), ...more); };
+  const confirm = () => h("button", { class: "btn small", onclick: async () => {
+    close("Scrivo sul calendario…");
+    try {
+      const done = await api("/api/confirm", { method: "POST", json: { id: plan.id } });
+      close(done.message);
+      history.push({ role: "user", content: "Confermo tutto." }, { role: "assistant", content: done.message });
+      poll();
+    } catch (failure) {
+      // The blocks already created left the plan on the server: a retry creates only the rest.
+      close(`Non finito: ${failure.message}.`, confirm());
+    }
+  } }, "Conferma tutto");
+  buttons.append(confirm(),
+    h("button", { class: "btn ghost small", onclick: async () => {
+      await api("/api/reject", { method: "POST", json: { id: plan.id } }).catch(() => {});
+      close("Dimmi cosa cambiare, a voce o per scritto: ti rimando il piano.");
+      $("#chat-input").focus();
+    } }, "Cambia qualcosa"));
   $("#messages").append(card);
   $("#messages").scrollTop = $("#messages").scrollHeight;
 }

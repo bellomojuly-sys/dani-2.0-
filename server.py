@@ -31,6 +31,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from plan_message import PlanProposal, describe_plan, verdict
 from propose import (
     PROPOSE_MOVE_SCHEMA,
     PROPOSE_TASK_SCHEMA,
@@ -439,14 +440,13 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             except RuntimeError as failure:  # the calendar could not be read for those days
                 return {"reply": f"Non riesco a leggere il calendario per controllare il piano: {failure}.",
                         "reads": turn["reads"]}
-            for proposal in made:
-                proposals[proposal.id] = proposal
-            flagged = sum(1 for proposal in made if proposal.warnings)
-            summary = f"Ti propongo {len(made)} blocchi: confermali uno per uno."
-            if flagged:
-                summary += f" {flagged} {'ha' if flagged == 1 else 'hanno'} un avviso da guardare."
-            text = (turn["text"] + "\n\n" if turn["text"] else "") + summary
-            return {"reply": text, "proposals": [p.model_dump(mode="json") for p in made], "reads": turn["reads"]}
+            # One message, day by day, one yes for the whole plan (D2-071).
+            rows = current_forecast()
+            fine, line = verdict(made, rows["rows"], rows["error"])
+            plan = PlanProposal(id=uuid.uuid4().hex[:8], blocks=made, fine=fine, verdict=line)
+            proposals[plan.id] = plan
+            text = describe_plan(made, period, line, note=turn["text"] or "")
+            return {"reply": text, "plan": plan.model_dump(mode="json"), "reads": turn["reads"]}
         if turn["task"] is not None:
             # The model asked for a new task: check it in code and show it. Nothing is written here.
             areas = {task.area for task in live.tasks if task.area}
@@ -650,6 +650,27 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             live.refresh("notion")
             found = live.find_task(made.id) is not None
             return {"ok": True, "title": proposal.title, "read_back": found}
+        if isinstance(proposal, PlanProposal):
+            # Her one yes for the whole plan (D2-071): every block, in order. If a
+            # write fails, the blocks already created leave the plan, so a second
+            # Conferma tutto does not create them twice.
+            if create_block is None:  # pragma: no cover - defensive: no plan exists without create_block
+                raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
+            total, created = len(proposal.blocks), []
+            while proposal.blocks:
+                block = proposal.blocks[0]
+                try:
+                    created.append(create_block(block.title, block.start, block.end))
+                except (RuntimeError, ValueError) as failure:
+                    live.refresh("calendar")
+                    raise HTTPException(status_code=502, detail=f"creati {len(created)} blocchi su {total}: {failure}")
+                proposal.blocks.pop(0)
+            del proposals[body.id]  # confirming twice changes nothing more
+            live.refresh("calendar")
+            found = sum(1 for event in live.events if event.api_id in set(created))
+            return {"ok": True, "title": f"{total} blocchi", "created": len(created), "read_back": found == len(created),
+                    "message": f"Fatto: {len(created)} blocchi nel calendario"
+                               + (", riletti." if found == len(created) else f"; ne rileggo solo {found}.")}
         if isinstance(proposal, BlockProposal):
             if create_block is None:  # pragma: no cover - defensive: no block preview exists without create_block
                 raise HTTPException(status_code=503, detail="il calendario studio non è collegato in scrittura")
@@ -795,9 +816,14 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         telegram["send"](text, buttons)
 
     def show_answer(answer):
-        """Send a chat answer to Telegram: the text, then one card per proposal with buttons."""
+        """Send a chat answer to Telegram: the text, then one card per proposal with buttons.
+        A plan is one message with Conferma tutto / Cambia qualcosa under it (D2-071)."""
+        if answer.get("plan"):
+            plan_id = answer["plan"]["id"]
+            tell(answer["reply"], [("Conferma tutto", f"c:{plan_id}"), ("Cambia qualcosa", f"m:{plan_id}")])
+            return
         tell(answer.get("reply") or "…")
-        cards = answer.get("proposals") or ([answer["proposal"]] if answer.get("proposal") else [])
+        cards = [answer["proposal"]] if answer.get("proposal") else []
         for card in cards:
             what = card.get("title", "")
             if card.get("start"):
@@ -851,7 +877,11 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             try:
                 if action == "c":
                     done = post_confirm(ProposalBody(id=proposal_id))
-                    text = "Fatto, riletto dal calendario." if done.get("read_back") else "Scritto; la rilettura non lo trova ancora."
+                    text = done.get("message") or (
+                        "Fatto, riletto dal calendario." if done.get("read_back") else "Scritto; la rilettura non lo trova ancora.")
+                elif action == "m":
+                    post_reject(ProposalBody(id=proposal_id))
+                    text = "Dimmi cosa cambiare, a voce o per scritto: ti rimando il piano."
                 else:
                     post_reject(ProposalBody(id=proposal_id))
                     text = "Rifiutata: non ho scritto nulla."
