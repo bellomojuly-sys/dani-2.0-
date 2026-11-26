@@ -36,7 +36,11 @@ def send(method, url, headers, body=None, opener=request.urlopen, timeout=20):
 
 class Memory:
     def __init__(self, url, key, http=send, agent="dani"):
-        self.base = url.rstrip("/") + "/rest/v1"
+        # Supabase shows the API URL both bare and with /rest/v1: accept both.
+        root = url.strip().rstrip("/")
+        if root.endswith("/rest/v1"):
+            root = root[: -len("/rest/v1")]
+        self.base = root + "/rest/v1"
         # A legacy service_role key is a JWT and also goes in Authorization. The new
         # secret keys (sb_secret_...) are not JWTs: they go in the apikey header only.
         self.headers = {"apikey": key, "Content-Type": "application/json"}

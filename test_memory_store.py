@@ -19,6 +19,12 @@ class FakeHTTP:
         return self.answers.pop(0) if self.answers else None
 
 
+def test_a_url_copied_with_rest_v1_is_not_doubled():
+    http = FakeHTTP([[{"id": 7}]])
+    Memory("https://x.supabase.co/rest/v1/ ", "sb_secret_ABC", http).log_message("app", "user", "ciao")
+    assert http.calls[0][1] == "https://x.supabase.co/rest/v1/conversations"
+
+
 def test_a_new_secret_key_goes_only_in_the_apikey_header():
     http = FakeHTTP([[{"id": 7}]])
     Memory("https://x.supabase.co", "sb_secret_ABC", http).log_message("app", "user", "ciao")
