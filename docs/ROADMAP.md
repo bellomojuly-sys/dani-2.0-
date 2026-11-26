@@ -304,6 +304,8 @@ answers in "Dani — chi è Dani".
 
 **D2-070 (added 25 Nov, her yes to the cost): the wake-up phone call through Twilio.** At WAKE_TIME (Monday–Saturday) and at once on a snooze, Dani phones her and asks a mental calculation (voice or keypad, Italian voice); right → "Brava July" and the first appointment; wrong → a new one; no answer → a new call every 3 minutes, at most 10, then a message. Twilio callbacks are accepted only with a valid X-Twilio-Signature. Status: 🟡 built 25 Nov, 438 tests green; waiting for the Twilio account, an EEA number and the variables (`docs/TWILIO.md`). Cost ≈ number + ~0.024 $/min to a Dutch mobile from an EEA number.
 
+**Proposed 26 Nov (her request, not built yet): wake time from Telegram.** `/sveglia 6:30` (from tomorrow on), `/sveglia domani 8:00` (one day only), `/sveglia off domani`, `/sveglia` (shows it); saved in the Supabase `kv` table so a restart keeps it; `WAKE_TIME` on Render stays the fallback. To decide: per-weekday times, Sunday. Gets an ID after the V1 set-up.
+
 **A real phone call** (not a notification) — now D2-070, see above needs a paid service (ntfy Pro
 calls or Twilio) and a new credential: ask-first, not built until I say yes.
 
@@ -455,3 +457,4 @@ Stop and ask me (and propose a Decision Log) if a change:
 | 2026-11-25 | D2-070 wake-up call through Twilio, after Giulia overslept on 24 Nov with only a notification; her yes to the cost (~2–4 € a month with an EEA number) |
 | 2026-11-25 | Focus decision: finish Dani V1 (one agent: calendar, tasks, mail, Fitbit, rules, cycle, mood, personality) before any multi-agent work; the agent team and the overnight executor become M20, after the V1 gate |
 | 2026-11-25 | The deployed V1 branch (D2-069 Telegram, D2-070 Twilio call, memory, Gmail, Fitbit) merged into `main`; Render moves to `main`; `docs/SETUP.md` rewritten as a phone checklist, Twilio included (her yes to the cost) |
+| 2026-11-26 | Proposed (not built): change the wake time from Telegram (`/sveglia`), saved in Supabase. Twilio runs on the free trial (30 days, 75 min, German trial number calling her Italian number) |
