@@ -4,7 +4,6 @@
 
 const POLL_MS = 5000;        // how often the page asks the server
 const UNDO_MS = 5000;        // the "Annulla" seconds before a tick is written
-const HOUR_START = 7, HOUR_END = 23, HOUR_PX = 46;
 const WEEKDAYS = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
 const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
@@ -287,79 +286,6 @@ function renderHome() {
   }
 }
 
-// --- Calendar ------------------------------------------------------------------
-
-// Events that overlap share the column width: each gets a lane.
-function withLanes(items) {
-  items.sort((a, b) => a.from - b.from || b.to - a.to);
-  let group = [], groupEnd = -1;
-  const close = () => { const lanes = Math.max(...group.map((i) => i.lane)) + 1; group.forEach((i) => (i.lanes = lanes)); };
-  for (const item of items) {
-    if (group.length && item.from >= groupEnd) { close(); group = []; }
-    const used = new Set(group.filter((g) => g.to > item.from).map((g) => g.lane));
-    item.lane = 0;
-    while (used.has(item.lane)) item.lane++;
-    group.push(item);
-    groupEnd = Math.max(groupEnd, item.to);
-  }
-  if (group.length) close();
-  return items;
-}
-
-function renderWeek() {
-  const names = state.calendars.length ? state.calendars : [];
-  $("#legend").replaceChildren(...names.map((n) => h("span", { class: "chip " + calendarClass(n) }, n)),
-    h("span", { class: "chip", style: "background:rgba(255,255,255,.7);border:1px dashed var(--peony)" }, "blocco proposto"));
-
-  const top = HOUR_START * 60, bottom = HOUR_END * 60;
-  const height = (HOUR_END - HOUR_START) * HOUR_PX;
-  const week = $("#week");
-  const cells = [h("div")];
-  for (const day of state.days) {
-    const date = new Date(day + "T12:00:00");
-    cells.push(h("div", { class: "dayhead" + (day === state.today ? " today" : "") }, WEEKDAYS[date.getDay()], h("b", {}, String(date.getDate()))));
-  }
-  cells.push(h("div"));
-  for (const day of state.days) {
-    const all = state.events.filter((e) => e.all_day && dayOf(e.start) === day && !gone(e.key));
-    cells.push(h("div", { class: "allday" }, all.map((e) => h("div", { class: "ev static " + calendarClass(e.calendar) }, h("b", {}, e.title)))));
-  }
-  const hours = h("div", { class: "hours", style: `height:${height}px` });
-  for (let hour = HOUR_START; hour <= HOUR_END; hour++) hours.append(h("span", { style: `top:${(hour - HOUR_START) * HOUR_PX}px` }, String(hour).padStart(2, "0")));
-  cells.push(hours);
-
-  for (const day of state.days) {
-    const items = [];
-    for (const e of state.events) {
-      if (e.all_day || dayOf(e.start) !== day || gone(e.key)) continue;
-      const to = dayOf(e.end) === day ? minutes(e.end) : 24 * 60;
-      items.push({ from: minutes(e.start), to, title: e.title, cls: calendarClass(e.calendar), label: `${clock(e.start)}–${clock(e.end)}`,
-        tick: e.tickable ? ["event", e.key] : null, ask: () => askAboutEvent(e) });
-    }
-    for (const b of state.blocks) {
-      if (dayOf(b.start) !== day || gone(b.task_id)) continue;
-      items.push({ from: minutes(b.start), to: minutes(b.end), title: b.title, cls: "block", label: `${clock(b.start)}–${clock(b.end)}`,
-        tick: ["task", b.task_id], ask: () => askAboutBlock(b) });
-    }
-    const column = h("div", { class: "col" + (new Date(day + "T12:00:00").getDay() === 0 ? " sunday" : ""), style: `height:${height}px` });
-    for (const item of withLanes(items)) {
-      const from = Math.max(item.from, top), to = Math.min(item.to, bottom);
-      if (to <= from) continue;
-      const width = 100 / item.lanes;
-      column.append(h("div", { class: "ev ask " + item.cls, title: `${item.label} ${item.title} — ${ASK_HINT}`, onclick: item.ask,
-        style: `top:${(from - top) / 60 * HOUR_PX}px;height:${Math.max((to - from) / 60 * HOUR_PX - 2, 20)}px;left:calc(${item.lane * width}% + 2px);width:calc(${width}% - 4px)` },
-        h("b", {}, item.title), h("span", { class: "t" }, item.label),
-        item.tick && tickButton(item.tick[0], item.tick[1], item.title)));
-    }
-    if (day === state.today) {
-      const now = minutes(state.now);
-      if (now > top && now < bottom) column.append(h("div", { class: "nowline", style: `top:${(now - top) / 60 * HOUR_PX}px` }));
-    }
-    cells.push(column);
-  }
-  week.replaceChildren(...cells);
-}
-
 // --- Settings ------------------------------------------------------------------
 
 const SOURCE_NAMES = { notion: "Notion", calendar: "Google Calendar", gmail: "Gmail" };
@@ -469,7 +395,7 @@ function render() {
     bad.length ? ` · errore: ${bad.join(", ")}` : ` · Notion ${at(state.sources.notion)} · Calendar ${at(state.sources.calendar)}`,
     ` · versione ${state.version || "?"}`);
   renderHome();
-  renderWeek();
+  renderCalendar();  // calendar.js (D2-072)
   renderSources();
 }
 
@@ -507,6 +433,7 @@ function route() {
   if (page === "impostazioni") loadSettings().catch((failure) => toast(failure.message, { bad: true }));
   if (page === "impostazioni") loadBriefing().catch(() => {});
   if (page === "home") { loadMood(); loadFocus(); loadForecast(); }
+  if (page === "calendario" && cal.view) { cal.scrolled = false; requestAnimationFrame(drawCalendar); }
   if (page === "consumi") loadUsage().catch((failure) => toast(failure.message, { bad: true }));
   window.scrollTo(0, 0);
 }

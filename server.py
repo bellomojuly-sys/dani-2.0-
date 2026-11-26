@@ -24,7 +24,7 @@ import threading
 import time
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
@@ -90,6 +90,17 @@ class KeyBody(BaseModel):
 
 class ProposalBody(BaseModel):
     id: str = Field(min_length=1)
+
+
+class MoveBody(BaseModel):
+    """A move from the calendar page (D2-072): an event dragged or given a new time."""
+
+    key: str = Field(min_length=1)
+    start: datetime
+    end: Optional[datetime] = None
+
+
+MAX_CALENDAR_DAYS = 42  # the month view: six weeks
 
 
 class RefreshBody(BaseModel):
@@ -291,6 +302,19 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                                                        "date": _local_time(m["date"])} for m in messages[:20]]}
         return state
 
+    def find_event_anywhere(key):
+        """An event of this week, or of any other day the calendar page shows
+        (D2-072): the key ends with the event's start, so that day is read again."""
+        event = live.find_event(key)
+        if event is not None:
+            return event
+        try:
+            start = datetime.fromisoformat(key.rsplit("|", 1)[1])
+            day = start.date()
+            return next((e for e in live.fetch_events(day, day + timedelta(days=1)) if e.key == key), None)
+        except (IndexError, ValueError, RuntimeError):
+            return None
+
     @api.get("/state")
     def get_state():
         return full_state()
@@ -318,9 +342,9 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
                 raise HTTPException(status_code=502, detail=str(failure))
             live.drop_task(task.id)
             return {"ok": True, "notion": "done", "title": task.title}
-        event = live.find_event(body.id)
+        event = find_event_anywhere(body.id)
         if event is None:
-            raise HTTPException(status_code=404, detail="evento non trovato in questa settimana")
+            raise HTTPException(status_code=404, detail="evento non trovato nel calendario")
         allowed = {name.casefold() for name in current.tickable_calendars}
         if event.calendar.casefold() not in allowed:
             raise HTTPException(status_code=403, detail=f"gli eventi di '{event.calendar}' non si spuntano")
@@ -633,6 +657,50 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
         write_settings(restore_block(settings(), body.task_id), settings_path)
         return {"ok": True}
 
+    @api.get("/events")
+    def get_events(start: date, days: int = 7):
+        """The calendar page (D2-072): every event of ``days`` days from ``start``,
+        any week, not only this one. Hidden events stay hidden."""
+        if not 1 <= days <= MAX_CALENDAR_DAYS:
+            raise HTTPException(status_code=422, detail=f"da 1 a {MAX_CALENDAR_DAYS} giorni")
+        try:
+            events = live.fetch_events(start, start + timedelta(days=days))
+        except RuntimeError as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        current = settings()
+        hidden = {entry.key for entry in current.hidden_events}
+        movable = {name.casefold() for name in current.tickable_calendars}
+        return {"events": [{"key": e.key, "calendar": e.calendar, "title": e.title, "start": e.start.isoformat(),
+                            "end": e.end.isoformat(), "all_day": e.all_day,
+                            "tickable": e.calendar.casefold() in movable}
+                           for e in sorted(events, key=lambda e: e.start) if e.key not in hidden]}
+
+    @api.post("/move")
+    def post_move(body: MoveBody):
+        """A drag (or a new time) on the calendar page: the same checks as a move
+        proposed in the chat, and the same preview. Nothing is written here."""
+        if move_event is None:
+            raise HTTPException(status_code=503, detail="il calendario non è collegato in scrittura")
+        event = find_event_anywhere(body.key)
+        if event is None:
+            raise HTTPException(status_code=404, detail="evento non trovato nel calendario")
+        new_end = body.end or body.start + (event.end - event.start)
+        days = sorted({event.start.date(), body.start.date()})
+        try:
+            around = live.fetch_events(days[0], days[-1] + timedelta(days=1))
+        except RuntimeError as failure:
+            raise HTTPException(status_code=502, detail=str(failure))
+        hidden = {entry.key for entry in settings().hidden_events}
+        around = [e for e in around if e.key not in hidden and e.key != event.key]
+        refs = {"e1": event, **{f"e{index + 2}": e for index, e in enumerate(around)}}
+        try:
+            proposal = build_proposal({"event": "e1", "new_start": body.start.isoformat(), "new_end": new_end.isoformat()},
+                                      refs, settings().tickable_calendars, uuid.uuid4().hex[:8])
+        except ValueError as problem:
+            raise HTTPException(status_code=422, detail=str(problem))
+        proposals[proposal.id] = proposal
+        return {"reply": describe(proposal), "proposal": proposal.model_dump(mode="json")}
+
     @api.post("/confirm")
     def post_confirm(body: ProposalBody):
         """Her yes: apply one proposal, once, then read the calendar back."""
@@ -687,7 +755,7 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             return {"ok": True, "title": proposal.title, "read_back": bool(made)}
         if move_event is None:  # pragma: no cover - defensive: no move preview exists without move_event
             raise HTTPException(status_code=503, detail="il calendario non è collegato in scrittura")
-        event = live.find_event(proposal.event_key)
+        event = find_event_anywhere(proposal.event_key)
         if event is None or (event.start, event.end) != (proposal.old_start, proposal.old_end):
             del proposals[body.id]
             raise HTTPException(status_code=409, detail="l'evento è cambiato dopo la proposta: richiedila di nuovo")
@@ -699,7 +767,12 @@ def create_app(live, mark_done, chat_client=None, voice_client=None, pin=None,
             raise HTTPException(status_code=502, detail=str(failure))
         del proposals[body.id]  # confirming twice changes nothing more
         live.refresh("calendar")
-        moved = [e for e in live.events if e.api_id == event.api_id and e.start == proposal.new_start]
+        day = proposal.new_start.date()
+        try:
+            after = live.fetch_events(day, day + timedelta(days=1))
+        except RuntimeError:
+            after = live.events
+        moved = [e for e in after if e.api_id == event.api_id and e.start == proposal.new_start]
         return {"ok": True, "title": proposal.title, "read_back": bool(moved)}
 
     @api.post("/reject")

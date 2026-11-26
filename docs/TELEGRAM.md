@@ -2,7 +2,8 @@
 
 Dani diventa un contatto Telegram: ti scrive (briefing, promemoria, sveglia,
 "com'è andata?") e tu rispondi lì, scrivendo o con un vocale. Le proposte
-arrivano con i pulsanti **Conferma** / **Rifiuta**. Parla solo con te.
+arrivano con i pulsanti **Conferma** / **Rifiuta**; un piano arriva in un solo
+messaggio, giorno per giorno, con **Conferma tutto** / **Cambia qualcosa** (D2-071). Parla solo con te.
 
 ## 1. Crea il bot (2 minuti)
 1. In Telegram cerca **@BotFather** → scrivi `/newbot`.

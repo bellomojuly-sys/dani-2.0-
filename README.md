@@ -147,6 +147,8 @@ Full roadmap with every microphase: [`docs/ROADMAP.md`](docs/ROADMAP.md). Study 
 | D2-066 | The morning call: the briefing notification opens Dani speaking the day | Built 🟡 24 Nov |
 | D2-067 | Wake-up guard: iPhone Shortcut → `/api/wake`, escalating pushes | Built 🟡 24 Nov |
 | D2-068 | Priority asked only on her action (the restart cost 15k tokens each time) | Built 🟡 24 Nov |
+| D2-071 | A plan in one message, day by day with all her events, verdict computed by code, one "Conferma tutto" (Telegram and app) | Built 🟡 26 Nov `efb49fb` |
+| D2-072 | Calendar page like Google Calendar: day / 3 days / week / month, any week, drag to move (preview → yes), event card | Built 🟡 26 Nov |
 | D2-054 | Whisper live; phone audio sent as `.m4a` | Done 23 Nov |
 | D2-038 | Online on Render | After the demo (secrets on Render) |
 

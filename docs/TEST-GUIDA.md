@@ -22,10 +22,11 @@ uguale all'ultimo commit (se no, la cache: chiudi l'app e riaprila).
 ## B. Pianifica bene (10 min)
 | # | Fai | Deve succedere | ✅/❌ |
 |---|---|---|---|
-| B1 | Chat: "pianificami domani" | Schede con Conferma/Rifiuta; nessun blocco su lezioni o turni | |
+| B1 | Chat: "pianificami domani" | Un solo messaggio giorno per giorno con i tuoi impegni e i blocchi 🆕, in cima "Tranquilla, riesci a fare tutto" o "Attenta: …"; nessun blocco su lezioni o turni | |
 | B2 | Guarda gli avvisi ⚠ | Un blocco dopo le 16 in un giorno di turno, prima delle 9:30 o di domenica è segnalato | |
 | B3 | Il piano contiene tempo libero investito | Lettura, Python, palestra o corsi | |
-| B4 | Conferma un blocco | Appare nel calendario "studio"; "Fatto, riletto dal calendario" | |
+| B4 | "Conferma tutto" (poi prova anche "Cambia qualcosa") | Tutti i blocchi nel calendario "studio"; "Fatto: N blocchi nel calendario, riletti." | |
+| B4b | Calendario → trascina un evento di "personale" o "studio" | Scheda "Sposto a …" con gli avvisi; dopo Conferma è al nuovo orario anche in Google Calendar | |
 | B5 | Home → "Come stai, July?" → 2, 5 ore | Poi in chat "pianificami oggi": piano leggero, lo dice | |
 | B6 | Home → Previsioni | Le scadenze vere con "in linea / stretta / a rischio" | |
 
