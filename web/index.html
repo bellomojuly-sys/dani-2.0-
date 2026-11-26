@@ -43,9 +43,20 @@
   </section>
 
   <section class="page" id="page-calendario" hidden>
-    <header class="head"><div class="eyebrow">I prossimi 7 giorni</div><h1 class="greeting">La tua <i>settimana</i></h1></header>
-    <div class="legend" id="legend"></div>
-    <div class="glass week-wrap"><div id="week" class="week"></div></div>
+    <div class="gcal">
+      <div class="gc-top">
+        <button class="gc-btn" id="gc-today">Oggi</button>
+        <button class="gc-icon" id="gc-prev" aria-label="Periodo precedente">‹</button>
+        <button class="gc-icon" id="gc-next" aria-label="Periodo successivo">›</button>
+        <h1 class="gc-title" id="gc-title" aria-live="polite"></h1>
+        <div class="gc-views" role="group" aria-label="Vista">
+          <button data-view="day">Giorno</button><button data-view="three">3 giorni</button><button data-view="week">Settimana</button><button data-view="month">Mese</button>
+        </div>
+      </div>
+      <div class="gc-cals" id="gc-cals"></div>
+      <div id="gc-body"></div>
+    </div>
+    <div class="gc-sheet" id="gc-sheet" hidden></div>
   </section>
 
   <section class="page" id="page-meal" hidden>
@@ -120,5 +131,6 @@
 </aside>
 
 <script src="app.js"></script>
+<script src="calendar.js"></script>
 </body>
 </html>

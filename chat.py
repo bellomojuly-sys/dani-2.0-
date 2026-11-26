@@ -65,19 +65,26 @@ PLAN_RULE = (
 )
 
 
-def write_rule(can_move, can_task, can_plan=False):
+def write_rule(can_move, can_task, can_plan=False, can_delete=False):
     """The paragraph that tells the model what it may propose (never do)."""
-    if not can_move and not can_task and not can_plan:
+    if not can_move and not can_task and not can_plan and not can_delete:
         return NO_WRITE_RULE
     parts = ["You cannot change the calendar or Notion yourself."]
     if can_move:
         parts.append(
             "To move a calendar event, call the propose_move tool once: it only creates a proposal "
             "that she confirms with a button. Events in calendars she cannot tick (shifts, lessons) "
-            "are fixed. You cannot create or delete events."
+            "are fixed."
         )
     else:
         parts.append("You cannot move calendar events from this chat.")
+    if can_delete:
+        parts.append(
+            "To delete calendar events, call the propose_delete tool once with all their references: it only "
+            "creates one proposal that she confirms with a button. Shifts and lessons cannot be deleted."
+        )
+    else:
+        parts.append("You cannot delete calendar events.")
     if can_task:
         parts.append(
             "When she asks for a new task, call the propose_task tool once: it only creates a "
@@ -91,7 +98,8 @@ def write_rule(can_move, can_task, can_plan=False):
     return " ".join(parts)
 
 
-def build_chat_messages(context, state, history, message, can_move=False, can_task=False, can_plan=False):
+def build_chat_messages(context, state, history, message, can_move=False, can_task=False, can_plan=False,
+                        can_delete=False):
     """Return the messages for the model: system prompt, recent turns, new message.
 
     ``can_move`` says whether the calendar is connected in writing: only then
@@ -108,7 +116,7 @@ def build_chat_messages(context, state, history, message, can_move=False, can_ta
     system = (
         PERSONA + "\n"
         "Use only the data below. If something is not in the data, say you do not know.\n"
-        + write_rule(can_move, can_task, can_plan)
+        + write_rule(can_move, can_task, can_plan, can_delete)
         + "\n\n"
         + f"What Giulia told you about herself and her rules:\n{about_giulia}\n\n"
         f"{describe_state(state)}"
@@ -149,7 +157,8 @@ def _call_id(call, number):
 
 
 def chat_turn(client, context, state, history, message, move_schema=None, task_schema=None,
-              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS, plan_schema=None, mood_schema=None):
+              model=MODEL, read_tools=None, max_rounds=MAX_ROUNDS, plan_schema=None, mood_schema=None,
+              delete_schema=None):
     """One turn in which the model may read (D2-056), then answer or propose.
 
     ``read_tools`` is {name: (schema, function)} (see reader.build_read_tools).
@@ -167,18 +176,20 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
     one schema or read tool must be given.
     """
     read_tools = read_tools or {}
-    tools = [schema for schema in (move_schema, task_schema, plan_schema, mood_schema) if schema is not None]
+    tools = [schema for schema in (move_schema, task_schema, plan_schema, mood_schema, delete_schema)
+             if schema is not None]
     tools += [schema for schema, _ in read_tools.values()]
     if not tools:
         raise ValueError("chat_turn needs at least one tool schema")
     messages = build_chat_messages(
         context, state, history, message,
         can_move=move_schema is not None, can_task=task_schema is not None,
-        can_plan=plan_schema is not None,
+        can_plan=plan_schema is not None, can_delete=delete_schema is not None,
     )
     if read_tools:
         messages[0]["content"] = messages[0]["content"].replace("Use only the data below.", READ_RULE, 1)
-    wanted = {"propose_move": "move", "propose_task": "task", "propose_plan": "plan", "record_mood": "mood"}
+    wanted = {"propose_move": "move", "propose_task": "task", "propose_plan": "plan", "record_mood": "mood",
+              "propose_delete": "delete"}
     reads = []
     for _ in range(max_rounds):
         response = client.chat.completions.create(model=model, messages=messages, tools=tools)
@@ -194,12 +205,14 @@ def chat_turn(client, context, state, history, message, move_schema=None, task_s
         for call, arguments in parsed:
             slot = wanted.get(call.function.name)
             if slot is not None:
-                return {"text": text, "move": None, "task": None, "plan": None, "mood": None, slot: arguments, "reads": reads}
+                return {"text": text, "move": None, "task": None, "plan": None, "mood": None, "delete": None,
+                        slot: arguments, "reads": reads}
         asked = [(call, arguments) for call, arguments in parsed if call.function.name in read_tools]
         if not asked:
             if not text:
                 raise ValueError("the model returned an empty answer")
-            return {"text": text, "move": None, "task": None, "plan": None, "mood": None, "reads": reads}
+            return {"text": text, "move": None, "task": None, "plan": None, "mood": None, "delete": None,
+                    "reads": reads}
         ids = [_call_id(call, len(reads) + n) for n, (call, _) in enumerate(asked)]
         messages.append({
             "role": "assistant",

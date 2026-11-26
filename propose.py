@@ -327,8 +327,8 @@ PROPOSE_PLAN_SCHEMA = {
         "name": "propose_plan",
         "description": (
             "Propose new blocks for Giulia's calendar: study, project work, job search, and her invested "
-            "free time (reading, courses, gym, personal projects). It only creates proposals she confirms "
-            f"one by one; nothing is written. At most {MAX_PLAN_BLOCKS} blocks per call. Read the calendar "
+            "free time (reading, courses, gym, personal projects). It only creates one plan she confirms "
+            f"with one yes; nothing is written before. At most {MAX_PLAN_BLOCKS} blocks per call. Read the calendar "
             "of the period first: a block must not overlap a lesson, a shift or an appointment."
         ),
         "parameters": {
@@ -340,7 +340,7 @@ PROPOSE_PLAN_SCHEMA = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string", "description": "what she does, e.g. 'AMEXIO · AMX-08' or 'Lettura: Atomic Habits'"},
+                            "title": {"type": "string", "description": "what she does, short (at most 30 characters), e.g. 'AMEXIO · AMX-08' or 'Lettura'"},
                             "start": {"type": "string", "description": "Amsterdam time, YYYY-MM-DDTHH:MM"},
                             "end": {"type": "string", "description": "Amsterdam time, YYYY-MM-DDTHH:MM"},
                             "why": {"type": "string", "description": "one short reason: which goal or deadline it serves"},

@@ -122,7 +122,7 @@ def test_a_clean_plan_has_no_warning_sentence(tmp_path):
     rig, http = app_with(tmp_path, chat=ScriptedChat([("", [("propose_plan", plan)])]), create_block=lambda *a: "x")
     rig.live.fetch_events = lambda s, e: []
     reply = http.post("/api/chat", json={"message": "pianifica", "history": []}).json()["reply"]
-    assert reply == "Ti propongo 1 blocchi: confermali uno per uno."
+    assert reply == "✅ Tranquilla, riesci a fare tutto.\n\nMar 1/12\n10:00–11:00 🆕 A"
 
 
 def test_failed_scheduling_and_failed_wake_pushes_are_counted_not_raised(tmp_path):
@@ -345,17 +345,63 @@ def test_a_move_card_on_telegram_shows_the_new_time(tmp_path):
     assert "→ 12/11 19:00" in card and buttons[0][0] == "Conferma"
 
 
-def test_a_plan_on_telegram_comes_as_one_card_per_block(tmp_path):
+def test_a_plan_on_telegram_comes_as_one_message_with_one_yes(tmp_path):
     from test_chat import ScriptedChat
 
     tg = FakeTelegram()
-    plan = json.dumps({"blocks": [{"title": "Betsy", "start": "2026-12-01T10:00", "end": "2026-12-01T12:00"}]})
-    rig, http = app_with(tmp_path, telegram=tg, create_block=lambda *a: "x",
+    created = []
+    plan = json.dumps({"blocks": [{"title": "Betsy", "start": "2026-12-01T10:00", "end": "2026-12-01T12:00"},
+                                  {"title": "Lettura", "start": "2026-12-01T14:00", "end": "2026-12-01T15:00"}]})
+    rig, http = app_with(tmp_path, telegram=tg, create_block=lambda *a: created.append(a[0]) or f"id-{len(created)}",
                          chat=ScriptedChat([("Ecco.", [("propose_plan", plan)])]))
     rig.live.fetch_events = lambda s, e: []
+    before = len(tg.sent)
     _post(http, {"message": {"chat": {"id": 42}, "text": "pianifica martedì"}})
-    card, buttons = tg.sent[-1]
-    assert card == "Betsy · 01/12 10:00–12:00" and [b[0] for b in buttons] == ["Conferma", "Rifiuta"]
+    assert len(tg.sent) == before + 1  # one message, not one card per block
+    text, buttons = tg.sent[-1]
+    assert "10:00–12:00 🆕 Betsy\n14:00–15:00 🆕 Lettura" in text
+    assert [b[0] for b in buttons] == ["Conferma tutto", "Cambia qualcosa"]
+    _post(http, {"callback_query": {"id": "cb", "data": buttons[0][1], "message": {"chat": {"id": 42}}}})
+    assert created == ["Betsy", "Lettura"] and tg.sent[-1][0].startswith("Fatto: 2 blocchi nel calendario")
+
+
+def test_cambia_qualcosa_drops_the_plan_and_asks_what_to_change(tmp_path):
+    from test_chat import ScriptedChat
+
+    tg = FakeTelegram()
+    created = []
+    plan = json.dumps({"blocks": [{"title": "Betsy", "start": "2026-12-01T10:00", "end": "2026-12-01T12:00"}]})
+    rig, http = app_with(tmp_path, telegram=tg, create_block=lambda *a: created.append(a) or "x",
+                         chat=ScriptedChat([("", [("propose_plan", plan)])]))
+    rig.live.fetch_events = lambda s, e: []
+    _post(http, {"message": {"chat": {"id": 42}, "text": "pianifica"}})
+    change = tg.sent[-1][1][1][1]
+    _post(http, {"callback_query": {"id": "cb", "data": change, "message": {"chat": {"id": 42}}}})
+    assert tg.sent[-1][0].startswith("Dimmi cosa cambiare")
+    assert http.post("/api/confirm", json={"id": change[2:]}).status_code == 404 and created == []
+
+
+def test_a_failed_write_keeps_only_the_blocks_not_created_yet(tmp_path):
+    from test_chat import ScriptedChat
+
+    created = []
+
+    def create(title, start, end):
+        if title == "B" and len(created) == 1:
+            raise RuntimeError("Google down")
+        created.append(title)
+        return title
+
+    plan = json.dumps({"blocks": [{"title": t, "start": f"2026-12-01T{h}:00", "end": f"2026-12-01T{h}:30"}
+                                  for t, h in (("A", 10), ("B", 11), ("C", 12))]})
+    rig, http = app_with(tmp_path, chat=ScriptedChat([("", [("propose_plan", plan)])]), create_block=create)
+    rig.live.fetch_events = lambda s, e: []
+    plan_id = http.post("/api/chat", json={"message": "pianifica", "history": []}).json()["plan"]["id"]
+    failed = http.post("/api/confirm", json={"id": plan_id})
+    assert failed.status_code == 502 and "creati 1 blocchi su 3" in failed.json()["detail"]
+    created.append("-")  # Google is back
+    assert http.post("/api/confirm", json={"id": plan_id}).json()["created"] == 2
+    assert created == ["A", "-", "B", "C"]  # A is not created twice
 
 
 def test_the_home_shows_the_last_mail_in_amsterdam_time_and_gmail_status(tmp_path):

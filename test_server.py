@@ -563,7 +563,7 @@ def test_the_life_page_goes_into_the_chat_prompt_and_its_status_into_the_state(t
     assert http.get("/api/state").json()["life_context"] == {"on": True, "chars": 57, "error": None}
 
 
-# --- D2-059: a plan from the chat, confirmed block by block ----------------------
+# --- D2-059 / D2-071: a plan from the chat, one message and one yes --------------
 
 
 def test_a_plan_from_the_chat_is_checked_on_the_whole_period_and_written_only_after_yes(tmp_path):
@@ -589,15 +589,19 @@ def test_a_plan_from_the_chat_is_checked_on_the_whole_period_and_written_only_af
     http = TestClient(app)
     body = http.post("/api/chat", json={"message": "pianifica i primi di dicembre", "history": []}).json()
     assert (datetime(2026, 12, 1).date(), datetime(2026, 12, 3).date()) in asked  # the whole period, end included
-    assert [p["title"] for p in body["proposals"]] == ["Betsy · BT-003", "Lettura"]
-    assert body["proposals"][1]["warnings"] == ["finisce dopo le 16:00 (giorno di turno)"]
-    assert "2 blocchi" in body["reply"] and "1 ha un avviso" in body["reply"]
-    assert created == []  # a proposal writes nothing
-    first = body["proposals"][0]["id"]
-    assert http.post("/api/confirm", json={"id": first}).json()["ok"] is True
-    assert created == ["Betsy · BT-003"]
-    assert http.post("/api/confirm", json={"id": first}).status_code == 404  # twice changes nothing more
-    assert created == ["Betsy · BT-003"]
+    plan = body["plan"]
+    assert [b["title"] for b in plan["blocks"]] == ["Betsy · BT-003", "Lettura"]
+    assert plan["blocks"][1]["warnings"] == ["finisce dopo le 16:00 (giorno di turno)"]
+    assert plan["fine"] is False and body["reply"].startswith("⚠️ Attenta: 1 blocco ha un problema")
+    # One message, day by day, her shift in it next to the new block.
+    assert "Mer 2/12\n15:30–16:30 🆕 Lettura\n   ⚠ finisce dopo le 16:00 (giorno di turno)\n17:00–23:00 Turno" in body["reply"]
+    assert body["reply"].endswith("Ecco dicembre.")
+    assert "proposals" not in body and created == []  # a proposal writes nothing
+    done = http.post("/api/confirm", json={"id": plan["id"]}).json()
+    assert done["ok"] is True and done["created"] == 2  # one yes, every block
+    assert created == ["Betsy · BT-003", "Lettura"]
+    assert http.post("/api/confirm", json={"id": plan["id"]}).status_code == 404  # twice changes nothing more
+    assert created == ["Betsy · BT-003", "Lettura"]
 
 
 def test_a_broken_plan_from_the_model_writes_nothing(tmp_path):
@@ -609,7 +613,7 @@ def test_a_broken_plan_from_the_model_writes_nothing(tmp_path):
     app = create_app(rig.live, rig.done.append, chat, None, None, rig.path, web_dir=None,
                      create_block=lambda title, start, end: created.append(title) or "x")
     body = TestClient(app).post("/api/chat", json={"message": "pianifica", "history": []}).json()
-    assert body["reply"].startswith("Non posso proporre questo piano") and "proposals" not in body
+    assert body["reply"].startswith("Non posso proporre questo piano") and "plan" not in body
     assert created == []
 
 

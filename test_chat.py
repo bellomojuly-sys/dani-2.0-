@@ -119,7 +119,7 @@ class FakeToolChat:
 
 def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule():
     client = FakeToolChat("Va bene.")
-    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None, "task": None, "plan": None, "mood": None, "reads": []}
+    assert chat_turn(client, "", STATE, [], "ciao", PROPOSE_MOVE_SCHEMA) == {"text": "Va bene.", "move": None, "task": None, "plan": None, "mood": None, "delete": None, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "- e1: 2026-11-10 17:00-23:00 [lavoro] Turno ristorante" in system
     assert "call the propose_move tool" in system and "not connected yet" not in system
@@ -129,7 +129,7 @@ def test_events_carry_a_reference_and_the_move_rule_replaces_the_no_write_rule()
 def test_a_propose_move_call_comes_back_as_unchecked_arguments():
     client = FakeToolChat("", [("propose_move", '{"event": "e1", "new_start": "2026-11-12T16:00"}')])
     turn = chat_turn(client, "", STATE, [], "sposta la call alle 16", PROPOSE_MOVE_SCHEMA)
-    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}, "task": None, "plan": None, "mood": None, "reads": []}
+    assert turn == {"text": "", "move": {"event": "e1", "new_start": "2026-11-12T16:00"}, "task": None, "plan": None, "mood": None, "delete": None, "reads": []}
 
 
 def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
@@ -147,7 +147,7 @@ def test_an_unknown_tool_is_ignored_and_bad_json_or_silence_is_refused():
 def test_a_propose_task_call_comes_back_as_unchecked_arguments():
     client = FakeToolChat("", [("propose_task", '{"title": "comprare le lenti", "deadline": "2026-11-20"}')])
     turn = chat_turn(client, "", STATE, [], "nuovo task: comprare le lenti", PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA)
-    assert turn == {"text": "", "move": None, "task": {"title": "comprare le lenti", "deadline": "2026-11-20"}, "plan": None, "mood": None, "reads": []}
+    assert turn == {"text": "", "move": None, "task": {"title": "comprare le lenti", "deadline": "2026-11-20"}, "plan": None, "mood": None, "delete": None, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "call the propose_task tool" in system and "call the propose_move tool" in system
     assert client.seen["tools"] == [PROPOSE_MOVE_SCHEMA, PROPOSE_TASK_SCHEMA]
@@ -156,7 +156,7 @@ def test_a_propose_task_call_comes_back_as_unchecked_arguments():
 def test_task_only_rule_still_says_moves_are_not_possible():
     client = FakeToolChat("Va bene.")
     turn = chat_turn(client, "", STATE, [], "ciao", None, PROPOSE_TASK_SCHEMA)
-    assert turn == {"text": "Va bene.", "move": None, "task": None, "plan": None, "mood": None, "reads": []}
+    assert turn == {"text": "Va bene.", "move": None, "task": None, "plan": None, "mood": None, "delete": None, "reads": []}
     system = client.seen["messages"][0]["content"]
     assert "call the propose_task tool" in system
     assert "cannot move calendar events" in system
@@ -251,7 +251,7 @@ def test_a_proposal_after_a_read_keeps_the_reads():
 def test_a_call_to_a_tool_that_was_not_given_is_not_run():
     client = ScriptedChat([("Ecco.", [("read_page", '{"name": "piano di vita"}')])])
     turn = chat_turn(client, "", STATE, [], "ciao", read_tools=_tools([]))
-    assert turn == {"text": "Ecco.", "move": None, "task": None, "plan": None, "mood": None, "reads": []}
+    assert turn == {"text": "Ecco.", "move": None, "task": None, "plan": None, "mood": None, "delete": None, "reads": []}
     assert len(client.requests) == 1
 
 
